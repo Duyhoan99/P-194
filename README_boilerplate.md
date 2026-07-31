@@ -103,9 +103,10 @@ uvicorn src.main:app --reload
 
 | Member | Role | Student ID |
 |--------|------|-----------|
-| [Tên Bạn] | AI Engineer / Fullstack | [ID] |
-| [Tên Bạn 2] | Data / Backend | [ID] |
-| [Tên Bạn 3] | Frontend / Prompt Eng | [ID] |
+| Đào Trung Hiếu | AI Engineer / Backend Architecture | 2A202601238 |
+| Phạm Duy Hoàn | Product Owner / Clinical Workflow | 2A202601378 |
+| Nguyễn Đình Quốc | Team Lead / Prompt Engineer / PM | 2A202601935 |
+| Đặng Hoàng Dũng | Data Engineer / QA | 2A202601886 |
 
 ## License
 

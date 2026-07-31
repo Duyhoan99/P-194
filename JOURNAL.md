@@ -6,9 +6,9 @@ Tài liệu ghi lại các quyết định và kết quả phát triển. Giai �
 
 | Thành viên | Trách nhiệm |
 |---|---|
-| Đào Trung Hiếu | Team lead, AI agent, backend architecture và technical documentation |
+| Đào Trung Hiếu | AI agent, backend architecture và technical documentation |
 | Phạm Duy Hoàn | Product scope, clinical workflow và acceptance criteria |
-| Nguyễn Đình Quốc | Prompt engineering và project management |
+| Nguyễn Đình Quốc | Team lead, prompt engineering và project management |
 | Đặng Hoàng Dũng | Data preparation, evaluation và QA |
 
 ## Week 1: 2026-07-24 – 2026-07-29

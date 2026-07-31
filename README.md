@@ -89,9 +89,9 @@ Chỉ dùng MIMIC-IV đã khử định danh hoặc dữ liệu mock được ph
 
 | Member | Role | Student ID |
 |---|---|---|
-| Đào Trung Hiếu | Team Lead / AI & Backend Architecture | 2A202601238 |
+| Đào Trung Hiếu | AI Engineer / Backend Architecture | 2A202601238 |
 | Phạm Duy Hoàn | Product Owner / Clinical Workflow | 2A202601378 |
-| Nguyễn Đình Quốc | Prompt Engineer / PM | 2A202601935 |
+| Nguyễn Đình Quốc | Team Lead / Prompt Engineer / PM | 2A202601935 |
 | Đặng Hoàng Dũng | Data Engineer / QA | 2A202601886 |
 
 ## License

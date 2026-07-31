@@ -23,9 +23,9 @@ MIMIC-IV 3.1 đã khử định danh → truy xuất có kiểm soát → timeli
 
 | Thành viên | Vai trò |
 |---|---|
-| Đào Trung Hiếu | Team Lead / AI & Backend Architecture |
+| Đào Trung Hiếu | AI Engineer / Backend Architecture |
 | Phạm Duy Hoàn | Product Owner / Clinical Workflow |
-| Nguyễn Đình Quốc | Prompt Engineer / PM |
+| Nguyễn Đình Quốc | Team Lead / Prompt Engineer / PM |
 | Đặng Hoàng Dũng | Data Engineer / QA |
 
 ## Demo script (khi MVP được triển khai)

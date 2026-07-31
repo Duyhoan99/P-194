@@ -6,9 +6,9 @@ Các mục dưới đây ghi lại công việc đã thực hiện trong reposit
 
 | Thành viên | Trách nhiệm |
 |---|---|
-| Đào Trung Hiếu | Team lead, AI/backend architecture và technical documentation |
+| Đào Trung Hiếu | AI/backend architecture và technical documentation |
 | Phạm Duy Hoàn | Product owner và clinical workflow |
-| Nguyễn Đình Quốc | Prompt engineer và PM |
+| Nguyễn Đình Quốc | Team lead, prompt engineer và PM |
 | Đặng Hoàng Dũng | Data engineer và QA |
 
 ## 2026-07-24
