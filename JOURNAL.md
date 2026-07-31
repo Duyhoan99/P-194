@@ -2,6 +2,15 @@
 
 Tài liệu ghi lại các quyết định và kết quả phát triển. Giai đoạn hiện tại tập trung vào product definition và architecture; chưa triển khai clinical ingestion, production API hoặc UI.
 
+## Phân công hiện tại
+
+| Thành viên | Trách nhiệm |
+|---|---|
+| Đào Trung Hiếu | Team lead, AI agent, backend architecture và technical documentation |
+| Phạm Duy Hoàn | Product scope, clinical workflow và acceptance criteria |
+| Nguyễn Đình Quốc | Prompt engineering và project management |
+| Đặng Hoàng Dũng | Data preparation, evaluation và QA |
+
 ## Week 1: 2026-07-24 – 2026-07-29
 
 ### Mục tiêu
@@ -56,7 +65,7 @@ Tài liệu ghi lại các quyết định và kết quả phát triển. Giai �
 
 | Khó khăn | Giải pháp | Kết quả |
 |---|---|---|
-| Chưa có tên đầy đủ tất cả thành viên, live URL và user-study metrics | Ghi `Chưa cung cấp` / `Chưa đo` thay vì tự bịa dữ liệu | Tài liệu trung thực và có thể cập nhật sau |
+| Chưa có live URL và user-study metrics | Ghi `Chưa cung cấp` / `Chưa đo` thay vì tự bịa dữ liệu | Tài liệu trung thực và có thể cập nhật sau |
 | Một số tài liệu vẫn là template generic | Điền nội dung dựa trên PRD/brief và đánh dấu phần chưa triển khai | Deliverable docs nhất quán với scope MVP |
 
 ### Bài học

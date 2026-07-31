@@ -1,6 +1,15 @@
 # Worklog — Team P-194
 
-Các mục dưới đây ghi lại công việc đã thực hiện trong repository. Người thực hiện được lấy từ lịch sử Git hiện có; thành viên chưa được cung cấp được giữ ở trạng thái chưa xác định.
+Các mục dưới đây ghi lại công việc đã thực hiện trong repository. Người thực hiện trước đây được ghi theo Git username; phân công hiện tại được thống nhất trong README.
+
+## Phân công hiện tại
+
+| Thành viên | Trách nhiệm |
+|---|---|
+| Đào Trung Hiếu | Team lead, AI/backend architecture và technical documentation |
+| Phạm Duy Hoàn | Product owner và clinical workflow |
+| Nguyễn Đình Quốc | Prompt engineer và PM |
+| Đặng Hoàng Dũng | Data engineer và QA |
 
 ## 2026-07-24
 

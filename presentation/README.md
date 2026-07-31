@@ -19,6 +19,15 @@ MIMIC-IV 3.1 đã khử định danh → truy xuất có kiểm soát → timeli
 9. **Current status** — Product/architecture documentation hoàn thành; clinical ingestion, production API và UI chưa triển khai.
 10. **Next ask** — Chốt identity provider, LLM terms, drug knowledge source, deployment boundary và clinical governance.
 
+## Team
+
+| Thành viên | Vai trò |
+|---|---|
+| Đào Trung Hiếu | Team Lead / AI & Backend Architecture |
+| Phạm Duy Hoàn | Product Owner / Clinical Workflow |
+| Nguyễn Đình Quốc | Prompt Engineer / PM |
+| Đặng Hoàng Dũng | Data Engineer / QA |
+
 ## Demo script (khi MVP được triển khai)
 
 1. Đăng nhập bằng tài khoản bác sĩ và mở danh sách bệnh nhân được phân công.
