@@ -1,4 +1,4 @@
-# 1. Mục tiêu thiết kế
+1. Mục tiêu thiết kế
 
 Giao diện giúp bác sĩ:
 
@@ -16,7 +16,7 @@ Xem timeline, xu hướng xét nghiệm và xuất bản đã duyệt.
 
 Nguyên tắc: AI chỉ hỗ trợ rà soát. Giao diện không được khiến người dùng hiểu bản DRAFT là kết luận y khoa đã được xác nhận.
 
-# 2. Sitemap
+2. Sitemap
 
 Doctor
 ├── Login
@@ -26,7 +26,7 @@ Doctor
     ├── Timeline
     ├── Medications
     ├── Lab Analytics
-    ├── Documents
+    ├── Source Records
     ├── Conflicts
     └── Review History
 
@@ -37,7 +37,7 @@ Administrator
 ├── Audit Log
 └── System Status
 
-# 3. Main UI Flow
+3. Main UI Flow
 
 flowchart TD
     A[Login] --> B{Authentication successful?}
@@ -47,7 +47,8 @@ flowchart TD
     E --> F{Authorized?}
     F -- No --> G[Access denied + audit log]
     F -- Yes --> H[Patient Workspace]
-    H --> I[Generate Summary]
+    H --> V[Check data availability and select hadm_id/stay_id]
+    V --> I[Generate Summary]
     I --> J[Agent Processing]
     J --> K{Validation result}
     K -- Critical citation failure --> L[Block draft + show retry]
@@ -64,14 +65,15 @@ flowchart TD
     S -- Yes --> T[Approved Summary]
     T --> U[Export PDF]
 
-# 4. Flow theo vai trò
+4. Flow theo vai trò
 
-## 4.1. Doctor Flow
+4.1. Doctor Flow
 
 Login
 → Dashboard
-→ Chọn bệnh nhân
-→ Xem Patient Workspace
+→ Chọn bệnh nhân theo `subject_id`
+→ Chọn toàn bộ lịch sử hoặc một `hadm_id`/`stay_id`
+→ Xem dữ liệu khả dụng trong Patient Workspace
 → Generate Summary
 → Theo dõi trạng thái xử lý
 → Kiểm tra từng citation
@@ -81,7 +83,7 @@ Login
 → Approve
 → Xuất PDF
 
-## 4.2. Admin Flow
+4.2. Admin Flow
 
 Login
 → Admin Dashboard
@@ -90,7 +92,7 @@ Login
 → Kiểm tra audit log
 → Theo dõi lỗi hệ thống
 
-# 5. Screen 1 — Login
+5. Screen 1 — Login
 
 Mục tiêu
 
@@ -146,7 +148,7 @@ Low-fidelity wireframe
 │  Chỉ dành cho người dùng được phân quyền.   │
 └──────────────────────────────────────────────┘
 
-# 6. Screen 2 — Doctor Dashboard
+6. Screen 2 — Doctor Dashboard
 
 Mục tiêu
 
@@ -164,11 +166,13 @@ Logout.
 
 Main content
 
-Thanh tìm kiếm theo mã bệnh nhân mô phỏng.
+Thanh tìm kiếm theo subject_id đã khử danh tính.
 
 Danh sách bệnh nhân được phân công.
 
-Bộ lọc theo khoa, encounter hoặc trạng thái.
+Bộ lọc theo trạng thái, số lần nhập viện, có/không ICU stay và mức độ đầy đủ dữ liệu.
+
+Hiển thị anchor_age, giới tính, số admissions và số ICU stays thay cho tên bệnh nhân.
 
 Ngày cập nhật gần nhất.
 
@@ -202,10 +206,10 @@ Low-fidelity wireframe
 │ Search patient: [________________________] [Search]             │
 │ Filter: [All status ▼] [All units ▼]                           │
 ├────────────────────────────────────────────────────────────────┤
-│ Patient ID │ Latest encounter │ Summary status │ Action         │
-│ P-10001    │ 29/07/2026       │ DRAFT          │ Continue Review│
-│ P-10002    │ 27/07/2026       │ APPROVED       │ Open           │
-│ P-10003    │ 20/07/2026       │ NOT GENERATED  │ Generate       │
+│ subject_id │ Age/Sex │ Admissions/ICU │ Summary status │ Action  │
+│ 10000032   │ 52/F    │ 3 / 1          │ DRAFT          │ Review  │
+│ 10001217   │ 68/M    │ 2 / 0          │ APPROVED       │ Open    │
+│ 10002428   │ 41/F    │ 1 / 1          │ NOT GENERATED  │ Generate│
 └────────────────────────────────────────────────────────────────┘
 
 Empty/Error states
@@ -218,7 +222,7 @@ Không đủ quyền.
 
 API không phản hồi.
 
-# 7. Screen 3 — Patient Workspace
+7. Screen 3 — Patient Workspace
 
 Mục tiêu
 
@@ -226,13 +230,15 @@ Mục tiêu
 
 Header
 
-Patient ID.
+subject_id.
 
-Tuổi/giới tính mô phỏng.
+anchor_age và giới tính đã khử danh tính.
 
-Encounter gần nhất.
+Tổng số admissions.
 
-Dị ứng nếu có dữ liệu.
+hadm_id đang chọn và stay_id nếu có ICU stay.
+
+Trạng thái dữ liệu khả dụng theo module.
 
 Trạng thái summary.
 
@@ -250,7 +256,7 @@ Medications.
 
 Lab Trends.
 
-Documents.
+Source Records.
 
 Conflicts.
 
@@ -272,7 +278,7 @@ Key Timeline.
 
 Laboratory Trends.
 
-Imaging and Procedures.
+Procedures and Available Coded Events; radiology report chỉ hiển thị khi tích hợp MIMIC-IV-Note.
 
 Conflicts and Missing Information.
 
@@ -284,19 +290,23 @@ Mỗi claim có citation [1], [2]...
 
 Right source panel
 
-Source type.
+Dataset MIMIC-IV, version 3.1.
 
-Document/record ID.
+Module hosp hoặc icu.
 
-Encounter ID.
+Source table.
+
+subject_id, hadm_id, stay_id khi có.
+
+Định danh bản ghi: itemid, emar_id, sequence number hoặc khóa tương ứng.
 
 Date/time.
 
-Excerpt hoặc structured value.
+Structured value, unit, label và reference range khi có.
 
-Highlight bằng chứng.
+Excerpt/highlight chỉ xuất hiện nếu nguồn clinical note được tích hợp sau này.
 
-Nút Open full source.
+Nút Open source record.
 
 Nút quay lại claim.
 
@@ -317,23 +327,38 @@ Export PDF
 Low-fidelity wireframe
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Patient P-10001 | 68/M | DRAFT | Updated 20:42        [Regenerate Summary]  │
+│ subject_id 10000032 | hadm_id 22595853 | 52/F | DRAFT   [Regenerate]       │
 │ ⚠ AI-generated summary — physician review required                         │
 ├──────────────┬──────────────────────────────────────┬────────────────────────┤
 │ Summary      │ CLINICAL OVERVIEW                    │ SOURCE EVIDENCE        │
-│ Timeline     │                                      │                        │
-│ Medications  │ Patient admitted for worsening      │ Source: Discharge Note │
-│ Lab Trends   │ dyspnea over 3 days. [1]             │ ID: NOTE-1288          │
-│ Documents    │                                      │ Date: 28/07/2026       │
-│ Conflicts    │ ACTIVE PROBLEMS                      │                        │
-│ History      │ - Heart failure... [2]               │ “...worsening dyspnea  │
-│              │ - Renal impairment... [3][4]         │ over three days...”    │
-│              │                                      │                        │
-│              │ MEDICATIONS                          │ [Open full source]     │
-│              │ - Metoprolol... [5]                  │                        │
+│ Timeline     │                                      │ MIMIC-IV 3.1 / hosp    │
+│ Medications  │ Creatinine increased across         │ Table: labevents       │
+│ Lab Trends   │ three measurements. [1][2][3]        │ itemid: 50912          │
+│ Source Rec.  │                                      │ Value: 1.8 mg/dL       │
+│ Conflicts    │ ACTIVE PROBLEMS                      │ charttime: ...         │
+│ History      │ - ICD-coded condition... [4]         │ subject_id: 10000032   │
+│              │ - ICU stay recorded... [5]           │ hadm_id: 22595853      │
+│              │                                      │ [Open source record]   │
+│              │ MEDICATION HISTORY                   │                        │
+│              │ - Metoprolol, PRESCRIBED... [6]      │                        │
 ├──────────────┴──────────────────────────────────────┴────────────────────────┤
 │ [Edit] [Request Regeneration] [Reject] [Confirm Review] [Approve] [Export] │
 └──────────────────────────────────────────────────────────────────────────────┘
+
+Data Availability Panel
+
+Hiển thị trước khi Generate Summary:
+
+MIMIC-IV 3.1 data availability
+✓ patients / admissions / transfers
+✓ diagnoses / procedures
+✓ laboratory / microbiology
+✓ prescriptions / eMAR
+✓ ICU events
+✕ MIMIC-IV-Note — NOT LOADED
+✕ MIMIC-IV-ED — NOT LOADED
+
+Các module không được nạp phải hiển thị NOT LOADED; giao diện không được tạo nội dung thay thế.
 
 Visual rules
 
@@ -345,7 +370,7 @@ Claim không chắc chắn phải có nhãn Insufficient evidence hoặc Conflic
 
 Source panel không được che mất disclaimer.
 
-# 8. Screen 4 — Agent Processing
+8. Screen 4 — Agent Processing
 
 Mục tiêu
 
@@ -359,7 +384,7 @@ Truy xuất timeline.
 
 Truy xuất xét nghiệm và thuốc.
 
-Đọc tài liệu lâm sàng.
+Truy xuất các bảng hosp/icu và kiểm tra module tùy chọn.
 
 Đối chiếu nguồn.
 
@@ -404,7 +429,7 @@ Citation validation failed.
 
 Partial data retrieved.
 
-# 9. Screen 5 — Interactive Timeline
+9. Screen 5 — Interactive Timeline
 
 Components
 
@@ -420,9 +445,11 @@ Laboratory.
 
 Medication.
 
-Imaging.
-
 Procedure.
+
+ICU event.
+
+Microbiology.
 
 Marker theo loại event.
 
@@ -437,15 +464,14 @@ Low-fidelity wireframe
 ┌──────────────────────────────────────────────────────────────┐
 │ Timeline | Filter [All events ▼] [Date range ▼]             │
 ├──────────────────────────────────────────────────────────────┤
-│ 01 Jul       10 Jul       18 Jul        28 Jul              │
-│   ● Lab        ◆ ED          ■ Drug        ▲ Admission      │
-│   │            │             │             │                 │
-│ Creatinine   Dyspnea      Metoprolol    Discharge note      │
-│ 1.2 mg/dL    triage       prescribed    available           │
-│ [Source]     [Source]      [Source]      [Source]            │
+│ Admission 1      ICU stay       Lab event       Medication    │
+│     ▲              ◆             ●               ■           │
+│ hadm_id ...     stay_id ...    Creatinine      PRESCRIBED    │
+│ admit/disch.    intime/out.    1.2 mg/dL       Metoprolol    │
+│ [Source]        [Source]       [Source]         [Source]      │
 └──────────────────────────────────────────────────────────────┘
 
-# 10. Screen 6 — Medications
+10. Screen 6 — Medications
 
 Components
 
@@ -453,19 +479,17 @@ Tên thuốc chuẩn hóa.
 
 Liều, đường dùng, tần suất.
 
-Trạng thái:
+Trạng thái được nguồn hiện tại hỗ trợ:
 
-Reported home medication.
+Prescribed (prescriptions/pharmacy).
 
-Prescribed.
+Administered (emar/emar_detail hoặc inputevents).
 
-Administered.
+Discontinued khi có bằng chứng trạng thái/thời điểm ngừng.
 
-Discontinued.
+Unknown khi không đủ bằng chứng.
 
-Discharge medication.
-
-Unknown.
+Reported home medication chỉ xuất hiện khi tích hợp MIMIC-IV-ED; discharge medication chỉ xuất hiện khi có nguồn đáng tin cậy hỗ trợ.
 
 Thời gian hiệu lực.
 
@@ -483,7 +507,7 @@ Severity: Moderate
 Evidence source: [Open]
 AI does not recommend changing treatment. Physician review required.
 
-# 11. Screen 7 — Laboratory Analytics
+11. Screen 7 — Laboratory Analytics
 
 Components
 
@@ -500,6 +524,8 @@ Các điểm đo kèm thời gian, giá trị và đơn vị.
 Marker encounter/thay đổi thuốc.
 
 Click điểm để mở source.
+
+Tooltip hiển thị itemid, label, source table và charttime.
 
 Warnings
 
@@ -528,7 +554,7 @@ Low-fidelity wireframe
 │ ⚠ Trend is descriptive only; verify clinical context.       │
 └──────────────────────────────────────────────────────────────┘
 
-# 12. Screen 8 — Conflict Resolution
+12. Screen 8 — Conflict Resolution
 
 Mục tiêu
 
@@ -536,15 +562,15 @@ Hiển thị mâu thuẫn mà không để AI tự chọn nguồn đúng.
 
 Example
 
-Conflict: Allergy information does not match
+Conflict: Medication status cannot be resolved
 
 Source A
-- “No known drug allergies.”
-- Admission note — 10/07/2026
+- Metoprolol appears in `prescriptions`.
+- Status: PRESCRIBED.
 
 Source B
-- “Penicillin allergy.”
-- Medication reconciliation — 12/07/2026
+- No corresponding administration record found in `emar` for the selected time window.
+- Status: ADMINISTRATION NOT CONFIRMED.
 
 Status: UNRESOLVED
 
@@ -563,19 +589,19 @@ Mở toàn bộ hai nguồn.
 Low-fidelity wireframe
 
 ┌──────────────────────────────────────────────────────────────┐
-│ DATA CONFLICT — Allergy                                     │
+│ DATA CONFLICT — Medication status                           │
 ├───────────────────────────┬──────────────────────────────────┤
 │ SOURCE A                  │ SOURCE B                         │
-│ Admission note            │ Medication reconciliation        │
-│ “No known drug allergies” │ “Penicillin allergy”             │
-│ 10/07/2026                │ 12/07/2026                       │
+│ hosp.prescriptions        │ hosp.emar                        │
+│ PRESCRIBED                │ No matching administration       │
+│ starttime: ...            │ in selected time window          │
 ├───────────────────────────┴──────────────────────────────────┤
 │ Status: UNRESOLVED                                         │
 │ Doctor note: [___________________________________________]  │
 │ [Verify A] [Verify B] [Keep Unresolved]                    │
 └──────────────────────────────────────────────────────────────┘
 
-# 13. Screen 9 — Edit Summary
+13. Screen 9 — Edit Summary
 
 Components
 
@@ -597,7 +623,7 @@ Không cho phê duyệt nếu có claim lâm sàng không có citation.
 
 Lưu version và người chỉnh sửa.
 
-# 14. Screen 10 — HITL Review & Approval Modal
+14. Screen 10 — HITL Review & Approval Modal
 
 Required checklist
 
@@ -645,7 +671,7 @@ Low-fidelity wireframe
 │ [Cancel] [Save Draft] [Reject] [Approve disabled]  │
 └─────────────────────────────────────────────────────┘
 
-# 15. Screen 11 — Review History
+15. Screen 11 — Review History
 
 Components
 
@@ -669,11 +695,11 @@ Version 3 | APPROVED | Dr. Nguyen | 29/07/2026 20:30
 Version 2 | UNDER_REVIEW | Dr. Nguyen | 29/07/2026 20:12
 Version 1 | AI DRAFT | Agent | 29/07/2026 20:05
 
-# 16. Screen 12 — PDF Export
+16. Screen 12 — PDF Export
 
 Nội dung bắt buộc
 
-Patient ID mô phỏng.
+subject_id, hadm_id/stay_id đã khử danh tính.
 
 Version.
 
@@ -695,7 +721,7 @@ Bản APPROVED: xuất PDF chính thức.
 
 Bản chưa duyệt: watermark DRAFT — NOT FOR CLINICAL USE.
 
-# 17. Screen 13 — Admin Dashboard
+17. Screen 13 — Admin Dashboard
 
 User Management
 
@@ -733,13 +759,17 @@ API.
 
 Database.
 
-Vector DB.
+MIMIC ingestion/checksum status.
+
+Loaded modules: hosp, icu; optional MIMIC-IV-Note, MIMIC-IV-ED.
+
+Vector DB nếu có nguồn văn bản.
 
 LLM gateway.
 
 Drug interaction tool.
 
-# 18. UI States bắt buộc
+18. UI States bắt buộc
 
 Mỗi màn hình liên quan phải thiết kế:
 
@@ -765,19 +795,25 @@ Conflicting data.
 
 Citation unavailable.
 
+Source record missing.
+
+Dataset module not loaded.
+
+Checksum/schema validation failed.
+
 Agent unavailable.
 
 Draft.
 
 Approved.
 
-# 19. Safety Disclaimer
+19. Safety Disclaimer
 
 Hiển thị tại Patient Workspace, Approval Modal và PDF:
 
-Bản tóm tắt này do AI tạo nhằm hỗ trợ bác sĩ rà soát hồ sơ. Nội dung không phải là chẩn đoán, khuyến nghị điều trị hoặc sự thay thế cho đánh giá chuyên môn. Bác sĩ phải kiểm tra bản tóm tắt và các nguồn được trích dẫn trước khi sử dụng.
+Bản tóm tắt này do AI tạo từ dữ liệu MIMIC-IV 3.1 đã khử định danh nhằm hỗ trợ bác sĩ rà soát hồ sơ. Nội dung không phải là chẩn đoán, khuyến nghị điều trị hoặc sự thay thế cho đánh giá chuyên môn. Bác sĩ phải kiểm tra bản tóm tắt và các nguồn được trích dẫn trước khi sử dụng. Các module không được nạp sẽ không được hệ thống suy đoán hoặc thay thế bằng dữ liệu do AI tạo.
 
-# 20. Responsive và Accessibility
+20. Responsive và Accessibility
 
 Ưu tiên desktop/tablet.
 
@@ -793,13 +829,17 @@ Tooltip giải thích các trạng thái và citation.
 
 Không hiển thị dữ liệu nhạy cảm ở notification ngoài ứng dụng.
 
-# 21. Prototype Acceptance Checklist
+21. Prototype Acceptance Checklist
 
 Có đủ Login, Dashboard và Patient Workspace.
 
 Có luồng Generate → Draft → Review → Approve.
 
-Citation mở đúng source panel.
+Citation mở đúng module, bảng và bản ghi MIMIC nguồn.
+
+Dashboard/Workspace hiển thị subject_id, hadm_id và stay_id khi có.
+
+Có Data Availability Panel và trạng thái NOT LOADED.
 
 Có trạng thái agent processing.
 
