@@ -10,6 +10,9 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      CLINICAL_BACKEND: sqlite
+      CLINICAL_DATABASE_PATH: ./data/synthetic_demo.db
     volumes:
       - ./data:/app/data
     restart: unless-stopped

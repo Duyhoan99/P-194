@@ -58,12 +58,24 @@ Endpoints của skeleton:
 
 ### Clinical retrieval API
 
+#### Synthetic local demo
+
+Create the deterministic local SQLite database before starting the local Compose profile:
+
+```bash
+make demo-db
+make demo-test
+docker compose --profile local up --build
+```
+
+`data/synthetic_demo.db` contains fabricated records only: subjects `101` and `102`, one ICU stay, and an intentional conflicting medication status for UI and evidence-handling demos. It contains no source clinical rows and is not for production use. Production requires `CLINICAL_BACKEND=postgresql` and an explicitly configured PostgreSQL DSN.
+
 Clinical retrieval dùng adapter read-only và chỉ truy vấn các bảng/cột allow-list. SQLite chỉ dành cho local/test; production phải chọn PostgreSQL rõ ràng và không có fallback. MIMIC-IV 3.1 là dữ liệu khử định danh phục vụ development/research, không phải hồ sơ bệnh nhân live.
 
 ```dotenv
 APP_ENV=development
 CLINICAL_BACKEND=sqlite
-CLINICAL_DATABASE_PATH=mimic_demo.db
+CLINICAL_DATABASE_PATH=./data/synthetic_demo.db
 CLINICAL_POSTGRES_DSN=
 CLINICAL_POOL_SIZE=5
 CLINICAL_SOURCE_DATASET=MIMIC-IV
