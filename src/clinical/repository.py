@@ -155,7 +155,7 @@ class SQLiteClinicalRepository:
         rows = self._execute(
             f"""
             SELECT event.subject_id, event.hadm_id, event.labevent_id, event.specimen_id, event.itemid,
-                   event.charttime AS event_time, event.storetime, event.value, event.valuenum,
+                   event.charttime, event.charttime AS event_time, event.storetime, event.value, event.valuenum,
                    event.valueuom, event.ref_range_lower, event.ref_range_upper, event.flag,
                    {dictionary_columns}
                    event.labevent_id AS source_key
@@ -178,6 +178,8 @@ class SQLiteClinicalRepository:
                     for key in (
                         "specimen_id",
                         "itemid",
+                        "charttime",
+                        "storetime",
                         "label",
                         "fluid",
                         "category",
@@ -208,15 +210,15 @@ class SQLiteClinicalRepository:
             return RepositoryFetch(records=[], unavailable_sources=["microbiologyevents"])
         rows = self._execute(
             """
-            SELECT subject_id, hadm_id, micro_specimen_id, chartdate, charttime AS event_time,
-                   spec_type_desc, test_name, org_name, isolation, quantity, ab_name,
+            SELECT microevent_id, subject_id, hadm_id, micro_specimen_id, chartdate, charttime,
+                   charttime AS event_time, storedate, storetime, spec_type_desc, test_name, org_name, isolation, quantity, ab_name,
                    dilution_text, dilution_comparison, dilution_value, interpretation
             FROM microbiologyevents
             WHERE subject_id = ?
               AND (? IS NULL OR hadm_id = ?)
               AND (? IS NULL OR charttime >= ?)
               AND (? IS NULL OR charttime <= ?)
-            ORDER BY charttime, micro_specimen_id, test_name, org_name
+            ORDER BY charttime, micro_specimen_id, test_name, org_name, microevent_id
             LIMIT ?
             """,
             self._hadm_time_params(query),
@@ -225,8 +227,12 @@ class SQLiteClinicalRepository:
             self._record(
                 "microbiology",
                 {
+                    "microevent_id": row["microevent_id"],
                     "micro_specimen_id": row["micro_specimen_id"],
                     "chartdate": row["chartdate"],
+                    "charttime": row["charttime"],
+                    "storedate": row["storedate"],
+                    "storetime": row["storetime"],
                     "specimen": row["spec_type_desc"],
                     "test": row["test_name"],
                     "organism": row["org_name"],
@@ -241,9 +247,7 @@ class SQLiteClinicalRepository:
                 row,
                 module="hosp",
                 table="microbiologyevents",
-                source_key=self._composite_key(
-                    row, ("subject_id", "hadm_id", "micro_specimen_id", "event_time", "test_name", "org_name")
-                ),
+                source_key=f"microevent_id={row['microevent_id']}",
             )
             for row in rows
         ]
@@ -556,7 +560,7 @@ class SQLiteClinicalRepository:
         selected_values = ", ".join(f"event.{column}" for column in value_columns)
         rows = self._execute(
             f"""
-            SELECT event.subject_id, event.hadm_id, event.stay_id, event.charttime AS event_time,
+            SELECT event.subject_id, event.hadm_id, event.stay_id, event.charttime, event.charttime AS event_time,
                    event.storetime, event.itemid, {selected_values}, {label}
             FROM {table} AS event
             {join}
@@ -570,7 +574,7 @@ class SQLiteClinicalRepository:
         return [
             self._record(
                 record_type,
-                {key: row[key] for key in ("itemid", "label", *value_columns)},
+                {key: row[key] for key in ("itemid", "label", "charttime", "storetime", *value_columns)},
                 row,
                 module="icu",
                 table=table,
@@ -595,7 +599,7 @@ class SQLiteClinicalRepository:
         label = "dictionary.label" if dictionary_loaded else "NULL AS label"
         rows = self._execute(
             f"""
-            SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime AS event_time,
+            SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime, event.starttime AS event_time,
                    event.endtime, event.storetime, event.itemid, event.amount, event.amountuom,
                    event.rate, event.rateuom, {label}
             FROM inputevents AS event
@@ -610,7 +614,10 @@ class SQLiteClinicalRepository:
         return [
             self._record(
                 "input_event",
-                {key: row[key] for key in ("itemid", "label", "endtime", "amount", "amountuom", "rate", "rateuom")},
+                {
+                    key: row[key]
+                    for key in ("itemid", "label", "starttime", "endtime", "storetime", "amount", "amountuom", "rate", "rateuom")
+                },
                 row,
                 module="icu",
                 table="inputevents",
@@ -635,7 +642,7 @@ class SQLiteClinicalRepository:
         label = "dictionary.label" if dictionary_loaded else "NULL AS label"
         rows = self._execute(
             f"""
-            SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime AS event_time,
+            SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime, event.starttime AS event_time,
                    event.endtime, event.storetime, event.itemid, event.value, event.valueuom, {label}
             FROM procedureevents AS event
             {join}
@@ -649,7 +656,7 @@ class SQLiteClinicalRepository:
         return [
             self._record(
                 "icu_procedure",
-                {key: row[key] for key in ("itemid", "label", "endtime", "value", "valueuom")},
+                {key: row[key] for key in ("itemid", "label", "starttime", "endtime", "storetime", "value", "valueuom")},
                 row,
                 module="icu",
                 table="procedureevents",

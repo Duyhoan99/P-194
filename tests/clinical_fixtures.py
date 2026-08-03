@@ -96,11 +96,14 @@ def create_mock_clinical_db(path: Path) -> None:
                 category TEXT
             );
             CREATE TABLE microbiologyevents (
+                microevent_id INTEGER PRIMARY KEY,
                 subject_id INTEGER NOT NULL,
                 hadm_id INTEGER,
                 micro_specimen_id INTEGER NOT NULL,
                 chartdate TEXT,
                 charttime TEXT,
+                storedate TEXT,
+                storetime TEXT,
                 spec_type_desc TEXT,
                 test_name TEXT,
                 org_name TEXT,
@@ -177,9 +180,18 @@ def create_mock_clinical_db(path: Path) -> None:
                 (9002, 101, 5001, 8002, 3001, "2200-01-10 14:00:00", "2200-01-10 14:05:00", "1.3", 1.3, "unit", 0.5, 1.5, None, "ROUTINE", None),
             ],
         )
-        connection.execute(
-            "INSERT INTO microbiologyevents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (101, 5001, 8101, "2200-01-10", "2200-01-10 15:00:00", "Blood", "Culture", "Synthetic organism", None, None, None, None, None, None, "POSITIVE"),
+        connection.executemany(
+            """
+            INSERT INTO microbiologyevents (
+                microevent_id, subject_id, hadm_id, micro_specimen_id, chartdate, charttime,
+                storedate, storetime, spec_type_desc, test_name, org_name, isolation, quantity,
+                ab_name, dilution_text, dilution_comparison, dilution_value, interpretation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (9101, 101, 5001, 8101, "2200-01-10", "2200-01-10 15:00:00", "2200-01-10", "2200-01-10 15:02:00", "Blood", "Culture", "Synthetic organism", None, None, None, None, None, None, "POSITIVE"),
+                (9102, 101, 5001, 8101, "2200-01-10", "2200-01-10 15:00:00", "2200-01-10", "2200-01-10 15:02:00", "Blood", "Culture", "Synthetic organism", None, None, None, None, None, None, "POSITIVE"),
+            ],
         )
         connection.execute("INSERT INTO d_items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (4001, "Synthetic vital", "SV", "chartevents", "Vitals", "unit", "Numeric", None, None))
         connection.execute("INSERT INTO d_items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (4002, "Synthetic output", "SO", "outputevents", "Output", "mL", "Numeric", None, None))

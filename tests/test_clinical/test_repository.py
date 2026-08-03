@@ -22,6 +22,41 @@ def test_repository_returns_lab_value_lineage_and_dictionary_source(tmp_path):
     assert result.records[0].related_sources[0].table == "d_labitems"
 
 
+def test_microbiology_lineage_uses_unique_microevent_ids(tmp_path):
+    """Replacing unique microevent IDs with shared descriptive fields should fail this test."""
+    db_path = tmp_path / "clinical.sqlite"
+    create_mock_clinical_db(db_path)
+    repo = SQLiteClinicalRepository(str(db_path))
+
+    result = repo.fetch_microbiology_results(ClinicalQuery(subject_id=101))
+
+    assert [record.lineage.source_row_key for record in result.records] == [
+        "microevent_id=9101",
+        "microevent_id=9102",
+    ]
+
+
+def test_repository_preserves_raw_source_timestamps_in_record_data(tmp_path):
+    """Dropping source timestamps from domain data should fail this test."""
+    db_path = tmp_path / "clinical.sqlite"
+    create_mock_clinical_db(db_path)
+    repo = SQLiteClinicalRepository(str(db_path))
+
+    laboratory = repo.fetch_laboratory_results(ClinicalQuery(subject_id=101))
+    microbiology = repo.fetch_microbiology_results(ClinicalQuery(subject_id=101))
+    icu_events = repo.fetch_icu_events(ClinicalQuery(subject_id=101, stay_id=7001))
+
+    assert laboratory.records[0].data["charttime"] == "2200-01-10 13:00:00"
+    assert laboratory.records[0].data["storetime"] == "2200-01-10 13:05:00"
+    assert microbiology.records[0].data["charttime"] == "2200-01-10 15:00:00"
+    assert microbiology.records[0].data["storedate"] == "2200-01-10"
+    assert microbiology.records[0].data["storetime"] == "2200-01-10 15:02:00"
+    assert icu_events.records[1].data["charttime"] == "2200-01-10 16:00:00"
+    assert icu_events.records[1].data["storetime"] == "2200-01-10 16:01:00"
+    assert icu_events.records[2].data["charttime"] == "2200-01-10 17:00:00"
+    assert icu_events.records[2].data["storetime"] == "2200-01-10 17:01:00"
+
+
 def test_repository_exposes_only_a_read_only_connection(tmp_path):
     """Removing the read-only SQLite URI should make this write succeed."""
     db_path = tmp_path / "clinical.sqlite"
