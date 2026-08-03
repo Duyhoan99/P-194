@@ -174,15 +174,48 @@ class SQLiteSummaryRepository(AuditSink):
             self._record(connection, event)
         return version
 
-    def save_conflict_resolution(
-        self, version_id: UUID, conflict_id: str, resolver_id: str, resolution_note: str
-    ) -> None:
+    def confirm_conflict(
+        self, summary_id: UUID, actor_id: str, conflict_id: str, resolution_note: str, event: AuditEvent
+    ) -> SummaryVersion:
+        """Atomically persist a doctor-confirmed conflict revision and success audit event."""
         with self._connection() as connection:
+            current = self._current_version(connection, summary_id)
+            if current.status not in {"DRAFT", "NEEDS_REVISION"}:
+                raise ReviewPolicyError("Only a current draft or revision may be edited.")
+            found = False
+            conflicts = []
+            for conflict in current.draft.conflicts:
+                if conflict.conflict_id == conflict_id:
+                    found = True
+                    conflicts.append(
+                        conflict.model_copy(
+                            update={
+                                "status": "RESOLVED",
+                                "resolved_by": actor_id,
+                                "resolution_note": resolution_note,
+                            }
+                        )
+                    )
+                else:
+                    conflicts.append(conflict)
+            if not found:
+                raise ReviewPolicyError("Conflict resolution is not permitted.")
+            draft = current.draft.model_copy(update={"conflicts": conflicts, "status": "NEEDS_REVISION"})
+            version = self._new_version(
+                draft, current.version_number + 1, "NEEDS_REVISION", actor_id, "Doctor confirmed conflict resolution"
+            )
+            self._store_version(connection, version)
+            connection.execute(
+                "UPDATE summaries SET current_version_id = ? WHERE summary_id = ?",
+                (str(version.version_id), str(summary_id)),
+            )
             connection.execute(
                 """INSERT INTO conflict_resolutions (version_id, conflict_id, resolver_id, resolution_note, resolved_at)
                    VALUES (?, ?, ?, ?, ?)""",
-                (str(version_id), conflict_id, resolver_id, resolution_note, datetime.now(UTC).isoformat()),
+                (str(version.version_id), conflict_id, actor_id, resolution_note, datetime.now(UTC).isoformat()),
             )
+            self._record(connection, event)
+        return version
 
     def confirmed_conflicts(self, version_id: UUID) -> set[tuple[str, str, str]]:
         with self._connection() as connection:

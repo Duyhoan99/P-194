@@ -260,6 +260,47 @@ def test_approval_requires_doctor_confirmed_conflict_resolution(summary_repo, re
     assert resolution == ("doctor-1", "Doctor reviewed supporting evidence.")
 
 
+def test_conflict_confirmation_is_atomic_with_version_and_success_audit(summary_repo, review_service, valid_draft):
+    """A confirmation write failure must not leave a resolved version without provenance."""
+    conflicted = valid_draft.model_copy(
+        update={
+            "conflicts": [
+                Conflict(
+                    conflict_id="conflict-1",
+                    topic="Medication discrepancy",
+                    evidence_ids=["source-1", "source-2"],
+                    status="UNRESOLVED",
+                )
+            ]
+        }
+    )
+    created = summary_repo.create_draft(conflicted, actor_id="doctor-1")
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        connection.execute(
+            """CREATE TRIGGER fail_conflict_confirmation BEFORE INSERT ON conflict_resolutions
+               BEGIN SELECT RAISE(ABORT, 'conflict confirmation failed'); END"""
+        )
+
+    with pytest.raises(sqlite3.IntegrityError, match="conflict confirmation failed"):
+        review_service.confirm_conflict(
+            created.summary_id,
+            allowed_context(),
+            "conflict-1",
+            "Doctor reviewed supporting evidence.",
+        )
+
+    current = summary_repo.get(created.summary_id)
+    assert current.status == "DRAFT"
+    assert current.draft.conflicts[0].status == "UNRESOLVED"
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        resolution_count = connection.execute("SELECT COUNT(*) FROM conflict_resolutions").fetchone()[0]
+        success_count = connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'RESOLVE_CLINICAL_CONFLICT' AND result = 'SUCCESS'"
+        ).fetchone()[0]
+    assert resolution_count == 0
+    assert success_count == 0
+
+
 def test_approval_is_atomic_with_checklist_and_success_audit(summary_repo, review_service, valid_draft):
     """An audit write failure must not leave an approved version without its checklist."""
     created = summary_repo.create_draft(valid_draft, actor_id="doctor-1")

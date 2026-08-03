@@ -10,7 +10,7 @@ from src.clinical.audit import AuditEvent, AuditSink
 from src.clinical.errors import ClinicalAccessDenied, ReviewPolicyError
 from src.clinical.schemas import AccessContext
 from src.clinical.summary_repository import SQLiteSummaryRepository, SummaryVersion
-from src.clinical.summary_schemas import ClinicalSummaryDraft, Conflict
+from src.clinical.summary_schemas import ClinicalSummaryDraft
 
 
 class ReviewChecklist(BaseModel):
@@ -85,17 +85,16 @@ class ReviewService:
         if not resolution_note.strip():
             self._audit(summary, context, "RESOLVE_CLINICAL_CONFLICT", "ERROR")
             raise ReviewPolicyError("A conflict resolution note is required.")
-        conflicts = [
-            self._confirmed_conflict(conflict, conflict_id, context.user_id, resolution_note)
-            for conflict in summary.draft.conflicts
-        ]
-        if not any(conflict.conflict_id == conflict_id for conflict in summary.draft.conflicts):
+        event = self._event(summary, context, "RESOLVE_CLINICAL_CONFLICT", "SUCCESS")
+        try:
+            version = self._repository.confirm_conflict(
+                summary.summary_id, context.user_id, conflict_id, resolution_note, event
+            )
+        except Exception:
             self._audit(summary, context, "RESOLVE_CLINICAL_CONFLICT", "ERROR")
-            raise ReviewPolicyError("Conflict resolution is not permitted.")
-        patch = summary.draft.model_copy(update={"conflicts": conflicts})
-        version = self.edit(summary_id, context, patch, "Doctor confirmed conflict resolution")
-        self._repository.save_conflict_resolution(version.version_id, conflict_id, context.user_id, resolution_note)
-        self._audit(version, context, "RESOLVE_CLINICAL_CONFLICT", "SUCCESS")
+            raise
+        if self._audit_sink is not self._repository:
+            self._audit_sink.record(event)
         return version
 
     def _authorized_summary(self, summary_id: UUID, context: AccessContext, action: str) -> SummaryVersion:
@@ -142,12 +141,6 @@ class ReviewService:
             and (conflict.conflict_id, conflict.resolved_by, conflict.resolution_note) in confirmations
             for conflict in summary.draft.conflicts
         )
-
-    @staticmethod
-    def _confirmed_conflict(conflict: Conflict, conflict_id: str, user_id: str, note: str) -> Conflict:
-        if conflict.conflict_id != conflict_id:
-            return conflict
-        return conflict.model_copy(update={"status": "RESOLVED", "resolved_by": user_id, "resolution_note": note})
 
     def _audit(
         self, summary: SummaryVersion, context: AccessContext, action: str, result: str, *, persist: bool = True
