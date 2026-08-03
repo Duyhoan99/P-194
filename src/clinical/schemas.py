@@ -36,8 +36,13 @@ class ClinicalQuery(BaseModel):
 
     @model_validator(mode="after")
     def time_window_must_be_ordered(self) -> "ClinicalQuery":
-        if self.from_time is not None and self.to_time is not None and self.from_time > self.to_time:
-            raise ValueError("from_time must not be after to_time")
+        if self.from_time is not None and self.to_time is not None:
+            from_time_aware = self.from_time.tzinfo is not None and self.from_time.utcoffset() is not None
+            to_time_aware = self.to_time.tzinfo is not None and self.to_time.utcoffset() is not None
+            if from_time_aware != to_time_aware:
+                raise ValueError("from_time and to_time must have matching timezone awareness")
+            if self.from_time > self.to_time:
+                raise ValueError("from_time must not be after to_time")
         return self
 
 

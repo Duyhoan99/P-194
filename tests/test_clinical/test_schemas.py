@@ -42,6 +42,15 @@ def test_query_rejects_reversed_time_window():
         )
 
 
+def test_query_rejects_mixed_timezone_awareness():
+    with pytest.raises(ValidationError):
+        ClinicalQuery(
+            subject_id=1,
+            from_time=datetime(2025, 1, 1),
+            to_time=datetime(2025, 1, 2, tzinfo=UTC),
+        )
+
+
 def test_lineage_requires_mimic_version_and_source_identity():
     lineage = SourceLineage(
         dataset="MIMIC-IV",
