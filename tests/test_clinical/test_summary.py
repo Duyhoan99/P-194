@@ -220,6 +220,8 @@ def test_demo_generator_is_disabled_in_production(monkeypatch):
         environment.setenv("CLINICAL_BACKEND", "postgresql")
         environment.setenv("CLINICAL_POSTGRES_DSN", "postgresql://example")
         environment.setenv("CLINICAL_CURSOR_SECRET", "s" * 32)
+        environment.setenv("SUMMARY_BACKEND", "postgresql")
+        environment.setenv("SUMMARY_POSTGRES_DSN", "postgresql://summary")
         get_settings.cache_clear()
         with pytest.raises(RuntimeError, match="demo summary generator is disabled in production"):
             DeterministicDemoSummaryGenerator().generate([])

@@ -20,6 +20,7 @@ AuditAction = Literal[
     "REJECT_CLINICAL_SUMMARY",
     "APPROVE_CLINICAL_SUMMARY",
     "EXPORT_CLINICAL_SUMMARY",
+    "RESOLVE_CLINICAL_CONFLICT",
 ]
 AuditResult = Literal["SUCCESS", "PARTIAL", "EMPTY", "DENIED", "NOT_LOADED", "ERROR"]
 TraceId = Annotated[str, Field(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")]

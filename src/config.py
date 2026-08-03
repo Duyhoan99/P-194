@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./data/app.db"
     summary_database_path: str = "clinical_summaries.db"
+    summary_backend: Literal["sqlite", "postgresql"] = "sqlite"
+    summary_postgres_dsn: str = ""
     clinical_database_path: str = "mimic_demo.db"
     clinical_backend: Literal["sqlite", "postgresql"] = "sqlite"
     clinical_postgres_dsn: str = ""
@@ -46,6 +48,10 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_production_clinical_configuration(self) -> "Settings":
         if self.app_env == "production":
+            if self.summary_backend != "postgresql":
+                raise ValueError("production summary backend must be explicitly set to postgresql")
+            if not self.summary_postgres_dsn:
+                raise ValueError("production summary PostgreSQL DSN is required")
             if self.clinical_backend != "postgresql":
                 raise ValueError("production clinical backend must be explicitly set to postgresql")
             if not self.clinical_postgres_dsn:

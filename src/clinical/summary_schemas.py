@@ -38,6 +38,7 @@ class Conflict(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     status: Literal["UNRESOLVED", "RESOLVED"]
     resolution_note: str | None = None
+    resolved_by: str | None = None
 
 
 class ClinicalSummaryDraft(BaseModel):

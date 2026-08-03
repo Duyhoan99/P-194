@@ -17,6 +17,7 @@ from src.config import get_settings
 SummaryStatus = Literal["DRAFT", "NEEDS_REVISION", "REJECTED", "APPROVED", "EXPORTED"]
 _TRANSITIONS: dict[str, set[str]] = {
     "DRAFT": {"NEEDS_REVISION", "REJECTED", "APPROVED"},
+    "NEEDS_REVISION": {"REJECTED", "APPROVED"},
     "APPROVED": {"EXPORTED"},
 }
 
@@ -55,6 +56,8 @@ class SQLiteSummaryRepository(AuditSink):
 
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = str(Path(db_path))
+        if get_settings().app_env == "production":
+            raise RuntimeError("SQLite summary repository is disabled in production")
         if Path(self.db_path).resolve() == Path(get_settings().clinical_database_path).resolve():
             raise ValueError("summary application database must differ from the clinical source database")
         self._initialize()
@@ -100,8 +103,8 @@ class SQLiteSummaryRepository(AuditSink):
         self, summary_id: UUID, actor_id: str, patch: ClinicalSummaryDraft, reason: str | None
     ) -> SummaryVersion:
         current = self.get(summary_id)
-        if current.status != "DRAFT":
-            raise ReviewPolicyError("Only the current draft may be edited.")
+        if current.status not in {"DRAFT", "NEEDS_REVISION"}:
+            raise ReviewPolicyError("Only a current draft or revision may be edited.")
         draft = patch.model_copy(update={"summary_id": summary_id, "status": "NEEDS_REVISION"})
         version = self._new_version(draft, current.version_number + 1, "NEEDS_REVISION", actor_id, reason)
         with self._connection() as connection:
@@ -148,23 +151,50 @@ class SQLiteSummaryRepository(AuditSink):
                 (str(version_id), *values),
             )
 
-    def record(self, event: AuditEvent) -> None:
+    def approve(
+        self,
+        summary_id: UUID,
+        actor_id: str,
+        checklist: tuple[bool, bool, bool, bool],
+        event: AuditEvent,
+    ) -> SummaryVersion:
+        """Atomically persist approval state, checklist, and its success audit event."""
+        with self._connection() as connection:
+            current = self._current_version(connection, summary_id)
+            if "APPROVED" not in _TRANSITIONS.get(current.status, set()):
+                raise ReviewPolicyError("Summary state transition is not permitted.")
+            draft = current.draft.model_copy(update={"status": "APPROVED"})
+            version = self._new_version(draft, current.version_number + 1, "APPROVED", actor_id, None)
+            self._store_version(connection, version)
+            connection.execute(
+                "UPDATE summaries SET current_version_id = ? WHERE summary_id = ?",
+                (str(version.version_id), str(summary_id)),
+            )
+            self._save_checklist(connection, version.version_id, checklist)
+            self._record(connection, event)
+        return version
+
+    def save_conflict_resolution(
+        self, version_id: UUID, conflict_id: str, resolver_id: str, resolution_note: str
+    ) -> None:
         with self._connection() as connection:
             connection.execute(
-                """INSERT INTO audit_events (
-                    user_id, action, subject_id, hadm_id, stay_id, result, trace_id, timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    event.user_id,
-                    event.action,
-                    event.subject_id,
-                    event.hadm_id,
-                    event.stay_id,
-                    event.result,
-                    event.trace_id,
-                    event.timestamp.isoformat(),
-                ),
+                """INSERT INTO conflict_resolutions (version_id, conflict_id, resolver_id, resolution_note, resolved_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (str(version_id), conflict_id, resolver_id, resolution_note, datetime.now(UTC).isoformat()),
             )
+
+    def confirmed_conflicts(self, version_id: UUID) -> set[tuple[str, str, str]]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT conflict_id, resolver_id, resolution_note FROM conflict_resolutions WHERE version_id = ?",
+                (str(version_id),),
+            ).fetchall()
+        return {(row["conflict_id"], row["resolver_id"], row["resolution_note"]) for row in rows}
+
+    def record(self, event: AuditEvent) -> None:
+        with self._connection() as connection:
+            self._record(connection, event)
 
     def _initialize(self) -> None:
         with self._connection() as connection:
@@ -195,6 +225,11 @@ class SQLiteSummaryRepository(AuditSink):
                     version_id TEXT PRIMARY KEY, reviewed_summary INTEGER NOT NULL,
                     checked_critical_evidence INTEGER NOT NULL, understands_ai_limitations INTEGER NOT NULL,
                     confirms_edits INTEGER NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS conflict_resolutions (
+                    version_id TEXT NOT NULL, conflict_id TEXT NOT NULL, resolver_id TEXT NOT NULL,
+                    resolution_note TEXT NOT NULL, resolved_at TEXT NOT NULL,
+                    PRIMARY KEY (version_id, conflict_id)
                 );
                 CREATE TABLE IF NOT EXISTS audit_events (
                     user_id TEXT NOT NULL, action TEXT NOT NULL, subject_id INTEGER NOT NULL,
@@ -229,12 +264,52 @@ class SQLiteSummaryRepository(AuditSink):
         )
         connection.executemany(
             "INSERT INTO summary_citations (version_id, citation_id, citation_json) VALUES (?, ?, ?)",
-            [(str(version.version_id), citation.citation_id, citation.model_dump_json()) for citation in version.draft.citations],
+            [
+                (str(version.version_id), citation.citation_id, citation.model_dump_json())
+                for citation in version.draft.citations
+            ],
         )
         connection.executemany(
             "INSERT INTO summary_conflicts (version_id, conflict_id, conflict_json) VALUES (?, ?, ?)",
-            [(str(version.version_id), conflict.conflict_id, conflict.model_dump_json()) for conflict in version.draft.conflicts],
+            [
+                (str(version.version_id), conflict.conflict_id, conflict.model_dump_json())
+                for conflict in version.draft.conflicts
+            ],
         )
+
+    @staticmethod
+    def _save_checklist(
+        connection: sqlite3.Connection, version_id: UUID, values: tuple[bool, bool, bool, bool]
+    ) -> None:
+        connection.execute(
+            """INSERT INTO review_checklists (
+                version_id, reviewed_summary, checked_critical_evidence,
+                understands_ai_limitations, confirms_edits
+            ) VALUES (?, ?, ?, ?, ?)""",
+            (str(version_id), *values),
+        )
+
+    @staticmethod
+    def _record(connection: sqlite3.Connection, event: AuditEvent) -> None:
+        connection.execute(
+            """INSERT INTO audit_events (
+                user_id, action, subject_id, hadm_id, stay_id, result, trace_id, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event.user_id, event.action, event.subject_id, event.hadm_id, event.stay_id,
+                event.result, event.trace_id, event.timestamp.isoformat(),
+            ),
+        )
+
+    def _current_version(self, connection: sqlite3.Connection, summary_id: UUID) -> SummaryVersion:
+        row = connection.execute(
+            """SELECT version_id, summary_id, version_number, status, actor_id, reason, created_at, draft_json
+               FROM summary_versions WHERE summary_id = ? ORDER BY version_number DESC LIMIT 1""",
+            (str(summary_id),),
+        ).fetchone()
+        if row is None:
+            raise ReviewPolicyError("Summary review policy cannot be satisfied.")
+        return self._version_from_row(row)
 
     @staticmethod
     def _new_version(

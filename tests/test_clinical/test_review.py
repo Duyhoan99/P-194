@@ -2,6 +2,7 @@ import sqlite3
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from src.clinical.access import DemoAssignmentProvider
 from src.clinical.audit import InMemoryAuditSink
@@ -9,7 +10,8 @@ from src.clinical.errors import ClinicalAccessDenied, ReviewPolicyError
 from src.clinical.review import ReviewChecklist, ReviewService
 from src.clinical.schemas import AccessContext, SourceLineage
 from src.clinical.summary_repository import SQLiteSummaryRepository
-from src.clinical.summary_schemas import Citation, Claim, ClinicalSummaryDraft
+from src.clinical.summary_schemas import Citation, Claim, ClinicalSummaryDraft, Conflict
+from src.config import Settings, get_settings
 from tests.clinical_fixtures import create_mock_clinical_db
 from tests.test_clinical.conftest import TEST_TRACE_ID, allowed_context
 
@@ -117,6 +119,28 @@ def test_assigned_doctor_edit_creates_a_review_revision(summary_repo, review_ser
     assert edited.version_number == 2
 
 
+def test_multiple_edits_can_be_followed_by_approval(summary_repo, review_service, valid_draft):
+    """Leaving NEEDS_REVISION terminal would strand a doctor-edited summary."""
+    created = summary_repo.create_draft(valid_draft, actor_id="doctor-1")
+    first_edit = review_service.edit(created.summary_id, allowed_context(), valid_draft, "First revision")
+    second_edit = review_service.edit(
+        created.summary_id,
+        allowed_context(),
+        first_edit.draft.model_copy(update={"warnings": ["Second revision."]}),
+        "Second revision",
+    )
+
+    approved = review_service.approve(second_edit.summary_id, allowed_context(), complete_checklist())
+
+    assert [version.status for version in summary_repo.list_versions(created.summary_id)] == [
+        "DRAFT",
+        "NEEDS_REVISION",
+        "NEEDS_REVISION",
+        "APPROVED",
+    ]
+    assert approved.status == "APPROVED"
+
+
 def test_approved_version_is_immutable(summary_repo, review_service, valid_draft):
     """Allowing an approved row to change would erase the clinician-reviewed record."""
     created = summary_repo.create_draft(valid_draft, actor_id="doctor-1")
@@ -134,6 +158,33 @@ def test_unassigned_doctor_is_denied_before_review_repository_access(summary_rep
 
     with pytest.raises(ClinicalAccessDenied):
         review_service.approve(created.summary_id, context_for_subject(102), complete_checklist())
+
+
+def test_denied_review_actions_are_audited_without_clinical_payloads(summary_repo, review_service, valid_draft):
+    """Returning access denial before auditing would leave review attempts untraceable."""
+    created = summary_repo.create_draft(valid_draft, actor_id="doctor-1")
+    denied = context_for_subject(102)
+
+    with pytest.raises(ClinicalAccessDenied):
+        review_service.edit(created.summary_id, denied, valid_draft, "Denied edit")
+    with pytest.raises(ClinicalAccessDenied):
+        review_service.reject(created.summary_id, denied, "Denied reject")
+    with pytest.raises(ClinicalAccessDenied):
+        review_service.approve(created.summary_id, denied, complete_checklist())
+    with pytest.raises(ClinicalAccessDenied):
+        review_service.export(created.summary_id, denied)
+
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        rows = connection.execute(
+            "SELECT action, result, subject_id FROM audit_events WHERE result = 'DENIED' ORDER BY rowid"
+        ).fetchall()
+
+    assert rows == [
+        ("EDIT_CLINICAL_SUMMARY", "DENIED", 102),
+        ("REJECT_CLINICAL_SUMMARY", "DENIED", 102),
+        ("APPROVE_CLINICAL_SUMMARY", "DENIED", 102),
+        ("EXPORT_CLINICAL_SUMMARY", "DENIED", 102),
+    ]
 
 
 def test_approval_requires_complete_checklist(summary_repo, review_service, valid_draft):
@@ -168,6 +219,68 @@ def test_approval_rejects_claims_without_valid_citations(summary_repo, review_se
 
     with pytest.raises(ReviewPolicyError):
         review_service.approve(created.summary_id, allowed_context(), complete_checklist())
+
+
+def test_approval_requires_doctor_confirmed_conflict_resolution(summary_repo, review_service, valid_draft):
+    """Trusting an AI-marked resolved conflict would bypass clinician confirmation."""
+    conflicted = valid_draft.model_copy(
+        update={
+            "conflicts": [
+                Conflict(
+                    conflict_id="conflict-1",
+                    topic="Medication discrepancy",
+                    evidence_ids=["source-1", "source-2"],
+                    status="RESOLVED",
+                    resolution_note="AI-selected resolution",
+                    resolved_by="summary-agent",
+                )
+            ]
+        }
+    )
+    created = summary_repo.create_draft(conflicted, actor_id="doctor-1")
+
+    with pytest.raises(ReviewPolicyError):
+        review_service.approve(created.summary_id, allowed_context(), complete_checklist())
+
+    confirmed = review_service.confirm_conflict(
+        created.summary_id,
+        allowed_context(),
+        "conflict-1",
+        "Doctor reviewed supporting evidence.",
+    )
+    approved = review_service.approve(confirmed.summary_id, allowed_context(), complete_checklist())
+
+    assert approved.status == "APPROVED"
+    assert confirmed.draft.conflicts[0].resolved_by == "doctor-1"
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        resolution = connection.execute(
+            "SELECT resolver_id, resolution_note FROM conflict_resolutions WHERE version_id = ?",
+            (str(confirmed.version_id),),
+        ).fetchone()
+    assert resolution == ("doctor-1", "Doctor reviewed supporting evidence.")
+
+
+def test_approval_is_atomic_with_checklist_and_success_audit(summary_repo, review_service, valid_draft):
+    """An audit write failure must not leave an approved version without its checklist."""
+    created = summary_repo.create_draft(valid_draft, actor_id="doctor-1")
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        connection.execute(
+            """CREATE TRIGGER fail_approval_audit BEFORE INSERT ON audit_events
+               WHEN NEW.action = 'APPROVE_CLINICAL_SUMMARY' AND NEW.result = 'SUCCESS'
+               BEGIN SELECT RAISE(ABORT, 'audit write failed'); END"""
+        )
+
+    with pytest.raises(sqlite3.IntegrityError, match="audit write failed"):
+        review_service.approve(created.summary_id, allowed_context(), complete_checklist())
+
+    assert summary_repo.get(created.summary_id).status == "DRAFT"
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        checklist_count = connection.execute("SELECT COUNT(*) FROM review_checklists").fetchone()[0]
+        success_count = connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'APPROVE_CLINICAL_SUMMARY' AND result = 'SUCCESS'"
+        ).fetchone()[0]
+    assert checklist_count == 0
+    assert success_count == 0
 
 
 def test_invalid_transition_is_rejected(summary_repo, review_service, valid_draft):
@@ -232,3 +345,29 @@ def test_summary_application_database_does_not_modify_clinical_source(tmp_path, 
 
     assert "summaries" not in tables
     assert "summary_versions" not in tables
+
+
+def test_sqlite_summary_repository_is_disabled_in_production(monkeypatch, tmp_path):
+    """Allowing local SQLite persistence in production would silently bypass PostgreSQL."""
+    with monkeypatch.context() as environment:
+        environment.setenv("APP_ENV", "production")
+        environment.setenv("CLINICAL_BACKEND", "postgresql")
+        environment.setenv("CLINICAL_POSTGRES_DSN", "postgresql://clinical")
+        environment.setenv("CLINICAL_CURSOR_SECRET", "s" * 32)
+        environment.setenv("SUMMARY_BACKEND", "postgresql")
+        environment.setenv("SUMMARY_POSTGRES_DSN", "postgresql://summary")
+        get_settings.cache_clear()
+        with pytest.raises(RuntimeError, match="SQLite summary repository is disabled in production"):
+            SQLiteSummaryRepository(tmp_path / "application.sqlite")
+    get_settings.cache_clear()
+
+
+def test_production_summary_configuration_requires_explicit_postgresql():
+    """A production default of SQLite would silently select local persistence."""
+    with pytest.raises(ValidationError, match="production summary backend must be explicitly set to postgresql"):
+        Settings(
+            app_env="production",
+            clinical_backend="postgresql",
+            clinical_postgres_dsn="postgresql://clinical",
+            clinical_cursor_secret="s" * 32,
+        )

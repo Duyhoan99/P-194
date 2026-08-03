@@ -10,7 +10,7 @@ from src.clinical.audit import AuditEvent, AuditSink
 from src.clinical.errors import ClinicalAccessDenied, ReviewPolicyError
 from src.clinical.schemas import AccessContext
 from src.clinical.summary_repository import SQLiteSummaryRepository, SummaryVersion
-from src.clinical.summary_schemas import ClinicalSummaryDraft
+from src.clinical.summary_schemas import ClinicalSummaryDraft, Conflict
 
 
 class ReviewChecklist(BaseModel):
@@ -32,7 +32,7 @@ class ReviewService:
         self._audit_sink = audit_sink
 
     def reject(self, summary_id: UUID, context: AccessContext, reason: str) -> SummaryVersion:
-        summary = self._authorized_summary(summary_id, context)
+        summary = self._authorized_summary(summary_id, context, "REJECT_CLINICAL_SUMMARY")
         if not reason.strip():
             self._audit(summary, context, "REJECT_CLINICAL_SUMMARY", "ERROR")
             raise ReviewPolicyError("A rejection reason is required.")
@@ -45,7 +45,7 @@ class ReviewService:
         patch: ClinicalSummaryDraft,
         reason: str | None,
     ) -> SummaryVersion:
-        summary = self._authorized_summary(summary_id, context)
+        summary = self._authorized_summary(summary_id, context, "EDIT_CLINICAL_SUMMARY")
         try:
             version = self._repository.update_draft(summary.summary_id, context.user_id, patch, reason)
         except Exception:
@@ -55,29 +55,63 @@ class ReviewService:
         return version
 
     def approve(self, summary_id: UUID, context: AccessContext, checklist: ReviewChecklist) -> SummaryVersion:
-        summary = self._authorized_summary(summary_id, context)
-        if not checklist.is_complete() or not self._has_valid_citations(summary):
+        summary = self._authorized_summary(summary_id, context, "APPROVE_CLINICAL_SUMMARY")
+        if not checklist.is_complete() or not self._has_valid_citations(summary) or not self._has_confirmed_conflicts(summary):
             self._audit(summary, context, "APPROVE_CLINICAL_SUMMARY", "ERROR")
             raise ReviewPolicyError("Approval requires completed review and valid citations.")
-        version = self._transition(summary, context, "APPROVED", None, "APPROVE_CLINICAL_SUMMARY")
-        self._repository.save_checklist(version.version_id, tuple(checklist.model_dump().values()))
+        event = self._event(summary, context, "APPROVE_CLINICAL_SUMMARY", "SUCCESS")
+        try:
+            version = self._repository.approve(
+                summary.summary_id, context.user_id, tuple(checklist.model_dump().values()), event
+            )
+        except Exception:
+            self._audit(summary, context, "APPROVE_CLINICAL_SUMMARY", "ERROR")
+            raise
+        if self._audit_sink is not self._repository:
+            self._audit_sink.record(event)
         return version
 
     def export(self, summary_id: UUID, context: AccessContext) -> SummaryVersion:
-        summary = self._authorized_summary(summary_id, context)
+        summary = self._authorized_summary(summary_id, context, "EXPORT_CLINICAL_SUMMARY")
         if summary.status != "APPROVED":
             self._audit(summary, context, "EXPORT_CLINICAL_SUMMARY", "ERROR")
             raise ReviewPolicyError("Only approved summaries may be exported.")
         return self._transition(summary, context, "EXPORTED", None, "EXPORT_CLINICAL_SUMMARY")
 
-    def _authorized_summary(self, summary_id: UUID, context: AccessContext) -> SummaryVersion:
+    def confirm_conflict(
+        self, summary_id: UUID, context: AccessContext, conflict_id: str, resolution_note: str
+    ) -> SummaryVersion:
+        summary = self._authorized_summary(summary_id, context, "RESOLVE_CLINICAL_CONFLICT")
+        if not resolution_note.strip():
+            self._audit(summary, context, "RESOLVE_CLINICAL_CONFLICT", "ERROR")
+            raise ReviewPolicyError("A conflict resolution note is required.")
+        conflicts = [
+            self._confirmed_conflict(conflict, conflict_id, context.user_id, resolution_note)
+            for conflict in summary.draft.conflicts
+        ]
+        if not any(conflict.conflict_id == conflict_id for conflict in summary.draft.conflicts):
+            self._audit(summary, context, "RESOLVE_CLINICAL_CONFLICT", "ERROR")
+            raise ReviewPolicyError("Conflict resolution is not permitted.")
+        patch = summary.draft.model_copy(update={"conflicts": conflicts})
+        version = self.edit(summary_id, context, patch, "Doctor confirmed conflict resolution")
+        self._repository.save_conflict_resolution(version.version_id, conflict_id, context.user_id, resolution_note)
+        self._audit(version, context, "RESOLVE_CLINICAL_CONFLICT", "SUCCESS")
+        return version
+
+    def _authorized_summary(self, summary_id: UUID, context: AccessContext, action: str) -> SummaryVersion:
         if context.role != "DOCTOR":
+            self._audit_denied(context, action, None)
             raise ClinicalAccessDenied
         for subject_id in context.assigned_subject_ids:
-            self._assignments.assert_access(context, subject_id)
+            try:
+                self._assignments.assert_access(context, subject_id)
+            except ClinicalAccessDenied:
+                self._audit_denied(context, action, subject_id)
+                raise
             summary = self._repository.get_for_subject(summary_id, subject_id)
             if summary is not None:
                 return summary
+        self._audit_denied(context, action, None)
         raise ClinicalAccessDenied
 
     def _transition(
@@ -100,15 +134,43 @@ class ReviewService:
             for claim in claims
         )
 
+    def _has_confirmed_conflicts(self, summary: SummaryVersion) -> bool:
+        confirmations = self._repository.confirmed_conflicts(summary.version_id)
+        return all(
+            conflict.status == "UNRESOLVED"
+            or (conflict.resolved_by is not None and conflict.resolution_note is not None)
+            and (conflict.conflict_id, conflict.resolved_by, conflict.resolution_note) in confirmations
+            for conflict in summary.draft.conflicts
+        )
+
+    @staticmethod
+    def _confirmed_conflict(conflict: Conflict, conflict_id: str, user_id: str, note: str) -> Conflict:
+        if conflict.conflict_id != conflict_id:
+            return conflict
+        return conflict.model_copy(update={"status": "RESOLVED", "resolved_by": user_id, "resolution_note": note})
+
     def _audit(
         self, summary: SummaryVersion, context: AccessContext, action: str, result: str, *, persist: bool = True
     ) -> None:
-        event = AuditEvent(
+        event = self._event(summary, context, action, result)
+        if persist:
+            self._repository.record(event)
+        if self._audit_sink is not self._repository:
+            self._audit_sink.record(event)
+
+    @staticmethod
+    def _event(summary: SummaryVersion, context: AccessContext, action: str, result: str) -> AuditEvent:
+        return AuditEvent(
             user_id=context.user_id, action=action, subject_id=summary.draft.subject_id,
             hadm_id=summary.draft.hadm_id, stay_id=summary.draft.stay_id, result=result,
             trace_id=context.trace_id, timestamp=datetime.now(UTC),
         )
-        if persist:
-            self._repository.record(event)
+
+    def _audit_denied(self, context: AccessContext, action: str, subject_id: int | None) -> None:
+        event = AuditEvent(
+            user_id=context.user_id, action=action, subject_id=subject_id or 0, hadm_id=None, stay_id=None,
+            result="DENIED", trace_id=context.trace_id, timestamp=datetime.now(UTC),
+        )
+        self._repository.record(event)
         if self._audit_sink is not self._repository:
             self._audit_sink.record(event)
