@@ -83,6 +83,32 @@ def test_repository_normalizes_aware_time_filters_for_naive_sqlite_timestamps(tm
     assert [record.lineage.source_row_key for record in result.records] == ["labevent_id=9001", "labevent_id=9002"]
 
 
+def test_repository_preserves_lab_integrity_and_null_scope_ids(tmp_path):
+    """Lab evidence must preserve source fields and keep missing encounter IDs null."""
+    db_path = tmp_path / "clinical.sqlite"
+    create_mock_clinical_db(db_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "UPDATE labevents SET hadm_id = NULL, specimen_id = NULL WHERE labevent_id = 9002"
+        )
+        connection.commit()
+
+    repo = SQLiteClinicalRepository(str(db_path))
+    result = repo.fetch_laboratory_results(ClinicalQuery(subject_id=101))
+    record = next(record for record in result.records if record.lineage.source_row_key == "labevent_id=9002")
+
+    assert record.data["value"] == "1.3"
+    assert record.data["valuenum"] == 1.3
+    assert record.data["valueuom"] == "unit"
+    assert record.data["ref_range_lower"] == 0.5
+    assert record.data["ref_range_upper"] == 1.5
+    assert record.data["charttime"] == "2200-01-10 14:00:00"
+    assert record.data["specimen_id"] is None
+    assert record.lineage.hadm_id is None
+    assert record.lineage.stay_id is None
+    assert record.lineage.source_row_key == "labevent_id=9002"
+
+
 def test_repository_validates_hospital_and_icu_scope_against_subject(tmp_path):
     """Removing subject matching from scope validation should fail this test."""
     db_path = tmp_path / "clinical.sqlite"

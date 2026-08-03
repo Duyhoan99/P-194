@@ -2,9 +2,13 @@ import sqlite3
 
 import pytest
 
+from src.clinical.access import DemoAssignmentProvider
+from src.clinical.audit import InMemoryAuditSink
 from src.clinical.errors import ClinicalDatabaseUnavailable, ClinicalQueryTimeout, ClinicalScopeInvalid
-from src.clinical.repository import RepositoryFetch
+from src.clinical.repository import RepositoryFetch, SQLiteClinicalRepository
 from src.clinical.schemas import AccessContext, ClinicalQuery
+from src.clinical.service import ClinicalRetrievalService
+from tests.clinical_fixtures import create_mock_clinical_db
 from tests.test_clinical.conftest import TEST_TRACE_ID, DenyAllChecker, allowed_context
 
 
@@ -56,6 +60,26 @@ def test_service_marks_missing_source_partial(assigned_service, audit_sink):
     assert audit_sink.events[-1].result == "PARTIAL"
 
 
+def test_service_marks_missing_dictionary_partial_from_sqlite_fixture(tmp_path):
+    """Missing lab dictionary data must be explicit instead of silently looking complete."""
+    db_path = tmp_path / "clinical.sqlite"
+    create_mock_clinical_db(db_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("DROP TABLE d_labitems")
+        connection.commit()
+
+    service = ClinicalRetrievalService(
+        SQLiteClinicalRepository(str(db_path)),
+        DemoAssignmentProvider({"doctor-1": {101}}, set()),
+        InMemoryAuditSink(),
+    )
+    result = service.get_laboratory_results(allowed_context(), ClinicalQuery(subject_id=101))
+
+    assert result.status == "PARTIAL"
+    assert result.records
+    assert "d_labitems" in " ".join(result.warnings)
+
+
 def test_service_marks_unavailable_domain_not_loaded(assigned_service, fake_repo):
     """Treating an unloaded source as an empty result would hide data availability."""
     fake_repo.fetches["fetch_microbiology_results"] = RepositoryFetch([], ["microbiologyevents"])
@@ -100,6 +124,21 @@ def test_service_maps_sqlite_errors_without_exposing_database_text(assigned_serv
     """Letting a SQLite error cross the service boundary must fail this test."""
     fake_repo.fetches["fetch_microbiology_results"] = sqlite3.OperationalError(
         "no such table: restricted_clinical_values"
+    )
+
+    with pytest.raises(ClinicalDatabaseUnavailable) as error:
+        assigned_service.get_microbiology_results(allowed_context(), ClinicalQuery(subject_id=101))
+
+    assert str(error.value) == ""
+    assert audit_sink.events[-1].result == "ERROR"
+
+
+def test_service_maps_all_sqlite_database_errors_without_exposing_database_text(
+    assigned_service, fake_repo, audit_sink
+):
+    """A non-operational SQLite database error must not escape as an HTTP 500."""
+    fake_repo.fetches["fetch_microbiology_results"] = sqlite3.DatabaseError(
+        "database disk image is malformed: raw clinical value"
     )
 
     with pytest.raises(ClinicalDatabaseUnavailable) as error:

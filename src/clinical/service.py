@@ -92,7 +92,7 @@ class ClinicalRetrievalService:
         except TimeoutError:
             self._record_audit(context, query, action, "ERROR")
             raise ClinicalQueryTimeout from None
-        except sqlite3.OperationalError:
+        except sqlite3.DatabaseError:
             self._record_audit(context, query, action, "ERROR")
             raise ClinicalDatabaseUnavailable from None
 

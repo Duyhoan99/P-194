@@ -52,6 +52,19 @@ async def test_clinical_route_rejects_invalid_scope(authenticated_client, fake_s
 
 
 @pytest.mark.asyncio
+async def test_clinical_route_rejects_unrelated_stay(authenticated_client, fake_service):
+    """An ICU stay outside the requested scope must not reach the clinical fetch."""
+    fake_service._repository.scope_is_valid = False
+    response = await authenticated_client.get(
+        "/api/v1/clinical/patients/101/icu-events?stay_id=999999"
+    )
+
+    assert response.status_code == 422
+    assert UUID(response.json()["trace_id"]).version == 4
+    assert fake_service._repository.fetch_calls == []
+
+
+@pytest.mark.asyncio
 async def test_clinical_route_returns_lineage(authenticated_client):
     """Serializing records without provenance would make returned lab evidence unverifiable."""
     response = await authenticated_client.get("/api/v1/clinical/patients/101/labs?limit=1")
@@ -86,6 +99,40 @@ async def test_clinical_route_validation_error_for_malformed_limit_has_trace_id(
 
     assert response.status_code == 422
     assert UUID(response.json()["trace_id"]).version == 4
+
+
+@pytest.mark.asyncio
+async def test_clinical_route_rejects_limit_above_configured_maximum(authenticated_client, fake_service):
+    """A request above the clinical limit must be rejected before repository access."""
+    response = await authenticated_client.get("/api/v1/clinical/patients/101/labs?limit=1001")
+
+    assert response.status_code == 422
+    assert response.json()["trace_id"] == TEST_TRACE_ID
+    assert fake_service._repository.fetch_calls == []
+
+
+@pytest.mark.asyncio
+async def test_clinical_route_rejects_malformed_filter_without_repository_access(
+    authenticated_client, fake_service
+):
+    """A malformed identifier cannot be interpreted as SQL and must not reach the repository."""
+    response = await authenticated_client.get(
+        "/api/v1/clinical/patients/101/labs?hadm_id=5001%20OR%201%3D1"
+    )
+
+    assert response.status_code == 422
+    assert UUID(response.json()["trace_id"]).version == 4
+    assert fake_service._repository.fetch_calls == []
+
+
+@pytest.mark.asyncio
+async def test_doctor_cannot_retrieve_unassigned_subject(authenticated_client, fake_service):
+    """An assigned doctor must be denied before any repository query for another subject."""
+    response = await authenticated_client.get("/api/v1/clinical/patients/202/labs")
+
+    assert response.status_code == 403
+    assert response.json()["trace_id"] == TEST_TRACE_ID
+    assert fake_service._repository.fetch_calls == []
 
 
 @pytest.mark.asyncio
@@ -145,6 +192,22 @@ async def test_clinical_route_maps_service_errors_to_safe_statuses(
     response = await authenticated_client.get("/api/v1/clinical/patients/101/labs")
 
     assert response.status_code == status_code
+    assert response.json()["trace_id"] == TEST_TRACE_ID
+
+
+@pytest.mark.asyncio
+async def test_clinical_route_hides_database_error_details(authenticated_client, fake_service):
+    """Database failures must become 503 without SQL or clinical values in the body."""
+    import sqlite3
+
+    fake_service._repository.fetches["fetch_laboratory_results"] = sqlite3.DatabaseError(
+        "SELECT raw_value FROM restricted_clinical_values"
+    )
+    response = await authenticated_client.get("/api/v1/clinical/patients/101/labs")
+
+    assert response.status_code == 503
+    assert "raw_value" not in response.text
+    assert "SELECT" not in response.text
     assert response.json()["trace_id"] == TEST_TRACE_ID
 
 

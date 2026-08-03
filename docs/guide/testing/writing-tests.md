@@ -11,8 +11,10 @@ tests/
 ├── conftest.py           ← Fixtures dùng chung
 ├── test_agents/
 │   └── test_graph.py     ← Test agent flow
-└── test_api/
-    └── test_routes.py    ← Test API endpoints
+├── test_api/
+│   ├── test_routes.py    ← Test API endpoints
+│   └── test_clinical_routes.py ← Test clinical HTTP contracts
+└── test_clinical/        ← Access, lineage, repository and service tests
 ```
 
 ## API Tests
@@ -82,6 +84,9 @@ pytest tests/test_api/test_routes.py -v
 
 # With coverage
 pytest tests/ --cov=src --cov-report=term-missing
+
+# Clinical retrieval only
+pytest tests/test_clinical tests/test_api/test_clinical_routes.py -q
 ```
 
 ## Minimum Requirements
@@ -89,3 +94,4 @@ pytest tests/ --cov=src --cov-report=term-missing
 - Tối thiểu **3 test cases** cho API
 - Tối thiểu **2 test cases** cho Agent
 - Tất cả tests phải pass trước khi push
+- Clinical tests phải dùng synthetic fixtures; không commit raw MIMIC CSV/CSV.GZ hoặc restricted clinical rows.
