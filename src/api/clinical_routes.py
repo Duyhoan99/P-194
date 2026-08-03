@@ -101,6 +101,7 @@ def _retrieve(
     from_time: datetime | None,
     to_time: datetime | None,
     limit: int,
+    cursor: str | None,
 ) -> ClinicalResponse | JSONResponse:
     request.state.clinical_trace_id = context.trace_id
     try:
@@ -111,6 +112,7 @@ def _retrieve(
             from_time=from_time,
             to_time=to_time,
             limit=limit,
+            cursor=cursor,
         )
     except ValidationError:
         return clinical_error_response(request, ClinicalScopeInvalid(), trace_id=context.trace_id)
@@ -118,6 +120,7 @@ def _retrieve(
     try:
         response = service_method(context, query)
     except (
+        ClinicalAuthNotConfigured,
         ClinicalAccessDenied,
         ClinicalScopeInvalid,
         ClinicalDatabaseUnavailable,
@@ -139,11 +142,12 @@ def get_patient_overview(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
     limit: int = 200,
+    cursor: str | None = None,
     context: AccessContext = Depends(get_access_context),
     service: ClinicalRetrievalService = Depends(get_clinical_service),
 ) -> ClinicalResponse | JSONResponse:
     return _retrieve(
-        request, service.get_patient_overview, context, subject_id, hadm_id, stay_id, from_time, to_time, limit
+        request, service.get_patient_overview, context, subject_id, hadm_id, stay_id, from_time, to_time, limit, cursor
     )
 
 
@@ -156,11 +160,12 @@ def get_encounter_timeline(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
     limit: int = 200,
+    cursor: str | None = None,
     context: AccessContext = Depends(get_access_context),
     service: ClinicalRetrievalService = Depends(get_clinical_service),
 ) -> ClinicalResponse | JSONResponse:
     return _retrieve(
-        request, service.get_encounter_timeline, context, subject_id, hadm_id, stay_id, from_time, to_time, limit
+        request, service.get_encounter_timeline, context, subject_id, hadm_id, stay_id, from_time, to_time, limit, cursor
     )
 
 
@@ -173,6 +178,7 @@ def get_diagnoses_and_procedures(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
     limit: int = 200,
+    cursor: str | None = None,
     context: AccessContext = Depends(get_access_context),
     service: ClinicalRetrievalService = Depends(get_clinical_service),
 ) -> ClinicalResponse | JSONResponse:
@@ -186,6 +192,7 @@ def get_diagnoses_and_procedures(
         from_time,
         to_time,
         limit,
+        cursor,
     )
 
 
@@ -198,11 +205,12 @@ def get_laboratory_results(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
     limit: int = 200,
+    cursor: str | None = None,
     context: AccessContext = Depends(get_access_context),
     service: ClinicalRetrievalService = Depends(get_clinical_service),
 ) -> ClinicalResponse | JSONResponse:
     return _retrieve(
-        request, service.get_laboratory_results, context, subject_id, hadm_id, stay_id, from_time, to_time, limit
+        request, service.get_laboratory_results, context, subject_id, hadm_id, stay_id, from_time, to_time, limit, cursor
     )
 
 
@@ -215,11 +223,12 @@ def get_microbiology_results(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
     limit: int = 200,
+    cursor: str | None = None,
     context: AccessContext = Depends(get_access_context),
     service: ClinicalRetrievalService = Depends(get_clinical_service),
 ) -> ClinicalResponse | JSONResponse:
     return _retrieve(
-        request, service.get_microbiology_results, context, subject_id, hadm_id, stay_id, from_time, to_time, limit
+        request, service.get_microbiology_results, context, subject_id, hadm_id, stay_id, from_time, to_time, limit, cursor
     )
 
 
@@ -232,9 +241,10 @@ def get_icu_events(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
     limit: int = 200,
+    cursor: str | None = None,
     context: AccessContext = Depends(get_access_context),
     service: ClinicalRetrievalService = Depends(get_clinical_service),
 ) -> ClinicalResponse | JSONResponse:
     return _retrieve(
-        request, service.get_icu_events, context, subject_id, hadm_id, stay_id, from_time, to_time, limit
+        request, service.get_icu_events, context, subject_id, hadm_id, stay_id, from_time, to_time, limit, cursor
     )

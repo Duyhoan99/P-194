@@ -132,6 +132,7 @@ def assigned_service(fake_repo: FakeRepository, audit_sink: InMemoryAuditSink):
         fake_repo,
         DemoAssignmentProvider({"doctor-1": {101}}, set()),
         audit_sink,
+        cursor_secret="s" * 32,
     )
 
 

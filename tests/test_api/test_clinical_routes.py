@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
@@ -10,6 +11,8 @@ from src.clinical.errors import (
     ClinicalDatabaseUnavailable,
     ClinicalQueryTimeout,
 )
+from src.clinical.pagination import CursorPosition
+from src.clinical.repository import RepositoryFetch
 from src.clinical.schemas import AccessContext
 from src.main import app
 from tests.test_clinical.conftest import TEST_TRACE_ID, allowed_context
@@ -73,6 +76,34 @@ async def test_clinical_route_returns_lineage(authenticated_client):
     body = response.json()
     assert body["records"][0]["lineage"]["table"] == "labevents"
     assert body["trace_id"] == TEST_TRACE_ID
+
+
+@pytest.mark.asyncio
+async def test_clinical_route_returns_next_cursor(authenticated_client, fake_service):
+    fake_service._repository.fetches["fetch_laboratory_results"] = RepositoryFetch(
+        [],
+        [],
+        next_position=CursorPosition(
+            event_time=datetime(2200, 1, 10, 14, tzinfo=UTC),
+            domain="labevents",
+            source_key="labevent_id=9001",
+        ),
+        has_more=True,
+    )
+
+    response = await authenticated_client.get("/api/v1/clinical/patients/101/labs?limit=1")
+
+    assert response.status_code == 200
+    assert response.json()["page"]["has_more"] is True
+    assert response.json()["page"]["next_cursor"]
+
+
+@pytest.mark.asyncio
+async def test_invalid_cursor_does_not_call_service(authenticated_client, fake_service):
+    response = await authenticated_client.get("/api/v1/clinical/patients/101/labs?cursor=bad")
+
+    assert response.status_code == 422
+    assert fake_service._repository.fetch_calls == []
 
 
 @pytest.mark.asyncio

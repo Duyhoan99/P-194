@@ -883,8 +883,11 @@ class SQLiteClinicalRepository:
 
     @staticmethod
     def _position_from_record(record: EvidenceRecord) -> CursorPosition:
+        event_time = record.lineage.event_time
+        if event_time is not None and (event_time.tzinfo is None or event_time.utcoffset() is None):
+            event_time = event_time.replace(tzinfo=UTC)
         return CursorPosition(
-            event_time=record.lineage.event_time,
+            event_time=event_time,
             domain=record.lineage.table,
             source_key=record.lineage.source_row_key,
         )
