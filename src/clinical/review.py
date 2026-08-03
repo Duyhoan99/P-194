@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from src.clinical.access import AssignmentChecker
 from src.clinical.audit import AuditEvent, AuditSink
-from src.clinical.errors import ClinicalAccessDenied, ReviewPolicyError
+from src.clinical.errors import ClinicalAccessDenied, ClinicalSummaryNotFound, ReviewPolicyError
 from src.clinical.schemas import AccessContext
 from src.clinical.summary_repository import SQLiteSummaryRepository, SummaryVersion
 from src.clinical.summary_schemas import ClinicalSummaryDraft
@@ -38,6 +38,15 @@ class ReviewService:
             raise ReviewPolicyError("A rejection reason is required.")
         return self._transition(summary, context, "REJECTED", reason, "REJECT_CLINICAL_SUMMARY")
 
+    def get(self, summary_id: UUID, context: AccessContext) -> SummaryVersion:
+        """Return a summary only after the established assigned-doctor policy."""
+        return self._authorized_summary(summary_id, context, "EDIT_CLINICAL_SUMMARY")
+
+    def list_versions(self, summary_id: UUID, context: AccessContext) -> list[SummaryVersion]:
+        """Return immutable version metadata only for an authorized doctor."""
+        summary = self._authorized_summary(summary_id, context, "EDIT_CLINICAL_SUMMARY")
+        return self._repository.list_versions(summary.summary_id)
+
     def edit(
         self,
         summary_id: UUID,
@@ -46,6 +55,9 @@ class ReviewService:
         reason: str | None,
     ) -> SummaryVersion:
         summary = self._authorized_summary(summary_id, context, "EDIT_CLINICAL_SUMMARY")
+        if not self._has_valid_citations_for_draft(patch):
+            self._audit(summary, context, "EDIT_CLINICAL_SUMMARY", "ERROR")
+            raise ReviewPolicyError("Edited claims require valid citations.")
         try:
             version = self._repository.update_draft(summary.summary_id, context.user_id, patch, reason)
         except Exception:
@@ -110,6 +122,10 @@ class ReviewService:
             summary = self._repository.get_for_subject(summary_id, subject_id)
             if summary is not None:
                 return summary
+        try:
+            self._repository.get(summary_id)
+        except ReviewPolicyError:
+            raise ClinicalSummaryNotFound from None
         self._audit_denied(context, action, None)
         raise ClinicalAccessDenied
 
@@ -126,10 +142,14 @@ class ReviewService:
 
     @staticmethod
     def _has_valid_citations(summary: SummaryVersion) -> bool:
-        citations = {citation.citation_id for citation in summary.draft.citations}
+        return ReviewService._has_valid_citations_for_draft(summary.draft)
+
+    @staticmethod
+    def _has_valid_citations_for_draft(draft: ClinicalSummaryDraft) -> bool:
+        citations = {citation.citation_id for citation in draft.citations}
         return all(
             claim.status == "VALID" and bool(claim.citation_ids) and set(claim.citation_ids) <= citations
-            for claims in summary.draft.sections.values()
+            for claims in draft.sections.values()
             for claim in claims
         )
 

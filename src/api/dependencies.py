@@ -2,26 +2,49 @@
 
 from uuid import uuid4
 
-from fastapi import Request
+from fastapi import Depends, Request
 
-from src.clinical.access import AssignmentChecker, AuthProvider, ConfiguredAuthProvider
+from src.clinical.access import (
+    AssignmentChecker,
+    AuthProvider,
+    ConfiguredAuthProvider,
+    DemoAssignmentProvider,
+)
 from src.clinical.audit import StructuredAuditSink
+from src.clinical.demo_auth import DemoSessionProvider
 from src.clinical.errors import ClinicalAccessDenied, ClinicalDatabaseUnavailable
 from src.clinical.postgres_repository import PostgresClinicalRepository
 from src.clinical.repository import ClinicalRepository, SQLiteClinicalRepository
+from src.clinical.review import ReviewService
 from src.clinical.schemas import AccessContext
 from src.clinical.service import ClinicalRetrievalService
+from src.clinical.summary_repository import SQLiteSummaryRepository
+from src.clinical.summary_service import ClinicalSummaryService
 from src.config import Settings, get_settings
 
 
 class _FailClosedAssignmentChecker:
     """Service-side fallback that cannot grant access without configured auth."""
 
-    def can_access(self, context: AccessContext, subject_id: int) -> bool:
+    def can_access(
+        self,
+        context: AccessContext,
+        subject_id: int,
+        hadm_id: int | None = None,
+        stay_id: int | None = None,
+    ) -> bool:
+        del context, subject_id, hadm_id, stay_id
         return False
 
-    def assert_access(self, context: AccessContext, subject_id: int) -> None:
-            raise ClinicalAccessDenied
+    def assert_access(
+        self,
+        context: AccessContext,
+        subject_id: int,
+        hadm_id: int | None = None,
+        stay_id: int | None = None,
+    ) -> None:
+        del context, subject_id, hadm_id, stay_id
+        raise ClinicalAccessDenied
 
 
 def build_clinical_repository(settings: Settings) -> ClinicalRepository:
@@ -49,8 +72,40 @@ def get_clinical_service() -> ClinicalRetrievalService:
     """Build the production clinical service from configured infrastructure."""
     settings = get_settings()
     repository = build_clinical_repository(settings)
-    access_checker: AssignmentChecker = _FailClosedAssignmentChecker()
+    access_checker = get_assignment_checker()
     return ClinicalRetrievalService(repository, access_checker, StructuredAuditSink())
+
+
+def get_assignment_checker() -> AssignmentChecker:
+    """Select server-side demo assignments only outside production."""
+    settings = get_settings()
+    if settings.app_env in {"development", "test"}:
+        return DemoAssignmentProvider({"doctor-1": {101}}, {"admin-1"})
+    return _FailClosedAssignmentChecker()
+
+
+def build_summary_repository(settings: Settings) -> SQLiteSummaryRepository:
+    """Use local application storage only for development and test environments."""
+    if settings.app_env in {"development", "test"} and settings.summary_backend == "sqlite":
+        return SQLiteSummaryRepository(settings.summary_database_path)
+    raise ClinicalDatabaseUnavailable
+
+
+def get_summary_repository() -> SQLiteSummaryRepository:
+    return build_summary_repository(get_settings())
+
+
+def get_summary_service(
+    clinical_service: ClinicalRetrievalService = Depends(get_clinical_service),
+) -> ClinicalSummaryService:
+    return ClinicalSummaryService(clinical_service, audit_sink=StructuredAuditSink())
+
+
+def get_review_service(
+    repository: SQLiteSummaryRepository = Depends(get_summary_repository),
+    assignments: AssignmentChecker = Depends(get_assignment_checker),
+) -> ReviewService:
+    return ReviewService(repository, assignments, repository)
 
 
 def get_access_context(request: Request) -> AccessContext:
@@ -61,5 +116,9 @@ def get_access_context(request: Request) -> AccessContext:
     FastAPI's dependency override mechanism.
     """
     request.state.clinical_trace_id = str(uuid4())
-    provider: AuthProvider = ConfiguredAuthProvider()
+    provider: AuthProvider
+    if get_settings().app_env in {"development", "test"}:
+        provider = DemoSessionProvider()
+    else:
+        provider = ConfiguredAuthProvider()
     return provider.authenticate(request)

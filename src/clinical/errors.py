@@ -23,3 +23,7 @@ class ClinicalQueryTimeout(Exception):  # noqa: N818
 
 class ReviewPolicyError(Exception):  # noqa: N818
     """Raised when a clinical summary review policy cannot be satisfied."""
+
+
+class ClinicalSummaryNotFound(Exception):  # noqa: N818
+    """Raised when a requested clinical summary does not exist."""

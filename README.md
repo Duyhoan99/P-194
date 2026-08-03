@@ -97,6 +97,15 @@ Routes:
 | GET | `/api/v1/clinical/patients/{subject_id}/labs` | Laboratory evidence |
 | GET | `/api/v1/clinical/patients/{subject_id}/microbiology` | Microbiology evidence |
 | GET | `/api/v1/clinical/patients/{subject_id}/icu-events` | ICU events |
+| POST | `/api/v1/auth/demo-login` | Development/test-only signed demo session |
+| POST | `/api/v1/auth/logout` | Clear the demo session |
+| GET | `/api/v1/clinical/patients` | Patients assigned to the signed demo doctor |
+| POST | `/api/v1/clinical/patients/{subject_id}/summaries` | Generate and persist an evidence-backed draft |
+| GET/PATCH | `/api/v1/clinical/summaries/{summary_id}` | Read or create an edited draft version |
+| POST | `/api/v1/clinical/summaries/{summary_id}/reject` | Reject with a non-empty reason |
+| POST | `/api/v1/clinical/summaries/{summary_id}/approve` | Approve after a complete backend-validated checklist |
+| POST | `/api/v1/clinical/summaries/{summary_id}/export` | Export an approved summary PDF |
+| GET | `/api/v1/clinical/summaries/{summary_id}/versions` | Immutable summary version metadata |
 
 Mọi request clinical phải có access context đáng tin cậy. Khi authentication provider chưa được cấu hình, dependency mặc định fail closed và trả `503`; không dùng `user_id` hoặc role do client tự gửi. Trong development/test, `DemoAssignmentProvider` chỉ được dùng qua dependency override và bị vô hiệu hóa khi `APP_ENV=production`.
 

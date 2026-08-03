@@ -5,9 +5,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from src.api.auth_routes import router as auth_router
 from src.api.clinical_routes import register_clinical_error_handlers
 from src.api.clinical_routes import router as clinical_router
+from src.api.review_routes import router as review_router
 from src.api.routes import router
+from src.api.summary_routes import router as summary_router
 from src.config import get_settings
 from src.logger import setup_logging
 
@@ -39,6 +42,9 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(summary_router, prefix="/api/v1")
+app.include_router(review_router, prefix="/api/v1")
 app.include_router(clinical_router, prefix="/api/v1")
 register_clinical_error_handlers(app)
 

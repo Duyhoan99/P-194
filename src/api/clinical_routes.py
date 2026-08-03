@@ -19,6 +19,7 @@ from src.clinical.errors import (
     ClinicalDatabaseUnavailable,
     ClinicalQueryTimeout,
     ClinicalScopeInvalid,
+    ReviewPolicyError,
 )
 from src.clinical.schemas import AccessContext, ClinicalQuery, ClinicalResponse
 from src.clinical.service import ClinicalRetrievalService
@@ -31,6 +32,7 @@ _ERROR_DETAILS: dict[type[Exception], str] = {
     ClinicalScopeInvalid: "The requested clinical scope is invalid.",
     ClinicalDatabaseUnavailable: "Clinical data is currently unavailable.",
     ClinicalQueryTimeout: "The clinical query timed out.",
+    ReviewPolicyError: "Clinical summary review policy cannot be satisfied.",
 }
 _ERROR_STATUS_CODES: dict[type[Exception], int] = {
     ClinicalAuthNotConfigured: 503,
@@ -38,6 +40,7 @@ _ERROR_STATUS_CODES: dict[type[Exception], int] = {
     ClinicalScopeInvalid: 422,
     ClinicalDatabaseUnavailable: 503,
     ClinicalQueryTimeout: 504,
+    ReviewPolicyError: 422,
 }
 
 
