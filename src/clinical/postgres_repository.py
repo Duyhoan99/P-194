@@ -10,7 +10,14 @@ from src.clinical.repository import ALLOWED_SOURCE_TABLES, SQLiteClinicalReposit
 class PostgresClinicalRepository(SQLiteClinicalRepository):
     """Read-only PostgreSQL adapter with bounded pooled connections and timeouts."""
 
-    def __init__(self, dsn: str, query_timeout_seconds: float = 2.0, pool_size: int = 5) -> None:
+    def __init__(
+        self,
+        dsn: str,
+        query_timeout_seconds: float = 2.0,
+        pool_size: int = 5,
+        source_dataset: str = "MIMIC-IV",
+        source_version: str = "3.1",
+    ) -> None:
         if not dsn:
             raise ClinicalDatabaseUnavailable
         try:
@@ -20,6 +27,8 @@ class PostgresClinicalRepository(SQLiteClinicalRepository):
             raise ClinicalDatabaseUnavailable from error
 
         self._query_timeout_seconds = query_timeout_seconds
+        self._source_dataset = source_dataset
+        self._source_version = source_version
         try:
             self._pool = ConnectionPool(
                 conninfo=dsn,

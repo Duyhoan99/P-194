@@ -31,12 +31,16 @@ def build_clinical_repository(settings: Settings) -> ClinicalRepository:
         return SQLiteClinicalRepository(
             settings.clinical_database_path,
             query_timeout_seconds=settings.clinical_query_timeout_seconds,
+            source_dataset=settings.clinical_source_dataset,
+            source_version=settings.clinical_source_version,
         )
     if settings.clinical_backend == "postgresql":
         return PostgresClinicalRepository(
             settings.clinical_postgres_dsn,
             query_timeout_seconds=settings.clinical_query_timeout_seconds,
             pool_size=settings.clinical_pool_size,
+            source_dataset=settings.clinical_source_dataset,
+            source_version=settings.clinical_source_version,
         )
     raise ClinicalDatabaseUnavailable
 

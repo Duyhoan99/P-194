@@ -64,8 +64,16 @@ class ClinicalRepository(Protocol):
 class SQLiteClinicalRepository:
     """Clinical repository backed by a SQLite database opened in read-only mode."""
 
-    def __init__(self, db_path: str, query_timeout_seconds: float = 2.0) -> None:
+    def __init__(
+        self,
+        db_path: str,
+        query_timeout_seconds: float = 2.0,
+        source_dataset: str = "MIMIC-IV",
+        source_version: str = "3.1",
+    ) -> None:
         self._query_timeout_seconds = query_timeout_seconds
+        self._source_dataset = source_dataset
+        self._source_version = source_version
         database_uri = f"{Path(db_path).resolve().as_uri()}?mode=ro"
         self._connection = sqlite3.connect(database_uri, uri=True, timeout=query_timeout_seconds)
         self._connection.row_factory = sqlite3.Row
@@ -753,8 +761,8 @@ class SQLiteClinicalRepository:
             record_type=record_type,
             data=data,
             lineage=SourceLineage(
-                dataset="MIMIC-IV",
-                version="3.1",
+                dataset=self._source_dataset,
+                version=self._source_version,
                 module=module,
                 table=table,
                 source_row_key=source_key,
@@ -770,8 +778,8 @@ class SQLiteClinicalRepository:
         self, row: sqlite3.Row, module: str, table: str, source_key: str
     ) -> SourceLineage:
         return SourceLineage(
-            dataset="MIMIC-IV",
-            version="3.1",
+            dataset=self._source_dataset,
+            version=self._source_version,
             module=module,
             table=table,
             source_row_key=source_key,

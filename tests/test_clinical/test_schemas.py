@@ -81,6 +81,20 @@ def test_lineage_requires_mimic_version_and_source_identity():
     assert lineage.table == "labevents"
 
 
+def test_lineage_supports_an_explicit_non_mimic_source_profile():
+    lineage = SourceLineage(
+        dataset="hospital-ehr",
+        version="2026-01",
+        module="hosp",
+        table="labevents",
+        source_row_key="lab-result=1",
+        subject_id=1,
+        event_time=None,
+    )
+
+    assert lineage.dataset == "hospital-ehr"
+
+
 def test_contract_models_preserve_defaults_and_context():
     lineage = SourceLineage(
         dataset="MIMIC-IV",

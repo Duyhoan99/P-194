@@ -78,6 +78,22 @@ def test_service_returns_bound_next_cursor(fake_repo, audit_sink):
     assert result.page.next_cursor
 
 
+def test_service_rejects_lineage_for_wrong_subject_or_source(fake_repo, audit_sink):
+    record = fake_repo.fetches["fetch_laboratory_results"].records[0]
+    record.lineage.subject_id = 202
+
+    service = ClinicalRetrievalService(
+        fake_repo,
+        DemoAssignmentProvider({"doctor-1": {101}}, set()),
+        audit_sink,
+    )
+
+    with pytest.raises(ClinicalDatabaseUnavailable):
+        service.get_laboratory_results(allowed_context(), ClinicalQuery(subject_id=101))
+
+    assert audit_sink.events[-1].result == "ERROR"
+
+
 def test_service_rejects_invalid_scope_before_fetch(assigned_service, fake_repo, audit_sink):
     """Removing the scope guard would permit a fetch for a mismatched encounter."""
     fake_repo.scope_is_valid = False

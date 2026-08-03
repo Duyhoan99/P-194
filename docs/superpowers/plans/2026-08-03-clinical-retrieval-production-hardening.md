@@ -446,11 +446,11 @@ Run:
 
 ```bash
 pytest -q
-ruff check src tests scripts
+ruff check src tests scripts/check_clinical_indexes.py
 git diff --check
 ```
 
-Expected: all tests pass, Ruff has no errors, and no raw clinical values/secrets appear in changed files or logs.
+Expected: all tests pass, the changed clinical code has no Ruff errors, and no raw clinical values/secrets appear in changed files or logs. Legacy logging/setup scripts are outside this hardening scope.
 
 - [ ] **Step 5: Commit final hardening**
 

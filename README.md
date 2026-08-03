@@ -1,7 +1,7 @@
 # AI Agent hỗ trợ tóm tắt hồ sơ lâm sàng đa nguồn
 
 **Project:** P-194 · AI20K Build Phase Cohort 3
-**Status:** MVP clinical retrieval backend implemented against the synthetic/local SQLite fixture; production authentication, ingestion and UI remain out of scope.
+**Status:** Clinical retrieval backend has a fail-closed production boundary. Local development uses synthetic/MIMIC SQLite; production still requires an approved source, hospital authentication, patient-identity mapping and clinical governance sign-off.
 
 ## Mục tiêu
 
@@ -58,13 +58,21 @@ Endpoints của skeleton:
 
 ### Clinical retrieval API
 
-Clinical retrieval dùng SQLite read-only và chỉ truy vấn các bảng/cột allow-list. Đường dẫn database có thể cấu hình bằng `CLINICAL_DATABASE_PATH`; mặc định local là `mimic_demo.db`. Các tham số liên quan:
+Clinical retrieval dùng adapter read-only và chỉ truy vấn các bảng/cột allow-list. SQLite chỉ dành cho local/test; production phải chọn PostgreSQL rõ ràng và không có fallback. MIMIC-IV 3.1 là dữ liệu khử định danh phục vụ development/research, không phải hồ sơ bệnh nhân live.
 
 ```dotenv
 APP_ENV=development
+CLINICAL_BACKEND=sqlite
 CLINICAL_DATABASE_PATH=mimic_demo.db
+CLINICAL_POSTGRES_DSN=
+CLINICAL_POOL_SIZE=5
+CLINICAL_SOURCE_DATASET=MIMIC-IV
+CLINICAL_SOURCE_VERSION=3.1
+CLINICAL_SOURCE_PROFILE=mimic-iv-3.1
 CLINICAL_QUERY_TIMEOUT_SECONDS=2.0
 CLINICAL_MAX_LIMIT=1000
+CLINICAL_CURSOR_SECRET=local-development-only-change-me
+CLINICAL_CURSOR_TTL_SECONDS=900
 ```
 
 Routes:
@@ -80,6 +88,10 @@ Routes:
 
 Mọi request clinical phải có access context đáng tin cậy. Khi authentication provider chưa được cấu hình, dependency mặc định fail closed và trả `503`; không dùng `user_id` hoặc role do client tự gửi. Trong development/test, `DemoAssignmentProvider` chỉ được dùng qua dependency override và bị vô hiệu hóa khi `APP_ENV=production`.
 
+Mỗi request dùng `limit` cho kích thước trang và có thể dùng `cursor` opaque do response trước trả về. Cursor có chữ ký, thời hạn và bị ràng buộc với subject/scope/filter/endpoint; không dùng offset sâu cho production.
+
+Để chạy production, tổ chức triển khai phải cung cấp `CLINICAL_BACKEND=postgresql`, DSN bí mật, cursor secret ngẫu nhiên tối thiểu 32 ký tự, PostgreSQL read-only role, migration/index đã được kiểm tra, trusted `AuthProvider`/`AssignmentProvider`, patient-identity mapping và quy trình audit/backup/rollback. Code hiện fail closed nếu các integration đó chưa tồn tại; test pass không đồng nghĩa được phép dùng lâm sàng.
+
 Response chỉ là evidence có `source lineage`, không phải chẩn đoán, khuyến nghị điều trị hay quyết định lâm sàng. Source thiếu được biểu diễn bằng `PARTIAL`/`NOT_LOADED`; database error trả `503`, timeout trả `504`, và response lỗi không chứa SQL, prompt, secret hoặc raw clinical value.
 
 Kiểm thử:
@@ -88,7 +100,11 @@ Kiểm thử:
 ..\.venv\Scripts\python.exe -m pytest -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_clinical tests/test_api/test_clinical_routes.py -q
 ruff check src tests
+ruff check scripts/check_clinical_indexes.py
+python scripts/check_clinical_indexes.py mimic_demo.db
 ```
+
+Index checker chỉ đọc database, chỉ in tên bảng/index/query-plan và trả mã lỗi nếu index bắt buộc thiếu. Việc tạo index phải thực hiện qua migration/setup được review, không chạy trong app.
 
 ## Cấu trúc chính
 

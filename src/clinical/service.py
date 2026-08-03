@@ -44,6 +44,8 @@ class ClinicalRetrievalService:
         settings = get_settings()
         self._cursor_secret = cursor_secret if cursor_secret is not None else settings.clinical_cursor_secret
         self._source_profile = source_profile or settings.clinical_source_profile
+        self._source_dataset = settings.clinical_source_dataset
+        self._source_version = settings.clinical_source_version
         self._cursor_ttl_seconds = cursor_ttl_seconds or settings.clinical_cursor_ttl_seconds
 
     def get_patient_overview(self, context: AccessContext, query: ClinicalQuery) -> ClinicalResponse:
@@ -129,7 +131,11 @@ class ClinicalRetrievalService:
             self._record_audit(context, query, action, "ERROR")
             raise ClinicalDatabaseUnavailable from None
 
-        response = self._response_for_fetch(result, context.trace_id, query, endpoint)
+        try:
+            response = self._response_for_fetch(result, context.trace_id, query, endpoint)
+        except ClinicalDatabaseUnavailable:
+            self._record_audit(context, query, action, "ERROR")
+            raise ClinicalDatabaseUnavailable from None
         self._record_audit(context, query, action, response.status)
         return response
 
@@ -140,6 +146,16 @@ class ClinicalRetrievalService:
         query: ClinicalQuery,
         endpoint: str,
     ) -> ClinicalResponse:
+        for record in result.records:
+            lineage = record.lineage
+            if (
+                lineage.dataset != self._source_dataset
+                or lineage.version != self._source_version
+                or lineage.subject_id != query.subject_id
+                or (query.hadm_id is not None and lineage.hadm_id not in (None, query.hadm_id))
+                or (query.stay_id is not None and lineage.stay_id not in (None, query.stay_id))
+            ):
+                raise ClinicalDatabaseUnavailable
         warnings = [f"Clinical source unavailable: {source}" for source in result.unavailable_sources]
         if result.unavailable_sources:
             status = "PARTIAL" if result.records else "NOT_LOADED"

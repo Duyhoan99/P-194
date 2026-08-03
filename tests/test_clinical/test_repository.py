@@ -131,6 +131,7 @@ def test_repository_uses_newest_first_typed_tie_break_and_cursor_boundary(tmp_pa
 
     assert first.records[0].lineage.source_row_key == "labevent_id=10"
     assert first.has_more is True
+    assert first.next_position.event_time.tzinfo == UTC
     assert second.records[0].lineage.source_row_key == "labevent_id=9"
     assert second.has_more is False
 
