@@ -1,4 +1,5 @@
 from copy import deepcopy
+from uuid import uuid4
 
 import pytest
 
@@ -8,6 +9,7 @@ from src.clinical.repository import RepositoryFetch
 from src.clinical.schemas import AccessContext, ClinicalQuery, EvidenceRecord, SourceLineage
 from src.clinical.service import ClinicalRetrievalService
 from src.clinical.summary_generator import DeterministicDemoSummaryGenerator
+from src.clinical.summary_repository import SQLiteSummaryRepository
 from src.clinical.summary_schemas import Citation
 from src.clinical.summary_service import ClinicalSummaryService
 from src.config import get_settings
@@ -32,6 +34,23 @@ def test_demo_generator_preserves_lab_value_and_lineage(evidence, first_claim):
     assert "2200-01-10T14:00:00+00:00" in claim.text
     assert claim.citation_ids == ["labevent_id=9001"]
     assert draft.citations[0].lineage.table == "labevents"
+
+
+def test_demo_generator_disambiguates_duplicate_source_keys_for_summary_storage(evidence, tmp_path):
+    """Duplicate source keys across tables must not violate summary persistence keys."""
+    duplicate_source = evidence[0].model_copy(
+        update={"lineage": evidence[0].lineage.model_copy(update={"table": "patients"})}
+    )
+    draft = DeterministicDemoSummaryGenerator().generate([*evidence, duplicate_source]).model_copy(
+        update={"trace_id": str(uuid4())}
+    )
+
+    SQLiteSummaryRepository(tmp_path / "summary.sqlite").create_draft(draft, actor_id="doctor-1")
+
+    claim_ids = [claim.claim_id for claims in draft.sections.values() for claim in claims]
+    citation_ids = [citation.citation_id for citation in draft.citations]
+    assert len(claim_ids) == len(set(claim_ids))
+    assert len(citation_ids) == len(set(citation_ids))
 
 
 def test_validator_rejects_citation_for_missing_source(evidence, draft_with_claim):

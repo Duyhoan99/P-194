@@ -87,7 +87,38 @@ pytest tests/ --cov=src --cov-report=term-missing
 
 # Clinical retrieval only
 pytest tests/test_clinical tests/test_api/test_clinical_routes.py -q
+
+# Safe local release smoke (backend must already be running)
+python scripts/run_demo_smoke.py
+
+# Frontend unit/build gates
+npm --prefix frontend test -- --run
+npm --prefix frontend run build
+
+# Browser actor flows; real API is the default, mock mode is explicit
+npx --prefix frontend playwright test frontend/e2e
+PLAYWRIGHT_API_MODE=mock npx --prefix frontend playwright test frontend/e2e
 ```
+
+## Synthetic Demo Release Gate
+
+Run the backend, Ruff, whitespace, frontend, browser, and smoke checks from
+the repository root:
+
+```powershell
+python -m pytest -q
+python -m ruff check src tests scripts
+git diff --check
+npm --prefix frontend test -- --run
+npm --prefix frontend run build
+npx --prefix frontend playwright test frontend/e2e
+python scripts/run_demo_smoke.py
+```
+
+If Playwright reports that its expected Chromium revision is unavailable, do
+not substitute an unrelated browser. Record the expected and installed
+revisions, then run the other gates. Browser tests use the real API by default;
+use `PLAYWRIGHT_API_MODE=mock` only for an explicit local UI-contract check.
 
 ## Minimum Requirements
 

@@ -6,6 +6,33 @@ weight: 1
 
 ## Quick Start Guide
 
+## Synthetic Clinical Demo (Windows PowerShell)
+
+This release-demo path is local and synthetic only. It must not connect to a
+hospital source and its demonstration login must not be used for production.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python scripts/create_synthetic_demo.py data/synthetic_demo.db
+uvicorn src.main:app --reload --port 8000
+npm --prefix frontend install
+npm --prefix frontend run dev
+```
+
+Open `http://localhost:3000`. The local actor accounts are `doctor-1`,
+`doctor-2`, `admin-1`, `steward-1`, and `compliance-1`; all use password
+`demo`. Demo authentication and operations metadata work only in development
+or test. Production remains fail-closed until trusted SSO/OIDC, a server-owned
+assignment provider, PostgreSQL, patient mapping, governance approval, and
+the required data/operational controls exist.
+
+With the backend running, `python scripts/run_demo_smoke.py` verifies health,
+assignment metadata, lineage table metadata, and a reviewable summary state.
+It prints only statuses, counts, trace IDs, synthetic subject IDs, and
+source-table names.
+
 ### Bước 1: Clone Template
 
 ```bash

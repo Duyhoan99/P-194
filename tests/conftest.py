@@ -6,6 +6,8 @@ from httpx import ASGITransport, AsyncClient
 
 from src.main import app
 
+pytest_plugins = ("tests.test_clinical.conftest",)
+
 
 @pytest_asyncio.fixture
 async def client():

@@ -17,8 +17,6 @@ from src.clinical.summary_service import ClinicalSummaryService
 from src.config import get_settings
 from src.main import app
 
-pytest_plugins = ("tests.test_clinical.conftest",)
-
 
 @pytest.fixture
 def summary_repository(tmp_path: Path) -> SQLiteSummaryRepository:

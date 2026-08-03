@@ -1,7 +1,7 @@
 """Deterministic, evidence-only clinical summary generation for the demo."""
 
 from abc import ABC, abstractmethod
-from collections import defaultdict
+from collections import Counter, defaultdict
 from uuid import NAMESPACE_URL, uuid5
 
 from src.clinical.schemas import EvidenceRecord
@@ -28,18 +28,18 @@ class DeterministicDemoSummaryGenerator(SummaryGenerator):
         if get_settings().app_env == "production":
             raise RuntimeError("demo summary generator is disabled in production")
         ordered_evidence = sorted(evidence, key=lambda record: record.lineage.source_row_key)
+        citation_ids = self._citation_ids(ordered_evidence)
         sections = {section: [] for section in SUMMARY_SECTIONS}
-        citations = [self._citation(record) for record in ordered_evidence]
+        citations = [self._citation(record, citation_id) for record, citation_id in zip(ordered_evidence, citation_ids)]
 
-        for record in ordered_evidence:
+        for record, citation_id in zip(ordered_evidence, citation_ids):
             section = self._section_for(record)
-            source_id = record.lineage.source_row_key
             sections[section].append(
                 Claim(
-                    claim_id=f"claim:{source_id}",
+                    claim_id=f"claim:{citation_id}",
                     section=section,
                     text=self._claim_text(record),
-                    citation_ids=[source_id],
+                    citation_ids=[citation_id],
                     status="VALID",
                 )
             )
@@ -67,12 +67,29 @@ class DeterministicDemoSummaryGenerator(SummaryGenerator):
         )
 
     @staticmethod
-    def _citation(record: EvidenceRecord) -> Citation:
+    def _citation(record: EvidenceRecord, citation_id: str) -> Citation:
         return Citation(
-            citation_id=record.lineage.source_row_key,
+            citation_id=citation_id,
             lineage=record.lineage,
             supported_fields=sorted(record.data),
         )
+
+    @staticmethod
+    def _citation_ids(evidence: list[EvidenceRecord]) -> list[str]:
+        """Keep normal row-key citations while disambiguating cross-table collisions."""
+        source_key_counts = Counter(record.lineage.source_row_key for record in evidence)
+        occurrences: defaultdict[str, int] = defaultdict(int)
+        citation_ids: list[str] = []
+        for record in evidence:
+            source_key = record.lineage.source_row_key
+            if source_key_counts[source_key] == 1:
+                citation_ids.append(source_key)
+                continue
+            occurrences[f"{record.lineage.table}:{source_key}"] += 1
+            citation_ids.append(
+                f"{record.lineage.table}:{source_key}:{occurrences[f'{record.lineage.table}:{source_key}']}"
+            )
+        return citation_ids
 
     @staticmethod
     def _section_for(record: EvidenceRecord) -> str:

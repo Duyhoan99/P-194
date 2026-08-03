@@ -50,6 +50,45 @@ uvicorn src.main:app --reload --port 8000
 
 ### Next.js doctor interface
 
+### Synthetic release-demo quick start
+
+Run this path only with the fabricated local database; it never connects to a
+hospital system or authorizes use of real patient data.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python scripts/create_synthetic_demo.py data/synthetic_demo.db
+uvicorn src.main:app --reload --port 8000
+npm --prefix frontend install
+npm --prefix frontend run dev
+```
+
+After creating the synthetic database, `make demo-up` starts the local Compose
+backend and frontend profiles. With the backend running, `make demo-smoke`
+checks health, assigned synthetic subjects, source-table lineage, and a
+reviewable draft. Smoke output is restricted to statuses, counts, synthetic
+subject IDs, trace IDs, and source-table names; it never prints summary text,
+clinical values, raw rows, cookies, headers, or secrets.
+
+The demo accounts are `doctor-1`, `doctor-2`, `admin-1`, `steward-1`, and
+`compliance-1`, all with password `demo`. They exist only for development/test
+and demo authentication is disabled in production. This product supplies
+evidence for clinician review only: it is not a diagnosis, treatment
+recommendation, or clinical decision.
+
+Additional actor routes are `GET/POST/DELETE /api/v1/admin/users` and its
+assignment paths (admin only), `GET /api/v1/admin/audit` (admin/compliance
+safe metadata), and `GET /api/v1/ops/clinical-status` plus
+`GET /api/v1/ops/ingestion-runs` (admin/data steward operational metadata).
+
+Production is out of scope. A real-data rollout requires reviewed PostgreSQL
+migrations and indexes, trusted SSO/OIDC plus server-owned assignment,
+patient-identity mapping, ingestion checksum/schema/foreign-key validation,
+encrypted backup/restore, retention policy, incident response, and clinical
+governance approval. Do not point this demo at a hospital database.
+
 The clinician demo uses an explicit development-only login that creates an HTTP-only server session. The browser stores neither clinical data nor identity in localStorage, URL query strings, or analytics events.
 
 ```powershell
