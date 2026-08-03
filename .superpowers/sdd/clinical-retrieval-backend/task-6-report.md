@@ -147,3 +147,79 @@ Output: no output, exit code 0.
 - Production remains intentionally fail-closed until a trusted authentication provider replaces `get_access_context`; this is required behavior, so clinical endpoints return `503` by default.
 - Repository-wide Ruff is non-zero because of four pre-existing findings in `src/logger.py`; Task 6 files are lint-clean.
 - The requested independent read-only review could not start because the review-agent connector returned `McpServerError: Connection failed`; the in-session self-review and all stated verification commands completed.
+
+## Fix round 1: FastAPI validation trace IDs
+
+### Reviewer finding addressed
+
+FastAPI typed path/query validation happens before `_retrieve` and therefore bypassed the clinical domain-error handlers. Malformed clinical requests returned status `422` without `trace_id`.
+
+### Files changed
+
+- `src/api/clinical_routes.py`
+  - Registers a `RequestValidationError` handler alongside the existing clinical handlers.
+  - Delegates non-clinical requests to FastAPI's original `request_validation_exception_handler` unchanged.
+  - For paths beginning `/api/v1/clinical/`, preserves the default safe `detail` and adds a server-generated canonical UUID-v4 `trace_id` with status `422`.
+- `tests/test_api/test_clinical_routes.py`
+  - Adds malformed `subject_id` and malformed `limit` regression tests requiring `422` plus UUID-v4 `trace_id`.
+  - Adds a `/api/v1/chat` malformed request regression asserting no clinical `trace_id` is added.
+
+### Fix-round red phase
+
+Command:
+
+```powershell
+& 'C:\Users\daohi\OneDrive\Máy tính\GITHURB\P-194\.venv\Scripts\python.exe' -m pytest tests\test_api\test_clinical_routes.py -q
+```
+
+Output before the handler fix:
+
+```text
+...FF...........                                                         [100%]
+2 failed, 14 passed in 0.26s
+KeyError: 'trace_id' for malformed subject_id
+KeyError: 'trace_id' for malformed limit
+```
+
+### Fix-round verification
+
+Focused API tests:
+
+```text
+................                                                         [100%]
+16 passed in 0.13s
+```
+
+Required regression command:
+
+```text
+.....................                                                    [100%]
+21 passed in 0.26s
+```
+
+Full suite:
+
+```text
+..................................................................       [100%]
+66 passed in 0.62s
+```
+
+Task lint:
+
+```text
+All checks passed!
+```
+
+`git diff --check` produced no output and exited 0.
+
+### Fix-round self-review
+
+- The handler uses the exact `/api/v1/clinical/` path prefix, so `/api/v1/chat` retains FastAPI's original validation response.
+- The clinical body preserves FastAPI's existing `detail` payload and adds only a server-generated `str(uuid4())` trace ID.
+- Malformed path and query validation are tested independently.
+- No client-supplied trace, user, subject, or header is trusted.
+- Existing domain errors, service-only route architecture, and `/api/v1/chat` behavior remain unchanged.
+
+### Fix-round commit
+
+`ab4050e0c9e60d9215eec8380c9f9bd68964f45b` — `fix: trace clinical validation errors`
