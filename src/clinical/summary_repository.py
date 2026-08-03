@@ -47,7 +47,7 @@ class SummaryRepository(Protocol):
     def list_versions(self, summary_id: UUID) -> list[SummaryVersion]: ...
 
     def transition(
-        self, summary_id: UUID, status: str, actor_id: str, reason: str | None
+        self, summary_id: UUID, status: str, actor_id: str, reason: str | None, event: AuditEvent
     ) -> SummaryVersion: ...
 
 
@@ -67,6 +67,9 @@ class SQLiteSummaryRepository(AuditSink):
             raise ReviewPolicyError("Only draft summaries can be created.")
         version = self._new_version(draft, 1, "DRAFT", actor_id, None)
         with self._connection() as connection:
+            # Serialize same-database writers before checking the deterministic identity.
+            # This prevents two concurrent retries from both deciding the summary is absent.
+            connection.execute("BEGIN IMMEDIATE")
             existing = self._summary_in_connection(connection, draft.summary_id)
             if existing is not None:
                 if (existing.draft.subject_id, existing.draft.hadm_id, existing.draft.stay_id) != (
@@ -157,19 +160,21 @@ class SQLiteSummaryRepository(AuditSink):
         return [self._version_from_row(row) for row in rows]
 
     def transition(
-        self, summary_id: UUID, status: str, actor_id: str, reason: str | None
+        self, summary_id: UUID, status: str, actor_id: str, reason: str | None, event: AuditEvent
     ) -> SummaryVersion:
-        current = self.get(summary_id)
-        if status not in _TRANSITIONS.get(current.status, set()):
-            raise ReviewPolicyError("Summary state transition is not permitted.")
-        draft = current.draft.model_copy(update={"status": status})
-        version = self._new_version(draft, current.version_number + 1, status, actor_id, reason)
         with self._connection() as connection:
+            current = self._current_version(connection, summary_id)
+            if status not in _TRANSITIONS.get(current.status, set()):
+                raise ReviewPolicyError("Summary state transition is not permitted.")
+            self._validate_transition_event(current, actor_id, status, event)
+            draft = current.draft.model_copy(update={"status": status, "trace_id": event.trace_id})
+            version = self._new_version(draft, current.version_number + 1, status, actor_id, reason)
             self._store_version(connection, version)
             connection.execute(
                 "UPDATE summaries SET current_version_id = ? WHERE summary_id = ?",
                 (str(version.version_id), str(summary_id)),
             )
+            self._record(connection, event)
         return version
 
     def save_checklist(self, version_id: UUID, values: tuple[bool, bool, bool, bool]) -> None:
@@ -194,7 +199,8 @@ class SQLiteSummaryRepository(AuditSink):
             current = self._current_version(connection, summary_id)
             if "APPROVED" not in _TRANSITIONS.get(current.status, set()):
                 raise ReviewPolicyError("Summary state transition is not permitted.")
-            draft = current.draft.model_copy(update={"status": "APPROVED"})
+            self._validate_transition_event(current, actor_id, "APPROVED", event)
+            draft = current.draft.model_copy(update={"status": "APPROVED", "trace_id": event.trace_id})
             version = self._new_version(draft, current.version_number + 1, "APPROVED", actor_id, None)
             self._store_version(connection, version)
             connection.execute(
@@ -382,6 +388,24 @@ class SQLiteSummaryRepository(AuditSink):
             (str(summary_id),),
         ).fetchone()
         return self._version_from_row(row) if row is not None else None
+
+    @staticmethod
+    def _validate_transition_event(
+        current: SummaryVersion, actor_id: str, status: str, event: AuditEvent
+    ) -> None:
+        action_by_status = {
+            "REJECTED": "REJECT_CLINICAL_SUMMARY",
+            "APPROVED": "APPROVE_CLINICAL_SUMMARY",
+            "EXPORTED": "EXPORT_CLINICAL_SUMMARY",
+        }
+        if (
+            event.user_id != actor_id
+            or event.action != action_by_status.get(status)
+            or event.result != "SUCCESS"
+            or (event.subject_id, event.hadm_id, event.stay_id)
+            != (current.draft.subject_id, current.draft.hadm_id, current.draft.stay_id)
+        ):
+            raise ReviewPolicyError("Summary transition audit scope must match the persisted summary.")
 
     @staticmethod
     def _new_version(

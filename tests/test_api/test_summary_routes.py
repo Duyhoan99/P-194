@@ -1,8 +1,10 @@
+import asyncio
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from src.clinical.repository import RepositoryFetch
 from src.config import get_settings
 from src.main import app
 from tests.clinical_fixtures import create_mock_clinical_db
@@ -187,6 +189,36 @@ async def test_repeated_generation_returns_existing_draft_without_duplicate_vers
     assert second.status_code == 201
     assert second.json()["summary_id"] == first.json()["summary_id"]
     assert [version["version_number"] for version in versions.json()] == [1]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_identical_generation_returns_the_existing_draft(authenticated_client):
+    """Concurrent retries must converge on one deterministic draft instead of leaking a uniqueness error."""
+    responses = await asyncio.gather(
+        authenticated_client.post("/api/v1/clinical/patients/101/summaries"),
+        authenticated_client.post("/api/v1/clinical/patients/101/summaries"),
+        return_exceptions=True,
+    )
+
+    assert all(not isinstance(response, Exception) for response in responses)
+    assert [response.status_code for response in responses] == [201, 201]
+    assert responses[0].json()["summary_id"] == responses[1].json()["summary_id"]
+
+
+@pytest.mark.asyncio
+async def test_empty_evidence_generation_uses_scope_in_its_deterministic_identity(authenticated_client, fake_repo):
+    """Empty evidence from different scopes must not collide on one deterministic summary identifier."""
+    for name in fake_repo.fetches:
+        fake_repo.fetches[name] = RepositoryFetch([], [])
+
+    whole_subject = await authenticated_client.post("/api/v1/clinical/patients/101/summaries")
+    encounter = await authenticated_client.post(
+        "/api/v1/clinical/patients/101/summaries", json={"hadm_id": 5001}
+    )
+
+    assert whole_subject.status_code == 201
+    assert encounter.status_code == 201
+    assert whole_subject.json()["summary_id"] != encounter.json()["summary_id"]
 
 
 @pytest.mark.asyncio

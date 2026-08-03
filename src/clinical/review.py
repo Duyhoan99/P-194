@@ -166,12 +166,14 @@ class ReviewService:
     def _transition(
         self, summary: SummaryVersion, context: AccessContext, status: str, reason: str | None, action: str
     ) -> SummaryVersion:
+        event = self._event(summary, context, action, "SUCCESS")
         try:
-            version = self._repository.transition(summary.summary_id, status, context.user_id, reason)
+            version = self._repository.transition(summary.summary_id, status, context.user_id, reason, event)
         except Exception:
             self._audit(summary, context, action, "ERROR")
             raise
-        self._audit(version, context, action, "SUCCESS")
+        if self._audit_sink is not self._repository:
+            self._audit_sink.record(event)
         return version
 
     @staticmethod

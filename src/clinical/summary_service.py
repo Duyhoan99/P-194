@@ -1,6 +1,7 @@
 """Access-aware orchestration for evidence-first clinical summary generation."""
 
 from datetime import UTC, datetime
+from uuid import NAMESPACE_URL, uuid5
 
 from src.clinical.audit import AuditEvent, AuditResult, AuditSink
 from src.clinical.claim_validator import ClaimValidator
@@ -43,6 +44,7 @@ class ClinicalSummaryService:
         self._record_audit(context, query, result)
         return draft.model_copy(
             update={
+                "summary_id": self._summary_id(query, evidence),
                 "subject_id": query.subject_id,
                 "hadm_id": query.hadm_id,
                 "stay_id": query.stay_id,
@@ -100,6 +102,13 @@ class ClinicalSummaryService:
         if any(response.status in {"PARTIAL", "NOT_LOADED"} for response in responses):
             return "PARTIAL" if evidence else "NOT_LOADED"
         return "SUCCESS" if evidence else "EMPTY"
+
+    @staticmethod
+    def _summary_id(query: ClinicalQuery, evidence: list[EvidenceRecord]):
+        """Bind deterministic idempotency to immutable query scope as well as evidence lineage."""
+        evidence_key = "|".join(sorted(record.lineage.source_row_key for record in evidence)) or "empty"
+        scope_key = f"subject={query.subject_id}|hadm={query.hadm_id}|stay={query.stay_id}"
+        return uuid5(NAMESPACE_URL, f"clinical-summary:{scope_key}|evidence={evidence_key}")
 
     def _record_audit(self, context: AccessContext, query: ClinicalQuery, result: AuditResult) -> None:
         self._audit_sink.record(
