@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite:///./data/app.db"
+    summary_database_path: str = "clinical_summaries.db"
     clinical_database_path: str = "mimic_demo.db"
     clinical_backend: Literal["sqlite", "postgresql"] = "sqlite"
     clinical_postgres_dsn: str = ""

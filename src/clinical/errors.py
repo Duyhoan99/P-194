@@ -19,3 +19,7 @@ class ClinicalDatabaseUnavailable(Exception):  # noqa: N818
 
 class ClinicalQueryTimeout(Exception):  # noqa: N818
     """Raised when a clinical query exceeds its timeout."""
+
+
+class ReviewPolicyError(Exception):  # noqa: N818
+    """Raised when a clinical summary review policy cannot be satisfied."""
