@@ -1,7 +1,7 @@
 # AI Agent hỗ trợ tóm tắt hồ sơ lâm sàng đa nguồn
 
 **Project:** P-194 · AI20K Build Phase Cohort 3
-**Status:** MVP design and documentation; clinical data ingestion, production API and UI are not implemented yet.
+**Status:** Clinical retrieval backend has a fail-closed production boundary. Local development uses synthetic/MIMIC SQLite; production still requires an approved source, hospital authentication, patient-identity mapping and clinical governance sign-off.
 
 ## Mục tiêu
 
@@ -37,7 +37,7 @@ Agent chỉ tạo bản `DRAFT`. Bác sĩ được phân công phải kiểm tra
 | Database | PostgreSQL mục tiêu; SQLite chỉ cho local skeleton |
 | Deployment | Docker; object storage riêng tư cho PDF được phép |
 
-## Chạy skeleton hiện tại
+## Chạy backend hiện tại
 
 Không đưa file MIMIC, credential hoặc dữ liệu restricted vào repository. Cấu hình secret trong `.env` cục bộ.
 
@@ -48,7 +48,7 @@ pip install -r requirements.txt
 uvicorn src.main:app --reload --port 8000
 ```
 
-Endpoints hiện có của skeleton:
+Endpoints của skeleton:
 
 | Method | Path | Mục đích |
 |---|---|---|
@@ -56,7 +56,55 @@ Endpoints hiện có của skeleton:
 | GET | `/api/v1/status` | Trạng thái agent |
 | POST | `/api/v1/chat` | Endpoint mẫu để kiểm thử LangGraph, không phải clinical API |
 
-Kiểm thử hiện tại: `5 passed` (`pytest tests -q`).
+### Clinical retrieval API
+
+Clinical retrieval dùng adapter read-only và chỉ truy vấn các bảng/cột allow-list. SQLite chỉ dành cho local/test; production phải chọn PostgreSQL rõ ràng và không có fallback. MIMIC-IV 3.1 là dữ liệu khử định danh phục vụ development/research, không phải hồ sơ bệnh nhân live.
+
+```dotenv
+APP_ENV=development
+CLINICAL_BACKEND=sqlite
+CLINICAL_DATABASE_PATH=mimic_demo.db
+CLINICAL_POSTGRES_DSN=
+CLINICAL_POOL_SIZE=5
+CLINICAL_SOURCE_DATASET=MIMIC-IV
+CLINICAL_SOURCE_VERSION=3.1
+CLINICAL_SOURCE_PROFILE=mimic-iv-3.1
+CLINICAL_QUERY_TIMEOUT_SECONDS=2.0
+CLINICAL_MAX_LIMIT=1000
+CLINICAL_CURSOR_SECRET=local-development-only-change-me
+CLINICAL_CURSOR_TTL_SECONDS=900
+```
+
+Routes:
+
+| Method | Path | Mục đích |
+|---|---|---|
+| GET | `/api/v1/clinical/patients/{subject_id}` | Patient overview |
+| GET | `/api/v1/clinical/patients/{subject_id}/timeline` | Encounter/ICU timeline |
+| GET | `/api/v1/clinical/patients/{subject_id}/diagnoses-procedures` | Coded diagnoses and procedures |
+| GET | `/api/v1/clinical/patients/{subject_id}/labs` | Laboratory evidence |
+| GET | `/api/v1/clinical/patients/{subject_id}/microbiology` | Microbiology evidence |
+| GET | `/api/v1/clinical/patients/{subject_id}/icu-events` | ICU events |
+
+Mọi request clinical phải có access context đáng tin cậy. Khi authentication provider chưa được cấu hình, dependency mặc định fail closed và trả `503`; không dùng `user_id` hoặc role do client tự gửi. Trong development/test, `DemoAssignmentProvider` chỉ được dùng qua dependency override và bị vô hiệu hóa khi `APP_ENV=production`.
+
+Mỗi request dùng `limit` cho kích thước trang và có thể dùng `cursor` opaque do response trước trả về. Cursor có chữ ký, thời hạn và bị ràng buộc với subject/scope/filter/endpoint; không dùng offset sâu cho production.
+
+Để chạy production, tổ chức triển khai phải cung cấp `CLINICAL_BACKEND=postgresql`, DSN bí mật, cursor secret ngẫu nhiên tối thiểu 32 ký tự, PostgreSQL read-only role, migration/index đã được kiểm tra, trusted `AuthProvider`/`AssignmentProvider`, patient-identity mapping và quy trình audit/backup/rollback. Code hiện fail closed nếu các integration đó chưa tồn tại; test pass không đồng nghĩa được phép dùng lâm sàng.
+
+Response chỉ là evidence có `source lineage`, không phải chẩn đoán, khuyến nghị điều trị hay quyết định lâm sàng. Source thiếu được biểu diễn bằng `PARTIAL`/`NOT_LOADED`; database error trả `503`, timeout trả `504`, và response lỗi không chứa SQL, prompt, secret hoặc raw clinical value.
+
+Kiểm thử:
+
+```bash
+..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\python.exe -m pytest tests/test_clinical tests/test_api/test_clinical_routes.py -q
+ruff check src tests
+ruff check scripts/check_clinical_indexes.py
+python scripts/check_clinical_indexes.py mimic_demo.db
+```
+
+Index checker chỉ đọc database, chỉ in tên bảng/index/query-plan và trả mã lỗi nếu index bắt buộc thiếu. Việc tạo index phải thực hiện qua migration/setup được review, không chạy trong app.
 
 ## Cấu trúc chính
 
@@ -79,7 +127,8 @@ Chỉ dùng MIMIC-IV đã khử định danh hoặc dữ liệu mock được ph
 - [x] Product brief, PRD và wireframe
 - [x] Architecture document và diagram
 - [x] AI usage logging hooks
-- [ ] Clinical ingestion/retrieval implementation
+- [x] Clinical retrieval backend trên SQLite synthetic/local fixture
+- [ ] Clinical ingestion pipeline
 - [ ] Next.js UI và live deployment
 - [ ] Video demo và pitch deck assets
 - [ ] User study metrics và evaluation set thực tế
