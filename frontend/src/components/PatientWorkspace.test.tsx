@@ -118,4 +118,6 @@ it("offers draft generation when the server reports no current summary", async (
 
   await user.click(screen.getByRole("button", { name: "Generate draft" }));
   expect(onRegenerate).toHaveBeenCalledOnce();
+  expect(screen.getByText("UNAVAILABLE", { exact: true })).toBeInTheDocument();
+  expect(screen.queryByText("NOT_STARTED", { exact: true })).not.toBeInTheDocument();
 });

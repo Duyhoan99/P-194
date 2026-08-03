@@ -36,6 +36,7 @@ export function PatientWorkspace({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const summary = workspace.summary;
+  const summaryStatus = summary?.status ?? workspace.patient.summaryStatus;
   const selectedCitation = summary?.citations.find((citation) => citation.citationId === selectedCitationId);
 
   async function save() {
@@ -97,7 +98,7 @@ export function PatientWorkspace({
           <p className="eyebrow">Subject {workspace.patient.subjectId}</p>
           <h1 id="workspace-title">Patient workspace</h1>
         </div>
-        <span className={`status status-${summary?.status ?? "NOT_STARTED"}`}>{summary?.status ?? "NOT_STARTED"}</span>
+        <span className={`status status-${summaryStatus}`}>{summaryStatus}</span>
       </div>
       <p className="disclaimer">Decision support only. This interface does not make clinical decisions.</p>
       {workspace.availability !== "AVAILABLE" && <p className="notice warning">Some source data is {workspace.availability.toLowerCase()}.</p>}

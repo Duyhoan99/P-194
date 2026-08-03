@@ -8,6 +8,8 @@ import type {
   SummaryScope,
   EvidencePage,
   EvidencePageState,
+  EvidenceSource,
+  WorkspaceLoadOptions,
 } from "@/lib/types";
 
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -194,25 +196,37 @@ function fromPage(page: RawClinicalResponse["page"]): EvidencePage {
   return { nextCursor: page?.next_cursor ?? null, hasMore: page?.has_more ?? false };
 }
 
-function patientFromResponses(
+function patientFromRecords(
   subjectId: number,
-  overview: RawClinicalResponse,
-  timeline: RawClinicalResponse,
+  overview: EvidenceRecord[],
+  timeline: EvidenceRecord[],
   summaryStatus: AssignedPatient["summaryStatus"],
 ): AssignedPatient {
-  const patient = overview.records.find((record) => record.record_type === "patient")?.data;
+  const patient = overview.find((record) => record.recordType === "patient")?.data;
   return {
     subjectId,
     anchorAge: typeof patient?.anchor_age === "number" ? patient.anchor_age : null,
     gender: typeof patient?.gender === "string" ? patient.gender : "Unknown",
-    admissionCount: overview.records.filter((record) => record.record_type === "admission").length,
-    icuStayCount: timeline.records.filter((record) => record.record_type === "icu_stay").length,
+    admissionCount: overview.filter((record) => record.recordType === "admission").length,
+    icuStayCount: timeline.filter((record) => record.recordType === "icu_stay").length,
     summaryStatus,
   };
 }
 
-async function clinicalResponse(path: string): Promise<RawClinicalResponse> {
-  return request<RawClinicalResponse>(path);
+function withCursor(path: string, cursor?: string | null): string {
+  return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path;
+}
+
+function mergeRecords(previous: EvidenceRecord[], current: EvidenceRecord[]): EvidenceRecord[] {
+  const merged = new Map<string, EvidenceRecord>();
+  [...previous, ...current].forEach((record) => {
+    merged.set(`${record.lineage.table}:${record.lineage.sourceRowKey}`, record);
+  });
+  return [...merged.values()];
+}
+
+async function clinicalResponse(path: string, cursor?: string | null): Promise<RawClinicalResponse> {
+  return request<RawClinicalResponse>(withCursor(path, cursor));
 }
 
 async function currentSummary(subjectId: number): Promise<RawSummaryVersion | null> {
@@ -237,14 +251,28 @@ export const apiClient = {
     return Promise.all(assigned.patients.map(async (subjectId) => (await this.getPatientWorkspace(subjectId)).patient));
   },
 
-  async getPatientWorkspace(subjectId: number): Promise<PatientWorkspace> {
+  async getPatientWorkspace(subjectId: number, options: WorkspaceLoadOptions = {}): Promise<PatientWorkspace> {
+    const cursors = options.cursors ?? {};
     const [overview, timeline, labs, version] = await Promise.all([
-      clinicalResponse(`/api/v1/clinical/patients/${subjectId}`),
-      clinicalResponse(`/api/v1/clinical/patients/${subjectId}/timeline`),
-      clinicalResponse(`/api/v1/clinical/patients/${subjectId}/labs`),
+      clinicalResponse(`/api/v1/clinical/patients/${subjectId}`, cursors.overview),
+      clinicalResponse(`/api/v1/clinical/patients/${subjectId}/timeline`, cursors.timeline),
+      clinicalResponse(`/api/v1/clinical/patients/${subjectId}/labs`, cursors.labs),
       currentSummary(subjectId),
     ]);
     const responses = [overview, timeline, labs];
+    const currentRecords: Record<EvidenceSource, EvidenceRecord[]> = {
+      overview: overview.records.map(fromRecord),
+      timeline: timeline.records.map(fromRecord),
+      labs: labs.records.map(fromRecord),
+    };
+    const evidenceRecordsBySource = Object.fromEntries(
+      (Object.keys(currentRecords) as EvidenceSource[]).map((source) => {
+        const cursor = cursors[source];
+        const previous = options.previous?.evidenceRecordsBySource[source] ?? [];
+        const records = cursor ? mergeRecords(previous, currentRecords[source]) : currentRecords[source];
+        return [source, records];
+      }),
+    ) as Record<EvidenceSource, EvidenceRecord[]>;
     const evidencePages: EvidencePageState[] = [
       { source: "overview", page: fromPage(overview.page) },
       { source: "timeline", page: fromPage(timeline.page) },
@@ -258,9 +286,9 @@ export const apiClient = {
         : "AVAILABLE";
     const summary = version ? fromDraft(version.draft) : null;
     return {
-      patient: patientFromResponses(subjectId, overview, timeline, summary?.status ?? "UNAVAILABLE"),
+      patient: patientFromRecords(subjectId, evidenceRecordsBySource.overview, evidenceRecordsBySource.timeline, summary?.status ?? "UNAVAILABLE"),
       availability,
-      timeline: timeline.records.map(fromRecord),
+      timeline: evidenceRecordsBySource.timeline,
       summary,
       warnings: unique([
         ...responses.map((response) => response.warnings ?? []),
@@ -268,7 +296,8 @@ export const apiClient = {
       ]),
       limitations: unique(responses.map((response) => response.limitations ?? [])),
       evidencePages,
-      sourceRecords: responses.flatMap((response) => response.records.map(fromRecord)),
+      evidenceRecordsBySource,
+      sourceRecords: Object.values(evidenceRecordsBySource).flat(),
     };
   },
 

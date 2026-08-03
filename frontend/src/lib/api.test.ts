@@ -10,10 +10,13 @@ const lineage = {
   subject_id: 101,
 };
 
-function clinicalResponse(page: { has_more: boolean; next_cursor: string | null }) {
+function clinicalResponse(
+  page: { has_more: boolean; next_cursor: string | null },
+  sourceRowKey = "labevent_id=9001",
+) {
   return {
     status: "SUCCESS",
-    records: [{ record_type: "lab", data: { label: "Creatinine" }, lineage }],
+    records: [{ record_type: "lab", data: { label: "Creatinine" }, lineage: { ...lineage, source_row_key: sourceRowKey } }],
     warnings: [],
     limitations: [],
     trace_id: traceId,
@@ -62,6 +65,34 @@ it("preserves page metadata and marks a successful but truncated workspace parti
   expect(workspace.availability).toBe("PARTIAL");
   expect(workspace.evidencePages[0]).toEqual({ source: "overview", page: { hasMore: true, nextCursor: "cursor-2" } });
   expect(workspace.warnings).toContain("Evidence is truncated; reload to request the continuation.");
+});
+
+it("requests stored continuation cursors and merges continuation records safely", async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(jsonResponse(clinicalResponse({ has_more: true, next_cursor: "cursor-2" }, "overview-first")))
+    .mockResolvedValueOnce(jsonResponse(clinicalResponse({ has_more: false, next_cursor: null }, "timeline-first")))
+    .mockResolvedValueOnce(jsonResponse(clinicalResponse({ has_more: false, next_cursor: null }, "labs-first")))
+    .mockResolvedValueOnce(jsonResponse(summaryVersion("DRAFT")))
+    .mockResolvedValueOnce(jsonResponse(clinicalResponse({ has_more: false, next_cursor: null }, "overview-next")))
+    .mockResolvedValueOnce(jsonResponse(clinicalResponse({ has_more: false, next_cursor: null }, "timeline-reloaded")))
+    .mockResolvedValueOnce(jsonResponse(clinicalResponse({ has_more: false, next_cursor: null }, "labs-reloaded")))
+    .mockResolvedValueOnce(jsonResponse(summaryVersion("DRAFT")));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const firstPage = await apiClient.getPatientWorkspace(101);
+  const continued = await apiClient.getPatientWorkspace(101, {
+    cursors: { overview: firstPage.evidencePages[0].page.nextCursor },
+    previous: firstPage,
+  });
+
+  expect(fetchMock.mock.calls[4][0]).toContain("/api/v1/clinical/patients/101?cursor=cursor-2");
+  expect(fetchMock.mock.calls[5][0]).toBe("http://localhost:8000/api/v1/clinical/patients/101/timeline");
+  expect(continued.evidenceRecordsBySource.overview.map((record) => record.lineage.sourceRowKey)).toEqual([
+    "overview-first",
+    "overview-next",
+  ]);
+  expect(continued.evidencePages[0]).toEqual({ source: "overview", page: { hasMore: false, nextCursor: null } });
+  expect(continued.availability).toBe("AVAILABLE");
 });
 
 it("loads the server-owned current summary status for an assigned patient", async () => {

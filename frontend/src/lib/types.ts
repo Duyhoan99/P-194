@@ -23,6 +23,8 @@ export interface EvidencePageState {
   page: EvidencePage;
 }
 
+export type WorkspaceCursors = Partial<Record<EvidenceSource, string | null>>;
+
 export interface AssignedPatient {
   subjectId: number;
   anchorAge: number | null;
@@ -95,7 +97,13 @@ export interface PatientWorkspace {
   warnings: string[];
   limitations: string[];
   evidencePages: EvidencePageState[];
+  evidenceRecordsBySource: Record<EvidenceSource, EvidenceRecord[]>;
   sourceRecords?: EvidenceRecord[];
+}
+
+export interface WorkspaceLoadOptions {
+  cursors?: WorkspaceCursors;
+  previous?: PatientWorkspace;
 }
 
 export interface SummaryScope {

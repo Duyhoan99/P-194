@@ -25,3 +25,30 @@ it.each([401, 503])("clears clinical state and requires re-login after session e
   expect(screen.getByRole("alert")).toHaveTextContent("Your session has expired. Please sign in again.");
   expect(screen.queryByRole("heading", { name: "Patient workspace" })).not.toBeInTheDocument();
 });
+
+it("passes stored evidence cursors when reloading a partial workspace", async () => {
+  const user = userEvent.setup();
+  const partialWorkspace = {
+    ...patientWorkspace,
+    availability: "PARTIAL" as const,
+    warnings: ["Evidence is truncated; reload to request the continuation."],
+    evidencePages: [
+      { source: "overview" as const, page: { hasMore: true, nextCursor: "cursor-2" } },
+    ],
+  };
+  vi.spyOn(apiClient, "demoLogin").mockResolvedValue(undefined);
+  vi.spyOn(apiClient, "listPatients").mockResolvedValue([patientWorkspace.patient]);
+  const getWorkspace = vi.spyOn(apiClient, "getPatientWorkspace")
+    .mockResolvedValueOnce(partialWorkspace)
+    .mockResolvedValueOnce(patientWorkspace);
+
+  render(<DoctorApp />);
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await user.click(await screen.findByRole("button", { name: "Open workspace" }));
+  await user.click(screen.getByRole("button", { name: "Reload workspace" }));
+
+  expect(getWorkspace).toHaveBeenNthCalledWith(2, 101, {
+    cursors: { overview: "cursor-2" },
+    previous: partialWorkspace,
+  });
+});

@@ -62,4 +62,5 @@ export const patientWorkspace: PatientWorkspace = {
     { source: "timeline", page: { hasMore: false, nextCursor: null } },
     { source: "labs", page: { hasMore: false, nextCursor: null } },
   ],
+  evidenceRecordsBySource: { overview: [], timeline: [], labs: [] },
 };

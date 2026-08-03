@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DoctorDashboard } from "@/components/DoctorDashboard";
 import { PatientWorkspace } from "@/components/PatientWorkspace";
 import { ApiError, apiClient } from "@/lib/api";
-import type { AssignedPatient, ClinicalSummaryDraft, PatientWorkspace as Workspace, ReviewChecklist } from "@/lib/types";
+import type { AssignedPatient, ClinicalSummaryDraft, PatientWorkspace as Workspace, ReviewChecklist, WorkspaceCursors, WorkspaceLoadOptions } from "@/lib/types";
 
 function messageFor(error: unknown): string {
   if (error instanceof ApiError) {
@@ -74,18 +74,27 @@ export function DoctorApp() {
     }
   }
 
-  async function openWorkspace(subjectId: number) {
+  async function openWorkspace(subjectId: number, options?: WorkspaceLoadOptions) {
     setLoading(true);
     setError(undefined);
     setDenied(undefined);
     try {
-      setWorkspace(await apiClient.getPatientWorkspace(subjectId));
+      setWorkspace(await apiClient.getPatientWorkspace(subjectId, options));
     } catch (cause) {
       if (isSessionExpiryError(cause)) expireSession();
       setError(messageFor(cause));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function reloadWorkspace() {
+    if (!workspace) return;
+    const cursors: WorkspaceCursors = {};
+    workspace.evidencePages.forEach(({ source, page }) => {
+      if (page.hasMore && page.nextCursor) cursors[source] = page.nextCursor;
+    });
+    await openWorkspace(workspace.patient.subjectId, { cursors, previous: workspace });
   }
 
   async function verifyAccess(subjectId: number) {
@@ -184,7 +193,7 @@ export function DoctorApp() {
           onApprove={approveSummary}
           onReject={rejectSummary}
           onExport={exportSummary}
-          onReload={() => openWorkspace(workspace.patient.subjectId)}
+          onReload={reloadWorkspace}
         />
       ) : (
         <DoctorDashboard
