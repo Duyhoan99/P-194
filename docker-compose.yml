@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   backend:
+    profiles: ["local"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,6 +10,9 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      CLINICAL_BACKEND: sqlite
+      CLINICAL_DATABASE_PATH: ./data/synthetic_demo.db
     volumes:
       - ./data:/app/data
     restart: unless-stopped
@@ -17,3 +21,38 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  frontend:
+    profiles: ["local"]
+    image: node:22-alpine
+    working_dir: /app/frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend_node_modules:/app/frontend/node_modules
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend-production:
+    profiles: ["production"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  frontend_node_modules:

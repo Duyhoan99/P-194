@@ -1,33 +1,34 @@
-import os
 import sqlite3
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+
 
 def setup_mimic_demo_db():
     # Use relative paths for portability, but we're running from P-194
     base_dir = Path(__file__).parent.parent
     data_dir = base_dir / "mimic-iv-clinical-database-demo-2.2"
     db_path = base_dir / "mimic_demo.db"
-    
+
     if not data_dir.exists():
         print(f"Error: Data directory not found at {data_dir}")
         return
-        
+
     print(f"Creating database at {db_path}")
     conn = sqlite3.connect(db_path)
-    
+
     # Process both hosp and icu directories
     for module in ['hosp', 'icu']:
         module_dir = data_dir / module
         if not module_dir.exists():
             print(f"Warning: Module directory not found at {module_dir}")
             continue
-            
+
         print(f"Processing module: {module}")
         for csv_file in module_dir.glob("*.csv"):
             table_name = csv_file.stem
             print(f"  -> Loading {csv_file.name} into table '{table_name}'...")
-            
+
             try:
                 # Read in chunks to handle potentially large files gracefully
                 chunksize = 100000
