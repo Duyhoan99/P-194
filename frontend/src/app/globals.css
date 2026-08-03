@@ -18,6 +18,7 @@ textarea { min-height: 5rem; }
 .notice.error { border-color: #a43d44; background: #fbeaec; }
 .search-label { display: block; font-weight: 700; margin: 1rem 0 .4rem; }
 .patient-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.operational-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin: 1rem 0; }
 .patient-card, .summary-section, .review-actions, .source-panel { background: white; border: 1px solid #d6dee8; border-radius: 8px; padding: 1rem; }
 dl { margin: 0; } dl div { display: flex; justify-content: space-between; gap: 1rem; padding: .25rem 0; } dt { color: #536477; } dd { margin: 0; text-align: right; }
 .primary { background: #1d5f91; border: 1px solid #164a73; color: white; border-radius: 5px; padding: .55rem .9rem; }
@@ -31,4 +32,5 @@ dl { margin: 0; } dl div { display: flex; justify-content: space-between; gap: 1
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .source-panel { height: fit-content; }.status { border-radius: 999px; padding: .35rem .7rem; background: #e4eaef; font-weight: 700; }.status-APPROVED, .status-EXPORTED { background: #d8efe2; color: #225f3b; }.status-DRAFT, .status-NEEDS_REVISION { background: #fff0cc; color: #7c5710; }
 .review-actions { margin-top: 1rem; display: grid; gap: .7rem; }.action-row, .reject-row { display: flex; gap: .6rem; flex-wrap: wrap; }.reject-row input { flex: 1; }.modal-backdrop { position: fixed; inset: 0; background: rgba(23,32,51,.55); display: grid; place-items: center; padding: 1rem; }.modal { background: white; border-radius: 9px; padding: 1.5rem; width: min(100%, 560px); }.check-row { display: flex; gap: .6rem; margin: .7rem 0; }.check-row input { width: auto; }
+.audit-table { overflow-x: auto; background: white; border: 1px solid #d6dee8; border-radius: 8px; padding: 1rem; }.audit-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin-bottom: 1rem; }.audit-filters label { display: grid; gap: .3rem; font-weight: 700; }.audit-filters select { border: 1px solid #aeb9c8; border-radius: 5px; padding: .55rem; background: white; }table { width: 100%; border-collapse: collapse; }th, td { padding: .6rem; text-align: left; border-bottom: 1px solid #d6dee8; vertical-align: top; }th { color: #536477; }
 @media (max-width: 700px) { .app-shell { padding: 1rem; }.section-heading, .workspace-grid { display: block; }.source-panel { margin-top: 1rem; } }

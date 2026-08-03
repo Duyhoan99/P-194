@@ -82,6 +82,6 @@ class ClinicalPage(BaseModel):
 
 class AccessContext(BaseModel):
     user_id: str
-    role: Literal["DOCTOR", "ADMIN"]
+    role: Literal["DOCTOR", "ADMIN", "DATA_STEWARD", "COMPLIANCE"]
     assigned_subject_ids: set[int] = Field(default_factory=set)
     trace_id: TraceId

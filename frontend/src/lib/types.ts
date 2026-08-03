@@ -117,3 +117,49 @@ export interface ReviewChecklist {
   understandsAiLimitations: boolean;
   confirmsEdits: boolean;
 }
+
+export interface AssignmentHistoryEntry {
+  subjectReference: string;
+  action: "ASSIGN_CLINICAL_SUBJECT" | "REVOKE_CLINICAL_SUBJECT";
+  actor: string;
+  timestamp: string;
+}
+
+export interface OperationalUser {
+  userId: string;
+  role: "DOCTOR" | "ADMIN" | "DATA_STEWARD" | "COMPLIANCE";
+  state: "ACTIVE" | "LOCKED";
+  assignments: string[];
+  assignmentHistory: AssignmentHistoryEntry[];
+}
+
+export interface AuditMetadata {
+  actor: string;
+  action: string;
+  subjectReference: string;
+  timestamp: string;
+  result: "SUCCESS" | "PARTIAL" | "EMPTY" | "DENIED" | "NOT_LOADED" | "ERROR";
+  traceId: string;
+}
+
+export interface ClinicalOperationalStatus {
+  backend: string;
+  database: Record<string, string>;
+  loadedModules: string[];
+  sourceProfile: string;
+  ingestion: Record<string, string>;
+  llmGateway: Record<string, string>;
+  clinicalTools: { status: string; count: number };
+  latency: Record<string, number>;
+  traceId: string;
+}
+
+export interface IngestionRun {
+  runId: string;
+  dataset: string;
+  profile: string;
+  checksumStatus: string;
+  schemaStatus: string;
+  counts: Record<string, number>;
+  errors: string[];
+}

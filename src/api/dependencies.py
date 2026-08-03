@@ -13,6 +13,7 @@ from src.clinical.access import (
 from src.clinical.audit import StructuredAuditSink
 from src.clinical.demo_auth import DemoSessionProvider
 from src.clinical.errors import ClinicalAccessDenied, ClinicalDatabaseUnavailable
+from src.clinical.operations import OperationalStore, operational_store
 from src.clinical.postgres_repository import PostgresClinicalRepository
 from src.clinical.repository import ClinicalRepository, SQLiteClinicalRepository
 from src.clinical.review import ReviewService
@@ -80,8 +81,15 @@ def get_assignment_checker() -> AssignmentChecker:
     """Select server-side demo assignments only outside production."""
     settings = get_settings()
     if settings.app_env in {"development", "test"}:
-        return DemoAssignmentProvider({"doctor-1": {101}}, {"admin-1"})
+        return DemoAssignmentProvider(operational_store.assignments(), operational_store.admin_users())
     return _FailClosedAssignmentChecker()
+
+
+def get_operational_store() -> OperationalStore:
+    """Expose synthetic operational metadata only outside production."""
+    if get_settings().app_env not in {"development", "test"}:
+        raise ClinicalDatabaseUnavailable
+    return operational_store
 
 
 def build_summary_repository(settings: Settings) -> SQLiteSummaryRepository:

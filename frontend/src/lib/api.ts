@@ -1,5 +1,6 @@
 import type {
   AssignedPatient,
+  AssignmentHistoryEntry,
   ClinicalSummaryDraft,
   EvidenceRecord,
   PatientWorkspace,
@@ -9,6 +10,10 @@ import type {
   EvidencePage,
   EvidencePageState,
   EvidenceSource,
+  AuditMetadata,
+  ClinicalOperationalStatus,
+  IngestionRun,
+  OperationalUser,
   WorkspaceLoadOptions,
 } from "@/lib/types";
 
@@ -348,5 +353,83 @@ export const apiClient = {
       throw new ApiError(response.status, body.detail ?? "Clinical export failed.", body.trace_id);
     }
     return response.blob();
+  },
+
+  async listOperationalUsers(): Promise<OperationalUser[]> {
+    const response = await request<{
+      users: Array<{
+        user_id: string;
+        role: OperationalUser["role"];
+        state: OperationalUser["state"];
+        assignments: string[];
+        assignment_history: Array<{ subject_reference: string; action: AssignmentHistoryEntry["action"]; actor: string; timestamp: string }>;
+      }>;
+    }>("/api/v1/admin/users");
+    return response.users.map((user) => ({
+      userId: user.user_id,
+      role: user.role,
+      state: user.state,
+      assignments: user.assignments,
+      assignmentHistory: user.assignment_history.map((entry) => ({
+        subjectReference: entry.subject_reference,
+        action: entry.action,
+        actor: entry.actor,
+        timestamp: entry.timestamp,
+      })),
+    }));
+  },
+
+  async listAuditEvents(): Promise<AuditMetadata[]> {
+    const response = await request<{
+      events: Array<{ actor: string; action: string; subject_reference: string; timestamp: string; result: AuditMetadata["result"]; trace_id: string }>;
+    }>("/api/v1/admin/audit");
+    return response.events.map((event) => ({
+      actor: event.actor,
+      action: event.action,
+      subjectReference: event.subject_reference,
+      timestamp: event.timestamp,
+      result: event.result,
+      traceId: event.trace_id,
+    }));
+  },
+
+  async getClinicalOperationalStatus(): Promise<ClinicalOperationalStatus> {
+    const response = await request<{
+      backend: string;
+      database: Record<string, string>;
+      loaded_modules: string[];
+      source_profile: string;
+      ingestion: Record<string, string>;
+      llm_gateway: Record<string, string>;
+      clinical_tools: { status: string; count: number };
+      latency: Record<string, number>;
+      trace_id: string;
+    }>("/api/v1/ops/clinical-status");
+    return {
+      backend: response.backend,
+      database: response.database,
+      loadedModules: response.loaded_modules,
+      sourceProfile: response.source_profile,
+      ingestion: response.ingestion,
+      llmGateway: response.llm_gateway,
+      clinicalTools: response.clinical_tools,
+      latency: response.latency,
+      traceId: response.trace_id,
+    };
+  },
+
+  async listIngestionRuns(): Promise<IngestionRun[]> {
+    const response = await request<{
+      runs: Array<{ run_id: string; dataset: string; profile: string; checksum_status: string; schema_status: string; counts: Record<string, number>; errors: string[] }>;
+    }>("/api/v1/ops/ingestion-runs");
+    return response.runs.map((run) => ({
+      runId: run.run_id,
+      dataset: run.dataset,
+      profile: run.profile,
+      checksumStatus: run.checksum_status,
+      schemaStatus: run.schema_status,
+      counts: run.counts,
+      errors: run.errors,
+    }));
   },
 };

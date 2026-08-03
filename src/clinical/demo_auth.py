@@ -18,8 +18,8 @@ _DEMO_PASSWORD: Final = "demo"
 _DEMO_ACCOUNTS: Final[dict[str, tuple[str, set[int]]]] = {
     "doctor-1": ("DOCTOR", {101}),
     "admin-1": ("ADMIN", set()),
-    "steward-1": ("ADMIN", set()),
-    "compliance-1": ("ADMIN", set()),
+    "steward-1": ("DATA_STEWARD", set()),
+    "compliance-1": ("COMPLIANCE", set()),
 }
 
 
