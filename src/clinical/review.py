@@ -11,6 +11,7 @@ from src.clinical.errors import ClinicalAccessDenied, ClinicalSummaryNotFound, R
 from src.clinical.schemas import AccessContext
 from src.clinical.summary_repository import SQLiteSummaryRepository, SummaryVersion
 from src.clinical.summary_schemas import ClinicalSummaryDraft
+from src.clinical.summary_service import ClinicalSummaryService
 
 
 class ReviewChecklist(BaseModel):
@@ -25,11 +26,16 @@ class ReviewChecklist(BaseModel):
 
 class ReviewService:
     def __init__(
-        self, repository: SQLiteSummaryRepository, assignments: AssignmentChecker, audit_sink: AuditSink
+        self,
+        repository: SQLiteSummaryRepository,
+        assignments: AssignmentChecker,
+        audit_sink: AuditSink,
+        summary_service: ClinicalSummaryService,
     ) -> None:
         self._repository = repository
         self._assignments = assignments
         self._audit_sink = audit_sink
+        self._summary_service = summary_service
 
     def reject(self, summary_id: UUID, context: AccessContext, reason: str) -> SummaryVersion:
         summary = self._authorized_summary(summary_id, context, "REJECT_CLINICAL_SUMMARY")
@@ -55,19 +61,47 @@ class ReviewService:
         reason: str | None,
     ) -> SummaryVersion:
         summary = self._authorized_summary(summary_id, context, "EDIT_CLINICAL_SUMMARY")
-        if not self._has_valid_citations_for_draft(patch):
+        if patch.summary_id != summary.summary_id or (patch.subject_id, patch.hadm_id, patch.stay_id) != (
+            summary.draft.subject_id,
+            summary.draft.hadm_id,
+            summary.draft.stay_id,
+        ):
+            self._audit(summary, context, "EDIT_CLINICAL_SUMMARY", "ERROR")
+            raise ReviewPolicyError("Edited summary identity and scope must remain unchanged.")
+        canonical_patch = patch.model_copy(update={"trace_id": context.trace_id})
+        if not self._has_valid_citations_for_draft(canonical_patch):
             self._audit(summary, context, "EDIT_CLINICAL_SUMMARY", "ERROR")
             raise ReviewPolicyError("Edited claims require valid citations.")
         try:
-            version = self._repository.update_draft(summary.summary_id, context.user_id, patch, reason)
+            self._summary_service.validate_edit(context, summary.draft, canonical_patch)
         except Exception:
             self._audit(summary, context, "EDIT_CLINICAL_SUMMARY", "ERROR")
             raise
-        self._audit(version, context, "EDIT_CLINICAL_SUMMARY", "SUCCESS", persist=False)
+        event = self._event(summary, context, "EDIT_CLINICAL_SUMMARY", "SUCCESS")
+        try:
+            version = self._repository.update_draft(
+                summary.summary_id, context.user_id, canonical_patch, reason, event
+            )
+        except Exception:
+            self._audit(summary, context, "EDIT_CLINICAL_SUMMARY", "ERROR")
+            raise
+        if self._audit_sink is not self._repository:
+            self._audit_sink.record(event)
         return version
 
     def approve(self, summary_id: UUID, context: AccessContext, checklist: ReviewChecklist) -> SummaryVersion:
         summary = self._authorized_summary(summary_id, context, "APPROVE_CLINICAL_SUMMARY")
+        try:
+            self._summary_service.validate_edit(context, summary.draft, summary.draft)
+        except ClinicalAccessDenied:
+            self._audit(summary, context, "APPROVE_CLINICAL_SUMMARY", "ERROR")
+            raise
+        except ReviewPolicyError:
+            self._audit(summary, context, "APPROVE_CLINICAL_SUMMARY", "ERROR")
+            raise
+        except Exception:
+            self._audit(summary, context, "APPROVE_CLINICAL_SUMMARY", "ERROR")
+            raise ReviewPolicyError("Approval requires evidence-backed citations.") from None
         if not checklist.is_complete() or not self._has_valid_citations(summary) or not self._has_confirmed_conflicts(summary):
             self._audit(summary, context, "APPROVE_CLINICAL_SUMMARY", "ERROR")
             raise ReviewPolicyError("Approval requires completed review and valid citations.")

@@ -25,6 +25,14 @@ class ClaimValidator:
         citations_by_id = {citation.citation_id: citation for citation in draft.citations}
         errors: list[ValidationIssue] = []
 
+        for citation in draft.citations:
+            evidence_record = evidence_by_id.get(citation.citation_id)
+            if evidence_record is None:
+                errors.append(self._issue("MISSING_SOURCE", None, "Cited evidence is unavailable."))
+            elif evidence_record.lineage.table not in ALLOWED_SOURCE_TABLES:
+                errors.append(self._issue("UNAVAILABLE_SOURCE", None, "Source table is unavailable."))
+            elif citation.lineage != evidence_record.lineage:
+                errors.append(self._issue("LINEAGE_MISMATCH", None, "Citation lineage differs from evidence."))
         for claims in draft.sections.values():
             for claim in claims:
                 errors.extend(self._validate_claim(claim, citations_by_id, evidence_by_id))
@@ -133,5 +141,5 @@ class ClaimValidator:
         return []
 
     @staticmethod
-    def _issue(code: str, claim_id: str, message: str) -> ValidationIssue:
+    def _issue(code: str, claim_id: str | None, message: str) -> ValidationIssue:
         return ValidationIssue(code=code, claim_id=claim_id, message=message)

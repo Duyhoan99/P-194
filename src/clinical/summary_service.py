@@ -3,7 +3,8 @@
 from datetime import UTC, datetime
 
 from src.clinical.audit import AuditEvent, AuditResult, AuditSink
-from src.clinical.errors import ClinicalAccessDenied
+from src.clinical.claim_validator import ClaimValidator
+from src.clinical.errors import ClinicalAccessDenied, ReviewPolicyError
 from src.clinical.schemas import AccessContext, ClinicalQuery, ClinicalResponse, EvidenceRecord
 from src.clinical.service import ClinicalRetrievalService
 from src.clinical.summary_generator import DeterministicDemoSummaryGenerator, SummaryGenerator
@@ -53,6 +54,32 @@ class ClinicalSummaryService:
                 ],
             }
         )
+
+    def validate_edit(
+        self,
+        context: AccessContext,
+        original: ClinicalSummaryDraft,
+        patch: ClinicalSummaryDraft,
+    ) -> None:
+        """Re-fetch original-scope evidence before allowing an edited version."""
+        if (patch.subject_id, patch.hadm_id, patch.stay_id) != (
+            original.subject_id,
+            original.hadm_id,
+            original.stay_id,
+        ):
+            raise ReviewPolicyError("Edited summary scope must remain unchanged.")
+        query = ClinicalQuery(
+            subject_id=original.subject_id,
+            hadm_id=original.hadm_id,
+            stay_id=original.stay_id,
+        )
+        responses = self._responses(context, query)
+        if any(response.status == "DENIED" for response in responses):
+            raise ClinicalAccessDenied
+        evidence = [record for response in responses for record in response.records]
+        report = ClaimValidator().validate(patch, evidence)
+        if not report.valid:
+            raise ReviewPolicyError("Edited claims require evidence-backed citations.")
 
     def _responses(self, context: AccessContext, query: ClinicalQuery) -> tuple[ClinicalResponse, ...]:
         return (

@@ -1,16 +1,18 @@
 import sqlite3
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
 from src.clinical.access import DemoAssignmentProvider
-from src.clinical.audit import InMemoryAuditSink
+from src.clinical.audit import AuditEvent, InMemoryAuditSink
 from src.clinical.errors import ClinicalAccessDenied, ReviewPolicyError
 from src.clinical.review import ReviewChecklist, ReviewService
-from src.clinical.schemas import AccessContext, SourceLineage
+from src.clinical.schemas import AccessContext, ClinicalQuery, SourceLineage
 from src.clinical.summary_repository import SQLiteSummaryRepository
 from src.clinical.summary_schemas import Citation, Claim, ClinicalSummaryDraft, Conflict
+from src.clinical.summary_service import ClinicalSummaryService
 from src.config import Settings, get_settings
 from tests.clinical_fixtures import create_mock_clinical_db
 from tests.test_clinical.conftest import TEST_TRACE_ID, allowed_context
@@ -23,6 +25,13 @@ def context_for_subject(subject_id: int) -> AccessContext:
         assigned_subject_ids={subject_id},
         trace_id=TEST_TRACE_ID,
     )
+
+
+class PassingEvidenceValidator:
+    """Keeps review-policy unit tests focused on state transitions, not retrieval fixtures."""
+
+    def validate_edit(self, context, original, patch) -> None:
+        del context, original, patch
 
 
 @pytest.fixture
@@ -77,6 +86,7 @@ def review_service(summary_repo: SQLiteSummaryRepository) -> ReviewService:
         summary_repo,
         DemoAssignmentProvider({"doctor-1": {101}}, set()),
         InMemoryAuditSink(),
+        PassingEvidenceValidator(),
     )
 
 
@@ -89,6 +99,19 @@ def complete_checklist() -> ReviewChecklist:
     )
 
 
+def edit_event(draft: ClinicalSummaryDraft) -> AuditEvent:
+    return AuditEvent(
+        user_id="doctor-1",
+        action="EDIT_CLINICAL_SUMMARY",
+        subject_id=draft.subject_id,
+        hadm_id=draft.hadm_id,
+        stay_id=draft.stay_id,
+        result="SUCCESS",
+        trace_id=TEST_TRACE_ID,
+        timestamp=datetime.now(UTC),
+    )
+
+
 def test_create_and_list_versions(summary_repo: SQLiteSummaryRepository, valid_draft: ClinicalSummaryDraft):
     """Removing durable version rows would make a created draft disappear on lookup."""
     created = summary_repo.create_draft(valid_draft, actor_id="doctor-1")
@@ -97,6 +120,7 @@ def test_create_and_list_versions(summary_repo: SQLiteSummaryRepository, valid_d
         actor_id="doctor-1",
         patch=valid_draft.model_copy(update={"warnings": ["Doctor requested revision."]}),
         reason="Clarify warning",
+        event=edit_event(valid_draft),
     )
 
     assert [version.version_number for version in summary_repo.list_versions(created.summary_id)] == [1, 2]
@@ -147,7 +171,13 @@ def test_approved_version_is_immutable(summary_repo, review_service, valid_draft
     review_service.approve(created.summary_id, allowed_context(), complete_checklist())
 
     with pytest.raises(ReviewPolicyError):
-        summary_repo.update_draft(created.summary_id, "doctor-1", valid_draft, "Change approved summary")
+        summary_repo.update_draft(
+            created.summary_id,
+            "doctor-1",
+            valid_draft,
+            "Change approved summary",
+            edit_event(valid_draft),
+        )
 
     assert summary_repo.get(created.summary_id).status == "APPROVED"
 
@@ -219,6 +249,38 @@ def test_approval_rejects_claims_without_valid_citations(summary_repo, review_se
 
     with pytest.raises(ReviewPolicyError):
         review_service.approve(created.summary_id, allowed_context(), complete_checklist())
+
+
+def test_fabricated_persisted_draft_cannot_be_approved_or_exported(summary_repo, assigned_service, audit_sink):
+    """Approval validation must stop a manually persisted fabricated claim before any PDF export."""
+    summary_service = ClinicalSummaryService(assigned_service, audit_sink=audit_sink)
+    generated = summary_service.generate(allowed_context(), ClinicalQuery(subject_id=101))
+    fabricated = generated.model_copy(
+        update={
+            "sections": {
+                **generated.sections,
+                "Laboratory Trends": [
+                    generated.sections["Laboratory Trends"][0].model_copy(
+                        update={"text": "Fabricated clinical conclusion."}
+                    )
+                ],
+            }
+        }
+    )
+    created = summary_repo.create_draft(fabricated, actor_id="doctor-1")
+    evidence_validating_review = ReviewService(
+        summary_repo,
+        DemoAssignmentProvider({"doctor-1": {101}}, set()),
+        InMemoryAuditSink(),
+        summary_service,
+    )
+
+    with pytest.raises(ReviewPolicyError):
+        evidence_validating_review.approve(created.summary_id, allowed_context(), complete_checklist())
+    with pytest.raises(ReviewPolicyError):
+        evidence_validating_review.export(created.summary_id, allowed_context())
+
+    assert summary_repo.get(created.summary_id).status == "DRAFT"
 
 
 def test_approval_requires_doctor_confirmed_conflict_resolution(summary_repo, review_service, valid_draft):
@@ -321,6 +383,33 @@ def test_approval_is_atomic_with_checklist_and_success_audit(summary_repo, revie
             "SELECT COUNT(*) FROM audit_events WHERE action = 'APPROVE_CLINICAL_SUMMARY' AND result = 'SUCCESS'"
         ).fetchone()[0]
     assert checklist_count == 0
+    assert success_count == 0
+
+
+def test_edit_is_atomic_with_success_audit(summary_repo, review_service, valid_draft):
+    """An edit audit failure must roll back the new version and preserve the original traceable draft."""
+    created = summary_repo.create_draft(valid_draft, actor_id="doctor-1")
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        connection.execute(
+            """CREATE TRIGGER fail_edit_audit BEFORE INSERT ON audit_events
+               WHEN NEW.action = 'EDIT_CLINICAL_SUMMARY' AND NEW.result = 'SUCCESS'
+               BEGIN SELECT RAISE(ABORT, 'edit audit write failed'); END"""
+        )
+
+    with pytest.raises(sqlite3.IntegrityError, match="edit audit write failed"):
+        review_service.edit(
+            created.summary_id,
+            allowed_context(),
+            valid_draft.model_copy(update={"warnings": ["Attempted revision."]}),
+            "Clarify warning",
+        )
+
+    assert summary_repo.get(created.summary_id).status == "DRAFT"
+    assert [version.version_number for version in summary_repo.list_versions(created.summary_id)] == [1]
+    with sqlite3.connect(summary_repo.db_path) as connection:
+        success_count = connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'EDIT_CLINICAL_SUMMARY' AND result = 'SUCCESS'"
+        ).fetchone()[0]
     assert success_count == 0
 
 

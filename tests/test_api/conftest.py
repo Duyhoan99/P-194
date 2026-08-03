@@ -33,7 +33,7 @@ async def authenticated_client(monkeypatch, fake_service, summary_repository):
     get_settings.cache_clear()
     assignments = DemoAssignmentProvider({"doctor-1": {101}}, {"admin-1"})
     summary_service = ClinicalSummaryService(fake_service, audit_sink=summary_repository)
-    review_service = ReviewService(summary_repository, assignments, summary_repository)
+    review_service = ReviewService(summary_repository, assignments, summary_repository, summary_service)
     app.dependency_overrides[get_clinical_service] = lambda: fake_service
     app.dependency_overrides[get_summary_repository] = lambda: summary_repository
     app.dependency_overrides[get_summary_service] = lambda: summary_service
@@ -61,11 +61,10 @@ async def admin_client(monkeypatch, fake_service, summary_repository):
     assignments = DemoAssignmentProvider({"doctor-1": {101}}, {"admin-1"})
     app.dependency_overrides[get_clinical_service] = lambda: fake_service
     app.dependency_overrides[get_summary_repository] = lambda: summary_repository
-    app.dependency_overrides[get_summary_service] = lambda: ClinicalSummaryService(
-        fake_service, audit_sink=summary_repository
-    )
+    summary_service = ClinicalSummaryService(fake_service, audit_sink=summary_repository)
+    app.dependency_overrides[get_summary_service] = lambda: summary_service
     app.dependency_overrides[get_review_service] = lambda: ReviewService(
-        summary_repository, assignments, summary_repository
+        summary_repository, assignments, summary_repository, summary_service
     )
     transport = ASGITransport(app=app)
     try:

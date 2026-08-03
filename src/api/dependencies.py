@@ -104,8 +104,9 @@ def get_summary_service(
 def get_review_service(
     repository: SQLiteSummaryRepository = Depends(get_summary_repository),
     assignments: AssignmentChecker = Depends(get_assignment_checker),
+    summary_service: ClinicalSummaryService = Depends(get_summary_service),
 ) -> ReviewService:
-    return ReviewService(repository, assignments, repository)
+    return ReviewService(repository, assignments, repository, summary_service)
 
 
 def get_access_context(request: Request) -> AccessContext:

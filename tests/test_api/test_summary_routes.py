@@ -122,7 +122,43 @@ async def test_edit_creates_new_version_and_versions_remain_immutable(authentica
     assert response.status_code == 200
     assert response.json()["version_number"] == 2
     assert response.json()["status"] == "NEEDS_REVISION"
+    assert response.json()["draft"]["trace_id"] != patch["trace_id"]
     assert [version["version_number"] for version in versions.json()] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_edit_rejects_client_relabeling_of_scope_and_uses_request_trace(authenticated_client, summary_id):
+    """Allowing an edit to relabel its subject, encounter, or trace would corrupt immutable review provenance."""
+    current = await authenticated_client.get(f"/api/v1/clinical/summaries/{summary_id}")
+    patch = current.json()["draft"]
+    patch.update({"subject_id": 202, "hadm_id": 9999, "stay_id": 8888, "trace_id": str(uuid4())})
+    response = await authenticated_client.patch(
+        f"/api/v1/clinical/summaries/{summary_id}",
+        json={"draft": patch, "reason": "Attempt to relabel immutable scope"},
+    )
+    stored = await authenticated_client.get(f"/api/v1/clinical/summaries/{summary_id}")
+
+    assert response.status_code == 422
+    assert stored.json()["draft"]["subject_id"] == 101
+    assert stored.json()["draft"]["hadm_id"] is None
+    assert stored.json()["draft"]["stay_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_edit_rejects_fabricated_evidence_text_and_lineage(authenticated_client, summary_id):
+    """Structural citation IDs alone must not permit fabricated claims to enter an approvable version."""
+    current = await authenticated_client.get(f"/api/v1/clinical/summaries/{summary_id}")
+    patch = current.json()["draft"]
+    patch["sections"]["Laboratory Trends"][0]["text"] = "Fabricated clinical conclusion."
+    patch["citations"][0]["lineage"]["subject_id"] = 202
+    response = await authenticated_client.patch(
+        f"/api/v1/clinical/summaries/{summary_id}",
+        json={"draft": patch, "reason": "Attempt to fabricate evidence"},
+    )
+    versions = await authenticated_client.get(f"/api/v1/clinical/summaries/{summary_id}/versions")
+
+    assert response.status_code == 422
+    assert [version["status"] for version in versions.json()] == ["DRAFT"]
 
 
 @pytest.mark.asyncio
@@ -138,6 +174,19 @@ async def test_edit_rejects_claim_without_a_valid_citation(authenticated_client,
 
     assert response.status_code == 422
     assert response.json()["trace_id"]
+
+
+@pytest.mark.asyncio
+async def test_repeated_generation_returns_existing_draft_without_duplicate_version(authenticated_client):
+    """Reinserting the deterministic summary UUID would turn a harmless regeneration into a server error."""
+    first = await authenticated_client.post("/api/v1/clinical/patients/101/summaries")
+    second = await authenticated_client.post("/api/v1/clinical/patients/101/summaries")
+    versions = await authenticated_client.get(f"/api/v1/clinical/summaries/{first.json()['summary_id']}/versions")
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert second.json()["summary_id"] == first.json()["summary_id"]
+    assert [version["version_number"] for version in versions.json()] == [1]
 
 
 @pytest.mark.asyncio

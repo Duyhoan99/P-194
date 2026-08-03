@@ -41,7 +41,7 @@ class SummaryRepository(Protocol):
     def get_for_subject(self, summary_id: UUID, subject_id: int) -> SummaryVersion | None: ...
 
     def update_draft(
-        self, summary_id: UUID, actor_id: str, patch: ClinicalSummaryDraft, reason: str | None
+        self, summary_id: UUID, actor_id: str, patch: ClinicalSummaryDraft, reason: str | None, event: AuditEvent
     ) -> SummaryVersion: ...
 
     def list_versions(self, summary_id: UUID) -> list[SummaryVersion]: ...
@@ -67,13 +67,23 @@ class SQLiteSummaryRepository(AuditSink):
             raise ReviewPolicyError("Only draft summaries can be created.")
         version = self._new_version(draft, 1, "DRAFT", actor_id, None)
         with self._connection() as connection:
+            existing = self._summary_in_connection(connection, draft.summary_id)
+            if existing is not None:
+                if (existing.draft.subject_id, existing.draft.hadm_id, existing.draft.stay_id) != (
+                    draft.subject_id,
+                    draft.hadm_id,
+                    draft.stay_id,
+                ):
+                    raise ReviewPolicyError("Summary identifier is already bound to another clinical scope.")
+                self._record(connection, self._scope_event(draft, actor_id, "GENERATE_CLINICAL_SUMMARY", "SUCCESS"))
+                return existing
             connection.execute(
                 """INSERT INTO summaries (summary_id, subject_id, hadm_id, stay_id, current_version_id)
                    VALUES (?, ?, ?, ?, ?)""",
                 (str(version.summary_id), draft.subject_id, draft.hadm_id, draft.stay_id, str(version.version_id)),
             )
             self._store_version(connection, version)
-        self._record_scope_event(version, "GENERATE_CLINICAL_SUMMARY", "SUCCESS")
+            self._record(connection, self._scope_event(draft, actor_id, "GENERATE_CLINICAL_SUMMARY", "SUCCESS"))
         return version
 
     def get(self, summary_id: UUID) -> SummaryVersion:
@@ -100,20 +110,41 @@ class SQLiteSummaryRepository(AuditSink):
         return self._version_from_row(row) if row is not None else None
 
     def update_draft(
-        self, summary_id: UUID, actor_id: str, patch: ClinicalSummaryDraft, reason: str | None
+        self, summary_id: UUID, actor_id: str, patch: ClinicalSummaryDraft, reason: str | None, event: AuditEvent
     ) -> SummaryVersion:
-        current = self.get(summary_id)
-        if current.status not in {"DRAFT", "NEEDS_REVISION"}:
-            raise ReviewPolicyError("Only a current draft or revision may be edited.")
-        draft = patch.model_copy(update={"summary_id": summary_id, "status": "NEEDS_REVISION"})
-        version = self._new_version(draft, current.version_number + 1, "NEEDS_REVISION", actor_id, reason)
         with self._connection() as connection:
+            current = self._current_version(connection, summary_id)
+            if current.status not in {"DRAFT", "NEEDS_REVISION"}:
+                raise ReviewPolicyError("Only a current draft or revision may be edited.")
+            if patch.summary_id != summary_id or (patch.subject_id, patch.hadm_id, patch.stay_id) != (
+                current.draft.subject_id,
+                current.draft.hadm_id,
+                current.draft.stay_id,
+            ):
+                raise ReviewPolicyError("Edited summary identity and scope must remain unchanged.")
+            if event.user_id != actor_id or (event.subject_id, event.hadm_id, event.stay_id) != (
+                current.draft.subject_id,
+                current.draft.hadm_id,
+                current.draft.stay_id,
+            ):
+                raise ReviewPolicyError("Edited summary audit scope must match the persisted summary.")
+            draft = patch.model_copy(
+                update={
+                    "summary_id": summary_id,
+                    "subject_id": current.draft.subject_id,
+                    "hadm_id": current.draft.hadm_id,
+                    "stay_id": current.draft.stay_id,
+                    "status": "NEEDS_REVISION",
+                    "trace_id": event.trace_id,
+                }
+            )
+            version = self._new_version(draft, current.version_number + 1, "NEEDS_REVISION", actor_id, reason)
             self._store_version(connection, version)
             connection.execute(
                 "UPDATE summaries SET current_version_id = ? WHERE summary_id = ?",
                 (str(version.version_id), str(summary_id)),
             )
-        self._record_scope_event(version, "EDIT_CLINICAL_SUMMARY", "SUCCESS")
+            self._record(connection, event)
         return version
 
     def list_versions(self, summary_id: UUID) -> list[SummaryVersion]:
@@ -344,6 +375,14 @@ class SQLiteSummaryRepository(AuditSink):
             raise ReviewPolicyError("Summary review policy cannot be satisfied.")
         return self._version_from_row(row)
 
+    def _summary_in_connection(self, connection: sqlite3.Connection, summary_id: UUID) -> SummaryVersion | None:
+        row = connection.execute(
+            """SELECT version_id, summary_id, version_number, status, actor_id, reason, created_at, draft_json
+               FROM summary_versions WHERE summary_id = ? ORDER BY version_number DESC LIMIT 1""",
+            (str(summary_id),),
+        ).fetchone()
+        return self._version_from_row(row) if row is not None else None
+
     @staticmethod
     def _new_version(
         draft: ClinicalSummaryDraft, number: int, status: SummaryStatus, actor_id: str, reason: str | None
@@ -362,11 +401,15 @@ class SQLiteSummaryRepository(AuditSink):
             draft=ClinicalSummaryDraft.model_validate(json.loads(row["draft_json"])),
         )
 
-    def _record_scope_event(self, version: SummaryVersion, action: str, result: str) -> None:
-        self.record(
-            AuditEvent(
-                user_id=version.actor_id, action=action, subject_id=version.draft.subject_id,
-                hadm_id=version.draft.hadm_id, stay_id=version.draft.stay_id, result=result,
-                trace_id=version.draft.trace_id, timestamp=version.created_at,
-            )
+    @staticmethod
+    def _scope_event(draft: ClinicalSummaryDraft, actor_id: str, action: str, result: str) -> AuditEvent:
+        return AuditEvent(
+            user_id=actor_id,
+            action=action,
+            subject_id=draft.subject_id,
+            hadm_id=draft.hadm_id,
+            stay_id=draft.stay_id,
+            result=result,
+            trace_id=draft.trace_id,
+            timestamp=datetime.now(UTC),
         )

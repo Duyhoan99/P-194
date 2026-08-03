@@ -44,6 +44,31 @@ def test_validator_rejects_citation_for_missing_source(evidence, draft_with_clai
     assert report.errors[0].code == "MISSING_SOURCE"
 
 
+def test_validator_rejects_unused_citation_without_server_evidence(evidence, draft_with_claim):
+    """Accepting an unreferenced fake citation would preserve fabricated provenance in an edited version."""
+    timestamp = evidence[0].lineage.event_time.isoformat()
+    draft = draft_with_claim(
+        text=f"Creatinine is 1.2 mg/dL at {timestamp}", citation_ids=["labevent_id=9001"]
+    )
+    draft.citations = [
+        Citation(
+            citation_id="labevent_id=9001",
+            lineage=evidence[0].lineage,
+            supported_fields=["value", "valueuom"],
+        ),
+        Citation(
+            citation_id="fabricated-source",
+            lineage=evidence[0].lineage,
+            supported_fields=["value"],
+        ),
+    ]
+
+    report = ClaimValidator().validate(draft, evidence)
+
+    assert report.valid is False
+    assert report.errors[0].code == "MISSING_SOURCE"
+
+
 def test_validator_rejects_mismatched_numeric_value(evidence, draft_with_claim):
     """Accepting a changed numeric result would allow a materially incorrect clinical claim."""
     draft = draft_with_claim(text="Creatinine is 2.0 mg/dL", citation_ids=["labevent_id=9001"])
