@@ -62,7 +62,7 @@ Baseline trước khi bắt đầu: `pytest -q` phải vẫn đạt toàn bộ t
 
 **Interfaces:**
 - Produces `ClinicalQuery`, `AccessContext`, `SourceLineage`, `EvidenceRecord`, `ClinicalResponse`, `ClinicalStatus` and domain errors used by every later task.
-- `ClinicalQuery(subject_id: int, hadm_id: int | None = None, stay_id: int | None = None, from_time: datetime | None = None, to_time: datetime | None = None, limit: int = 200)` rejects non-positive IDs, `limit > settings.clinical_max_limit`, and `from_time > to_time`.
+- `ClinicalQuery(subject_id: int, hadm_id: int | None = None, stay_id: int | None = None, from_time: datetime | None = None, to_time: datetime | None = None, limit: int = 200, offset: int = 0)` rejects non-positive IDs, `limit > settings.clinical_max_limit`, and `from_time > to_time`. Ensure `from_time` and `to_time` enforce timezone-aware datetime parsing to avoid naive datetime comparison errors.
 - `SourceLineage(dataset: Literal["MIMIC-IV"], version: Literal["3.1"], module: Literal["hosp", "icu"], table: str, source_row_key: str, subject_id: int, hadm_id: int | None, stay_id: int | None, event_time: datetime | None)`.
 - `EvidenceRecord(record_type: str, data: dict[str, Any], lineage: SourceLineage, related_sources: list[SourceLineage] = Field(default_factory=list))`.
 - `ClinicalResponse(status: Literal["SUCCESS", "PARTIAL", "EMPTY", "DENIED", "NOT_LOADED"], records: list[EvidenceRecord], warnings: list[str], limitations: list[str], trace_id: str)`.
@@ -85,6 +85,8 @@ def test_query_requires_positive_subject_and_bounded_limit():
         ClinicalQuery(subject_id=0)
     with pytest.raises(ValidationError):
         ClinicalQuery(subject_id=1, limit=1001)
+    with pytest.raises(ValidationError):
+        ClinicalQuery(subject_id=1, offset=-1)
 
 
 def test_query_rejects_reversed_time_window():
@@ -253,7 +255,7 @@ Expected: FAIL because the fixture/repository implementation is incomplete.
 
 - [ ] **Step 4: Implement availability and fixed, parameterized queries**
 
-Use a fixed query per domain. Bind values with SQLite parameters (`?`); never interpolate `subject_id`, filters or table names into SQL. Use explicit selected columns and deterministic ordering by source event time plus source key. Keep source key construction deterministic for tables without a single row ID, for example `subject_id|hadm_id|stay_id|charttime|itemid|storetime` for `chartevents`.
+Use a fixed query per domain. Bind values with SQLite parameters (`?`); never interpolate `subject_id`, filters or table names into SQL. Use explicit selected columns and deterministic ordering by source event time DESC, then source key DESC so the most recent events are returned first. Use `COALESCE(charttime, storetime)` for events missing a primary chart time to ensure timeline ordering is maintained. Keep source key construction deterministic for tables without a single row ID, for example `subject_id|hadm_id|stay_id|charttime|itemid|storetime` for `chartevents`.
 
 Join only the approved dictionaries (`d_labitems`, `d_icd_diagnoses`, `d_icd_procedures`, `d_hcpcs`, `d_items`). If a source table is absent, return its name in `unavailable_sources` rather than inventing an empty clinical result.
 
@@ -333,7 +335,7 @@ git commit -m "feat: add scoped clinical retrieval service"
 **Interfaces:**
 - `build_clinical_tools(service: ClinicalRetrievalService, access_context: AccessContext) -> list[BaseTool]`.
 - The factory returns tools named `get_patient_overview`, `get_encounter_timeline`, `get_diagnoses_and_procedures`, `get_laboratory_results`, `get_microbiology_results`, `get_icu_events`.
-- Tool input schemas expose only `hadm_id`, `stay_id`, `from_time`, `to_time`, `limit`; `subject_id` remains required in every tool input. `access_context` is bound by the factory and cannot be supplied by the model.
+- Tool input schemas expose only `hadm_id`, `stay_id`, `from_time`, `to_time`, `limit`, `offset`; `subject_id` remains required in every tool input. `access_context` is bound by the factory and cannot be supplied by the model.
 - Each invocation returns a JSON-serializable `ClinicalResponse` and never invokes the LLM.
 
 - [ ] **Step 1: Write failing tool tests**
@@ -458,6 +460,10 @@ Compare returned lab `value`, `valuenum`, `valueuom`, `ref_range_lower`, `ref_ra
 - [ ] **Step 3: Add unavailable-source and failure tests**
 
 Use a fixture that omits `d_labitems` to assert `PARTIAL` with an explicit warning. Inject a repository that raises a database error and assert `503` with no SQL/clinical value in the body. Inject a timeout and assert `504`.
+
+- [ ] **Step 3b: Verify DB Indexes (Performance Hardening)**
+
+Verify that `mimic_demo.db` has explicit indexes created for `subject_id`, `hadm_id`, and `stay_id` on large tables (e.g., `chartevents`, `labevents`) to prevent query timeouts due to full table scans. Document the indexing process if any indexes are missing.
 
 - [ ] **Step 4: Run quality checks**
 
