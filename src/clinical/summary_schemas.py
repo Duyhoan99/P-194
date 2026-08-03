@@ -49,6 +49,7 @@ class ClinicalSummaryDraft(BaseModel):
     sections: dict[str, list[Claim]]
     citations: list[Citation]
     conflicts: list[Conflict]
+    warnings: list[str] = Field(default_factory=list)
     limitations: list[str]
     trace_id: str
 

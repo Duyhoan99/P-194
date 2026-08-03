@@ -4,9 +4,15 @@ import re
 
 from src.clinical.availability import ALLOWED_SOURCE_TABLES
 from src.clinical.schemas import EvidenceRecord
-from src.clinical.summary_schemas import ClinicalSummaryDraft, ValidationIssue, ValidationReport
+from src.clinical.summary_schemas import (
+    Citation,
+    Claim,
+    ClinicalSummaryDraft,
+    ValidationIssue,
+    ValidationReport,
+)
 
-_DECIMAL_PATTERN = re.compile(r"(?<![\w.])-?\d+\.\d+(?![\w.])")
+_NUMERIC_WITH_UNIT_PATTERN = r"(-?\d+(?:\.\d+)?)\s+{unit}"
 
 
 class ClaimValidator:
@@ -24,7 +30,12 @@ class ClaimValidator:
                 errors.extend(self._validate_claim(claim, citations_by_id, evidence_by_id))
         return ValidationReport(valid=not errors, errors=errors, warnings=[])
 
-    def _validate_claim(self, claim, citations_by_id, evidence_by_id) -> list[ValidationIssue]:
+    def _validate_claim(
+        self,
+        claim: Claim,
+        citations_by_id: dict[str, Citation],
+        evidence_by_id: dict[str, EvidenceRecord],
+    ) -> list[ValidationIssue]:
         if not claim.citation_ids:
             return [self._issue("MISSING_CITATION", claim.claim_id, "Claim has no citation IDs.")]
 
@@ -44,7 +55,13 @@ class ClaimValidator:
             if citation.lineage != evidence_record.lineage:
                 errors.append(self._issue("LINEAGE_MISMATCH", claim.claim_id, "Citation lineage differs from evidence."))
                 continue
-            errors.extend(self._validate_value_and_unit(claim.text, evidence_record, claim.claim_id))
+            if self._is_lab(evidence_record):
+                errors.extend(self._validate_value_and_unit(claim.text, evidence_record, claim.claim_id))
+            else:
+                errors.extend(
+                    self._validate_supported_fields(claim.text, citation, evidence_record, claim.claim_id)
+                )
+            errors.extend(self._validate_timestamp(claim.text, evidence_record, claim.claim_id))
         return errors
 
     @staticmethod
@@ -58,7 +75,8 @@ class ClaimValidator:
         except (TypeError, ValueError):
             return []
 
-        claim_values = {float(match) for match in _DECIMAL_PATTERN.findall(text)}
+        unit_matches = _NUMERIC_WITH_UNIT_PATTERN.format(unit=re.escape(str(unit)))
+        claim_values = {float(match) for match in re.findall(unit_matches, text)}
         if expected_value not in claim_values:
             return [
                 ClaimValidator._issue(
@@ -69,6 +87,47 @@ class ClaimValidator:
             return [
                 ClaimValidator._issue(
                     "UNIT_MISMATCH", claim_id, "Claim unit differs from cited evidence."
+                )
+            ]
+        return []
+
+    @staticmethod
+    def _is_lab(evidence: EvidenceRecord) -> bool:
+        return evidence.record_type == "lab" or evidence.lineage.table == "labevents"
+
+    @staticmethod
+    def _validate_supported_fields(
+        text: str, citation: Citation, evidence: EvidenceRecord, claim_id: str
+    ) -> list[ValidationIssue]:
+        if not citation.supported_fields:
+            return [
+                ClaimValidator._issue(
+                    "UNSUPPORTED_CLAIM", claim_id, "Non-laboratory claim has no supported evidence fields."
+                )
+            ]
+        for field_name in citation.supported_fields:
+            if field_name not in evidence.data:
+                return [
+                    ClaimValidator._issue(
+                        "UNSUPPORTED_FIELD", claim_id, "Citation references an unavailable evidence field."
+                    )
+                ]
+            if f"{field_name}={evidence.data[field_name]}" not in text:
+                return [
+                    ClaimValidator._issue(
+                        "UNSUPPORTED_CLAIM", claim_id, "Claim text omits cited evidence values."
+                    )
+                ]
+        return []
+
+    @staticmethod
+    def _validate_timestamp(text: str, evidence: EvidenceRecord, claim_id: str) -> list[ValidationIssue]:
+        timestamp = evidence.lineage.event_time
+        expected_timestamp = timestamp.isoformat() if timestamp else "timestamp unavailable"
+        if expected_timestamp not in text:
+            return [
+                ClaimValidator._issue(
+                    "TIMESTAMP_MISMATCH", claim_id, "Claim timestamp differs from cited evidence."
                 )
             ]
         return []

@@ -61,6 +61,7 @@ class DeterministicDemoSummaryGenerator(SummaryGenerator):
             sections=sections,
             citations=citations,
             conflicts=self._medication_conflicts(ordered_evidence),
+            warnings=[],
             limitations=limitations,
             trace_id=str(uuid5(NAMESPACE_URL, f"clinical-summary-trace:{evidence_key}")),
         )
