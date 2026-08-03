@@ -20,9 +20,9 @@ Agent chỉ tạo bản `DRAFT`. Bác sĩ được phân công phải kiểm tra
 ## Kiến trúc và tài liệu
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — kiến trúc mục tiêu, data lineage, agent workflow, API boundary, bảo mật và deployment.
-- [Gate 1/PRD.md](Gate%201/PRD.md) — yêu cầu sản phẩm và acceptance criteria.
-- [Gate 1/brief.md](Gate%201/brief.md) — product brief.
-- [Gate 1/Wireframe_UI FLow.md](Gate%201/Wireframe_UI%20FLow.md) — luồng và wireframe mục tiêu.
+- [docs/PRD.md](docs/PRD.md) — yêu cầu sản phẩm và acceptance criteria.
+- [docs/brief.md](docs/brief.md) — product brief.
+- [docs/Wireframe_UI FLow.md](docs/Wireframe_UI%20FLow.md) — luồng và wireframe mục tiêu.
 - [docs/architecture_diagram.md](docs/architecture_diagram.md) — sơ đồ tóm tắt.
 
 ## Tech stack mục tiêu
@@ -63,8 +63,7 @@ Kiểm thử hiện tại: `5 passed` (`pytest tests -q`).
 ```text
 src/                  FastAPI, LangGraph, schemas và services
 tests/                API và agent tests
-Gate 1/               PRD, brief và wireframe
-docs/                 Architecture summary và technical guide
+docs/                 PRD, brief, wireframe, Architecture summary và technical guide
 eval/results/         Evaluation evidence
 presentation/         Pitch/demo materials
 scripts/              Setup và AI usage logging hooks
