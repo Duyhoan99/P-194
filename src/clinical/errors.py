@@ -1,0 +1,21 @@
+"""Domain errors for clinical retrieval."""
+
+
+class ClinicalAuthNotConfigured(Exception):  # noqa: N818
+    """Raised when clinical authentication has not been configured."""
+
+
+class ClinicalAccessDenied(Exception):  # noqa: N818
+    """Raised when a user is not authorized for a clinical subject."""
+
+
+class ClinicalScopeInvalid(Exception):  # noqa: N818
+    """Raised when an encounter or stay is outside the requested subject."""
+
+
+class ClinicalDatabaseUnavailable(Exception):  # noqa: N818
+    """Raised when the clinical database cannot be queried."""
+
+
+class ClinicalQueryTimeout(Exception):  # noqa: N818
+    """Raised when a clinical query exceeds its timeout."""

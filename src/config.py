@@ -27,6 +27,9 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite:///./data/app.db"
+    clinical_database_path: str = "mimic_demo.db"
+    clinical_query_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
+    clinical_max_limit: int = Field(default=1000, ge=1, le=5000)
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"
