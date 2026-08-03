@@ -4,7 +4,7 @@ import pytest
 from loguru import logger
 from pydantic import ValidationError
 
-from src.clinical.access import DemoAssignmentProvider
+from src.clinical.access import AuthProvider, ConfiguredAuthProvider, DemoAssignmentProvider
 from src.clinical.audit import AuditEvent, InMemoryAuditSink, StructuredAuditSink
 from src.clinical.errors import ClinicalAccessDenied, ClinicalAuthNotConfigured
 from src.clinical.schemas import AccessContext
@@ -21,6 +21,19 @@ def test_doctor_can_access_only_assigned_subject():
 
     with pytest.raises(ClinicalAccessDenied):
         provider.assert_access(context, 11)
+
+
+def test_assignment_provider_accepts_encounter_and_stay_scope():
+    provider = DemoAssignmentProvider({"doctor-1": {10}}, set())
+    context = AccessContext(user_id="doctor-1", role="DOCTOR", assigned_subject_ids={10}, trace_id=TRACE_ID)
+
+    provider.assert_access(context, 10, hadm_id=20, stay_id=30)
+
+
+def test_unconfigured_auth_provider_is_fail_closed():
+    provider: AuthProvider = ConfiguredAuthProvider()
+    with pytest.raises(ClinicalAuthNotConfigured):
+        provider.authenticate(None)
 
 
 def test_doctor_is_denied_when_context_assignment_set_is_empty():

@@ -4,9 +4,9 @@ from uuid import uuid4
 
 from fastapi import Request
 
-from src.clinical.access import AssignmentChecker
+from src.clinical.access import AssignmentChecker, AuthProvider, ConfiguredAuthProvider
 from src.clinical.audit import StructuredAuditSink
-from src.clinical.errors import ClinicalAccessDenied, ClinicalAuthNotConfigured
+from src.clinical.errors import ClinicalAccessDenied
 from src.clinical.repository import SQLiteClinicalRepository
 from src.clinical.schemas import AccessContext
 from src.clinical.service import ClinicalRetrievalService
@@ -35,11 +35,12 @@ def get_clinical_service() -> ClinicalRetrievalService:
 
 
 def get_access_context(request: Request) -> AccessContext:
-    """Reject requests until a trusted authentication integration is configured.
+    """Build context only through a trusted authentication integration.
 
-    This dependency deliberately ignores all request headers and parameters. Tests
-    and explicitly configured authentication providers replace it through FastAPI's
-    dependency override mechanism.
+    The default provider deliberately ignores all request headers and parameters.
+    Tests and an organization-provided authentication provider replace it through
+    FastAPI's dependency override mechanism.
     """
     request.state.clinical_trace_id = str(uuid4())
-    raise ClinicalAuthNotConfigured
+    provider: AuthProvider = ConfiguredAuthProvider()
+    return provider.authenticate(request)
