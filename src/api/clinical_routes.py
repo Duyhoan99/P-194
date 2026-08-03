@@ -1,11 +1,14 @@
 """REST endpoints backed exclusively by ``ClinicalRetrievalService``."""
 
+import json
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -70,6 +73,23 @@ def register_clinical_error_handlers(app: Any) -> None:
             return clinical_error_response(request, error)
 
         app.add_exception_handler(error_type, handler)
+
+    async def validation_handler(
+        request: Request, error: RequestValidationError
+    ) -> JSONResponse:
+        default_response = await request_validation_exception_handler(request, error)
+        if not request.url.path.startswith("/api/v1/clinical/"):
+            return default_response
+
+        content = json.loads(default_response.body)
+        content["trace_id"] = str(uuid4())
+        return JSONResponse(
+            status_code=422,
+            content=content,
+            headers=dict(default_response.headers),
+        )
+
+    app.add_exception_handler(RequestValidationError, validation_handler)
 
 
 def _retrieve(

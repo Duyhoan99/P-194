@@ -63,6 +63,41 @@ async def test_clinical_route_returns_lineage(authenticated_client):
 
 
 @pytest.mark.asyncio
+async def test_clinical_route_validation_error_for_malformed_subject_has_trace_id(
+    authenticated_client,
+):
+    """Typed path validation must still return a traceable clinical error body."""
+    response = await authenticated_client.get(
+        "/api/v1/clinical/patients/not-an-int/labs"
+    )
+
+    assert response.status_code == 422
+    assert UUID(response.json()["trace_id"]).version == 4
+
+
+@pytest.mark.asyncio
+async def test_clinical_route_validation_error_for_malformed_limit_has_trace_id(
+    authenticated_client,
+):
+    """Typed clinical query validation must still return a traceable error body."""
+    response = await authenticated_client.get(
+        "/api/v1/clinical/patients/101/labs?limit=not-an-int"
+    )
+
+    assert response.status_code == 422
+    assert UUID(response.json()["trace_id"]).version == 4
+
+
+@pytest.mark.asyncio
+async def test_chat_validation_error_does_not_use_clinical_trace_handler(client):
+    """Non-clinical FastAPI validation behavior remains unchanged."""
+    response = await client.post("/api/v1/chat", json={"message": 123})
+
+    assert response.status_code == 422
+    assert "trace_id" not in response.json()
+
+
+@pytest.mark.asyncio
 async def test_clinical_route_maps_denied_service_response_to_forbidden(authenticated_client, fake_service):
     """Returning a denied clinical response as 200 would conceal an authorization failure."""
     app.dependency_overrides[get_access_context] = lambda: AccessContext(
