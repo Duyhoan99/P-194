@@ -79,6 +79,31 @@
 | `git diff --check` | PASS (Windows line-ending warnings only). |
 | `playwright test --list` from `frontend/` | PASS — 3 specs discovered/parsed; no browser flow executed because the required Chromium revision is unavailable. |
 
+## Follow-up review remediation
+
+- Corrected the explicit mock-mode admin scenario after its `/admin` safety
+  check: it now returns to `/` before using the DoctorApp demo-login controls.
+  The scenario can therefore continue with the doctor role and verify the
+  assignment effect instead of attempting to find root-only controls on the
+  admin route.
+- Added a bounded Vitest regression that asserts this exact navigation order
+  in the Playwright specification. It ran without requiring a browser binary.
+
+## Follow-up review verification
+
+| Command | Result |
+| --- | --- |
+| `npm --prefix frontend test -- --run` | PASS - 8 files, 23 tests. |
+| `npm --prefix frontend run build` | PASS - production build and TypeScript validation completed. |
+| `python -m pytest -q` | PASS - 170 passed, 1 skipped. |
+| `python -m ruff check src tests scripts` | PASS. |
+| `git diff --check` | PASS. |
+
+Browser execution remains unperformed: the installed Chromium revision is
+`1223`, while this Playwright project requires revision `1234`. The new
+bounded regression covers the route-order defect without bypassing that
+limitation.
+
 ## Data-safety review
 
 - The smoke target rejects non-loopback URLs before making a request.

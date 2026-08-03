@@ -107,6 +107,7 @@ test("admin assignment changes require an admin session and affect the doctor da
     await expect(page.getByText("subject-102")).toBeVisible();
     await expectSafeOperationalView(page);
 
+    await page.goto("/");
     await page.getByLabel("Demo username").fill("doctor-2");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByRole("heading", { name: "Subject 102" })).toBeVisible();
