@@ -49,6 +49,36 @@
   the documented local backend/frontend profile but needs validation where
   Docker is available.
 
+## Final-review remediation
+
+- Removed all clinical fixture data and source-row keys from the admin E2E
+  scenario. Its dashboard check now uses only the assigned de-identified
+  subject ID and empty evidence responses.
+- Added a shared operational-payload allow-list and unit coverage. Both admin
+  and operations specs assert that protected HTTP responses and rendered
+  operational pages contain none of the forbidden clinical field names.
+- Real API mode is the executable default, never a skip: it logs in as the
+  required demo actor and verifies real role denials plus assignment or
+  operations/audit effects. An unavailable real server fails visibly.
+- Mock mode is explicit (`PLAYWRIGHT_API_MODE=mock`) and role-aware: it starts
+  unauthenticated, requires a recognized actor login, returns `403` for
+  forbidden requests, and grants metadata only after the correct actor login.
+- `playwright test --list` discovered and parsed all three actor specs. No
+  browser flow was executed in this remediation because Playwright requires
+  Chromium revision `1234`, while only `1223` is installed; launch would fail
+  before test execution. No unrelated browser was substituted.
+
+## Final-review verification
+
+| Command | Result |
+| --- | --- |
+| `npm --prefix frontend test -- --run` | PASS — 7 files, 22 tests. |
+| `npm --prefix frontend run build` | PASS — production build and TypeScript validation completed. |
+| `python -m pytest -q` | PASS — 170 passed, 1 skipped. |
+| `python -m ruff check src tests scripts` | PASS. |
+| `git diff --check` | PASS (Windows line-ending warnings only). |
+| `playwright test --list` from `frontend/` | PASS — 3 specs discovered/parsed; no browser flow executed because the required Chromium revision is unavailable. |
+
 ## Data-safety review
 
 - The smoke target rejects non-loopback URLs before making a request.
