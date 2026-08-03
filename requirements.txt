@@ -11,6 +11,7 @@ langchain-openai>=0.3.0
 langgraph>=0.2.0
 
 # Database (uncomment as needed)
+psycopg[binary,pool]>=3.2.0
 # sqlalchemy>=2.0.0
 # Core
 fastapi>=0.115.0

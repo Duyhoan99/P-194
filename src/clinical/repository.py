@@ -782,8 +782,10 @@ class SQLiteClinicalRepository:
         )
 
     @staticmethod
-    def _event_time(value: str | None) -> datetime | None:
-        return datetime.fromisoformat(value) if value is not None else None
+    def _event_time(value: str | datetime | None) -> datetime | None:
+        if value is None or isinstance(value, datetime):
+            return value
+        return datetime.fromisoformat(value)
 
     @staticmethod
     def _composite_key(row: sqlite3.Row, columns: Iterable[str]) -> str:
