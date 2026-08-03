@@ -16,9 +16,9 @@ def test_repository_returns_lab_value_lineage_and_dictionary_source(tmp_path):
     repo = SQLiteClinicalRepository(str(db_path))
     result = repo.fetch_laboratory_results(ClinicalQuery(subject_id=101))
 
-    assert [record.data["value"] for record in result.records] == ["1.2", "1.3"]
+    assert [record.data["value"] for record in result.records] == ["1.3", "1.2"]
     assert result.records[0].lineage.table == "labevents"
-    assert result.records[0].lineage.source_row_key == "labevent_id=9001"
+    assert result.records[0].lineage.source_row_key == "labevent_id=9002"
     assert result.records[0].related_sources[0].table == "d_labitems"
 
 
@@ -31,8 +31,8 @@ def test_microbiology_lineage_uses_unique_microevent_ids(tmp_path):
     result = repo.fetch_microbiology_results(ClinicalQuery(subject_id=101))
 
     assert [record.lineage.source_row_key for record in result.records] == [
-        "microevent_id=9101",
         "microevent_id=9102",
+        "microevent_id=9101",
     ]
 
 
@@ -46,16 +46,16 @@ def test_repository_preserves_raw_source_timestamps_in_record_data(tmp_path):
     microbiology = repo.fetch_microbiology_results(ClinicalQuery(subject_id=101))
     icu_events = repo.fetch_icu_events(ClinicalQuery(subject_id=101, stay_id=7001))
 
-    assert laboratory.records[0].data["charttime"] == "2200-01-10 13:00:00"
-    assert laboratory.records[0].data["storetime"] == "2200-01-10 13:05:00"
+    assert laboratory.records[0].data["charttime"] == "2200-01-10 14:00:00"
+    assert laboratory.records[0].data["storetime"] == "2200-01-10 14:05:00"
     assert microbiology.records[0].data["charttime"] == "2200-01-10 15:00:00"
     assert microbiology.records[0].data["storedate"] == "2200-01-10"
     assert microbiology.records[0].data["storetime"] == "2200-01-10 15:02:00"
-    assert icu_events.records[0].data["intime"] == "2200-01-10 12:00:00"
+    assert icu_events.records[0].data["charttime"] == "2200-01-10 17:00:00"
+    assert icu_events.records[0].data["storetime"] == "2200-01-10 17:01:00"
     assert icu_events.records[1].data["charttime"] == "2200-01-10 16:00:00"
     assert icu_events.records[1].data["storetime"] == "2200-01-10 16:01:00"
-    assert icu_events.records[2].data["charttime"] == "2200-01-10 17:00:00"
-    assert icu_events.records[2].data["storetime"] == "2200-01-10 17:01:00"
+    assert icu_events.records[2].data["intime"] == "2200-01-10 12:00:00"
 
 
 def test_repository_exposes_only_a_read_only_connection(tmp_path):
@@ -80,7 +80,7 @@ def test_repository_normalizes_aware_time_filters_for_naive_sqlite_timestamps(tm
         ClinicalQuery(subject_id=101, from_time=datetime(2200, 1, 10, 13, tzinfo=UTC))
     )
 
-    assert [record.lineage.source_row_key for record in result.records] == ["labevent_id=9001", "labevent_id=9002"]
+    assert [record.lineage.source_row_key for record in result.records] == ["labevent_id=9002", "labevent_id=9001"]
 
 
 def test_repository_preserves_lab_integrity_and_null_scope_ids(tmp_path):
@@ -107,6 +107,51 @@ def test_repository_preserves_lab_integrity_and_null_scope_ids(tmp_path):
     assert record.lineage.hadm_id is None
     assert record.lineage.stay_id is None
     assert record.lineage.source_row_key == "labevent_id=9002"
+
+
+def test_repository_uses_newest_first_typed_tie_break_and_cursor_boundary(tmp_path):
+    db_path = tmp_path / "clinical.sqlite"
+    create_mock_clinical_db(db_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("DELETE FROM labevents")
+        connection.executemany(
+            "INSERT INTO labevents (labevent_id, subject_id, hadm_id, specimen_id, itemid, charttime, storetime, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (9, 101, 5001, 8009, 3001, "2200-01-10 13:00:00", "2200-01-10 13:01:00", "9"),
+                (10, 101, 5001, 8010, 3001, "2200-01-10 13:00:00", "2200-01-10 13:02:00", "10"),
+            ],
+        )
+        connection.commit()
+
+    repo = SQLiteClinicalRepository(str(db_path))
+    first = repo.fetch_laboratory_results(ClinicalQuery(subject_id=101, limit=1))
+    second = repo.fetch_laboratory_results(
+        ClinicalQuery(subject_id=101, limit=1), first.next_position
+    )
+
+    assert first.records[0].lineage.source_row_key == "labevent_id=10"
+    assert first.has_more is True
+    assert second.records[0].lineage.source_row_key == "labevent_id=9"
+    assert second.has_more is False
+
+
+def test_repository_uses_storetime_when_charttime_is_missing(tmp_path):
+    db_path = tmp_path / "clinical.sqlite"
+    create_mock_clinical_db(db_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "UPDATE labevents SET charttime = NULL, storetime = ? WHERE labevent_id = 9002",
+            ("2200-01-10 14:05:00",),
+        )
+        connection.commit()
+
+    repo = SQLiteClinicalRepository(str(db_path))
+    result = repo.fetch_laboratory_results(
+        ClinicalQuery(subject_id=101, from_time=datetime(2200, 1, 10, 13, 30, tzinfo=UTC))
+    )
+
+    assert [record.lineage.source_row_key for record in result.records] == ["labevent_id=9002"]
+    assert result.records[0].lineage.event_time == datetime(2200, 1, 10, 14, 5)
 
 
 def test_repository_validates_hospital_and_icu_scope_against_subject(tmp_path):
@@ -146,14 +191,14 @@ def test_repository_fetches_each_domain_and_reports_absent_sources(tmp_path):
     microbiology = repo.fetch_microbiology_results(query)
     icu_events = repo.fetch_icu_events(query)
 
-    assert [record.record_type for record in overview.records] == ["patient", "admission"]
-    assert [record.record_type for record in timeline.records] == ["admission", "icu_stay"]
+    assert [record.record_type for record in overview.records] == ["admission", "patient"]
+    assert [record.record_type for record in timeline.records] == ["icu_stay", "admission"]
     assert timeline.unavailable_sources == ["transfers", "services"]
-    assert [record.record_type for record in diagnoses.records] == ["diagnosis", "procedure"]
-    assert diagnoses.records[0].related_sources[0].table == "d_icd_diagnoses"
-    assert diagnoses.records[1].related_sources[0].table == "d_icd_procedures"
+    assert [record.record_type for record in diagnoses.records] == ["procedure", "diagnosis"]
+    assert diagnoses.records[0].related_sources[0].table == "d_icd_procedures"
+    assert diagnoses.records[1].related_sources[0].table == "d_icd_diagnoses"
     assert diagnoses.unavailable_sources == ["hcpcsevents", "procedureevents"]
     assert microbiology.records[0].data["organism"] == "Synthetic organism"
     assert microbiology.records[0].lineage.table == "microbiologyevents"
-    assert [record.record_type for record in icu_events.records] == ["icu_stay", "chart_event", "output_event"]
+    assert [record.record_type for record in icu_events.records] == ["output_event", "chart_event", "icu_stay"]
     assert icu_events.unavailable_sources == ["datetimeevents", "inputevents", "procedureevents"]

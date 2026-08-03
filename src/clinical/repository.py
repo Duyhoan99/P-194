@@ -121,7 +121,6 @@ class SQLiteClinicalRepository:
     def fetch_patient_overview(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch:
-        del cursor_position
         records: list[EvidenceRecord] = []
         unavailable: list[str] = []
         if "patients" not in self._tables:
@@ -132,10 +131,10 @@ class SQLiteClinicalRepository:
                 SELECT subject_id, gender, anchor_age, anchor_year, anchor_year_group, dod
                 FROM patients
                 WHERE subject_id = ?
-                ORDER BY subject_id
+                ORDER BY subject_id DESC
                 LIMIT ?
                 """,
-                (query.subject_id, query.limit),
+                (query.subject_id, query.limit + 1),
             )
             for row in rows:
                 records.append(
@@ -149,33 +148,30 @@ class SQLiteClinicalRepository:
                     )
                 )
         records.extend(self._admission_records(query, unavailable))
-        return self._fetch(records, unavailable, query.limit)
+        return self._fetch(records, unavailable, query.limit, cursor_position)
 
     def fetch_encounter_timeline(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch:
-        del cursor_position
         unavailable: list[str] = []
         records = self._admission_records(query, unavailable)
         records.extend(self._timeline_records(query, unavailable))
-        return self._fetch(records, unavailable, query.limit)
+        return self._fetch(records, unavailable, query.limit, cursor_position)
 
     def fetch_diagnoses_and_procedures(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch:
-        del cursor_position
         records: list[EvidenceRecord] = []
         unavailable: list[str] = []
         records.extend(self._diagnosis_records(query, unavailable))
         records.extend(self._procedure_records(query, unavailable))
         records.extend(self._hcpcs_records(query, unavailable))
         records.extend(self._procedure_event_records(query, unavailable))
-        return self._fetch(records, unavailable, query.limit)
+        return self._fetch(records, unavailable, query.limit, cursor_position)
 
     def fetch_laboratory_results(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch:
-        del cursor_position
         unavailable: list[str] = []
         if "labevents" not in self._tables:
             return RepositoryFetch(records=[], unavailable_sources=["labevents"])
@@ -188,7 +184,7 @@ class SQLiteClinicalRepository:
         rows = self._execute(
             f"""
             SELECT event.subject_id, event.hadm_id, event.labevent_id, event.specimen_id, event.itemid,
-                   event.charttime, event.charttime AS event_time, event.storetime, event.value, event.valuenum,
+                    event.charttime, COALESCE(event.charttime, event.storetime) AS event_time, event.storetime, event.value, event.valuenum,
                    event.valueuom, event.ref_range_lower, event.ref_range_upper, event.flag,
                    {dictionary_columns}
                    event.labevent_id AS source_key
@@ -196,9 +192,9 @@ class SQLiteClinicalRepository:
             {dictionary_join}
             WHERE event.subject_id = ?
               AND (? IS NULL OR event.hadm_id = ?)
-              AND (? IS NULL OR event.charttime >= ?)
-              AND (? IS NULL OR event.charttime <= ?)
-            ORDER BY event.charttime, event.labevent_id
+              AND (? IS NULL OR COALESCE(event.charttime, event.storetime) >= ?)
+              AND (? IS NULL OR COALESCE(event.charttime, event.storetime) <= ?)
+            ORDER BY COALESCE(event.charttime, event.storetime) DESC, event.labevent_id DESC
             LIMIT ?
             """,
             self._hadm_time_params(query),
@@ -236,25 +232,24 @@ class SQLiteClinicalRepository:
             )
             for row in rows
         ]
-        return self._fetch(records, unavailable, query.limit)
+        return self._fetch(records, unavailable, query.limit, cursor_position)
 
     def fetch_microbiology_results(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch:
-        del cursor_position
         if "microbiologyevents" not in self._tables:
             return RepositoryFetch(records=[], unavailable_sources=["microbiologyevents"])
         rows = self._execute(
             """
             SELECT microevent_id, subject_id, hadm_id, micro_specimen_id, chartdate, charttime,
-                   charttime AS event_time, storedate, storetime, spec_type_desc, test_name, org_name, isolation, quantity, ab_name,
+                    COALESCE(charttime, storetime) AS event_time, storedate, storetime, spec_type_desc, test_name, org_name, isolation, quantity, ab_name,
                    dilution_text, dilution_comparison, dilution_value, interpretation
             FROM microbiologyevents
             WHERE subject_id = ?
               AND (? IS NULL OR hadm_id = ?)
-              AND (? IS NULL OR charttime >= ?)
-              AND (? IS NULL OR charttime <= ?)
-            ORDER BY charttime, micro_specimen_id, test_name, org_name, microevent_id
+              AND (? IS NULL OR COALESCE(charttime, storetime) >= ?)
+              AND (? IS NULL OR COALESCE(charttime, storetime) <= ?)
+            ORDER BY COALESCE(charttime, storetime) DESC, micro_specimen_id DESC, test_name DESC, org_name DESC, microevent_id DESC
             LIMIT ?
             """,
             self._hadm_time_params(query),
@@ -287,12 +282,11 @@ class SQLiteClinicalRepository:
             )
             for row in rows
         ]
-        return self._fetch(records, [], query.limit)
+        return self._fetch(records, [], query.limit, cursor_position)
 
     def fetch_icu_events(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch:
-        del cursor_position
         unavailable: list[str] = []
         records: list[EvidenceRecord] = []
         records.extend(self._icu_stay_records(query, unavailable))
@@ -301,7 +295,7 @@ class SQLiteClinicalRepository:
         records.extend(self._input_event_records(query, unavailable))
         records.extend(self._output_event_records(query, unavailable))
         records.extend(self._procedure_event_records(query, unavailable))
-        return self._fetch(records, unavailable, query.limit)
+        return self._fetch(records, unavailable, query.limit, cursor_position)
 
     def _admission_records(self, query: ClinicalQuery, unavailable: list[str]) -> list[EvidenceRecord]:
         if "admissions" not in self._tables:
@@ -314,10 +308,10 @@ class SQLiteClinicalRepository:
                    race, edregtime, edouttime, hospital_expire_flag
             FROM admissions
             WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?)
-            ORDER BY admittime, hadm_id
+            ORDER BY admittime DESC, hadm_id DESC
             LIMIT ?
             """,
-            (query.subject_id, query.hadm_id, query.hadm_id, query.limit),
+            (query.subject_id, query.hadm_id, query.hadm_id, query.limit + 1),
         )
         return [
             self._record(
@@ -357,7 +351,7 @@ class SQLiteClinicalRepository:
                 FROM transfers
                 WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?)
                   AND (? IS NULL OR intime >= ?) AND (? IS NULL OR intime <= ?)
-                ORDER BY intime, transfer_id
+                ORDER BY intime DESC, transfer_id DESC
                 LIMIT ?
                 """,
                 self._hadm_time_params(query),
@@ -382,7 +376,7 @@ class SQLiteClinicalRepository:
                 FROM services
                 WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?)
                   AND (? IS NULL OR transfertime >= ?) AND (? IS NULL OR transfertime <= ?)
-                ORDER BY transfertime, hadm_id, curr_service
+                ORDER BY transfertime DESC, hadm_id DESC, curr_service DESC
                 LIMIT ?
                 """,
                 self._hadm_time_params(query),
@@ -416,10 +410,10 @@ class SQLiteClinicalRepository:
             FROM diagnoses_icd AS event
             {join}
             WHERE event.subject_id = ? AND (? IS NULL OR event.hadm_id = ?)
-            ORDER BY event.hadm_id, event.seq_num, event.icd_code, event.icd_version
+            ORDER BY event.hadm_id DESC, event.seq_num DESC, event.icd_code DESC, event.icd_version DESC
             LIMIT ?
             """,
-            (query.subject_id, query.hadm_id, query.hadm_id, query.limit),
+            (query.subject_id, query.hadm_id, query.hadm_id, query.limit + 1),
         )
         return [
             self._record(
@@ -460,7 +454,7 @@ class SQLiteClinicalRepository:
             {join}
             WHERE event.subject_id = ? AND (? IS NULL OR event.hadm_id = ?)
               AND (? IS NULL OR event.chartdate >= ?) AND (? IS NULL OR event.chartdate <= ?)
-            ORDER BY event.chartdate, event.hadm_id, event.seq_num, event.icd_code
+            ORDER BY event.chartdate DESC, event.hadm_id DESC, event.seq_num DESC, event.icd_code DESC
             LIMIT ?
             """,
             self._hadm_time_params(query),
@@ -504,7 +498,7 @@ class SQLiteClinicalRepository:
             {join}
             WHERE event.subject_id = ? AND (? IS NULL OR event.hadm_id = ?)
               AND (? IS NULL OR event.chartdate >= ?) AND (? IS NULL OR event.chartdate <= ?)
-            ORDER BY event.chartdate, event.hadm_id, event.seq_num, event.hcpcs_cd
+            ORDER BY event.chartdate DESC, event.hadm_id DESC, event.seq_num DESC, event.hcpcs_cd DESC
             LIMIT ?
             """,
             self._hadm_time_params(query),
@@ -535,7 +529,7 @@ class SQLiteClinicalRepository:
             FROM icustays
             WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?) AND (? IS NULL OR stay_id = ?)
               AND (? IS NULL OR intime >= ?) AND (? IS NULL OR intime <= ?)
-            ORDER BY intime, stay_id
+            ORDER BY intime DESC, stay_id DESC
             LIMIT ?
             """,
             self._hadm_stay_time_params(query),
@@ -599,13 +593,17 @@ class SQLiteClinicalRepository:
         selected_values = ", ".join(f"event.{column}" for column in value_columns)
         rows = self._execute(
             f"""
-            SELECT event.subject_id, event.hadm_id, event.stay_id, event.charttime, event.charttime AS event_time,
+                    SELECT event.subject_id, event.hadm_id, event.stay_id, event.charttime,
+                           COALESCE(event.charttime, event.storetime) AS event_time,
                    event.storetime, event.itemid, {selected_values}, {label}
             FROM {table} AS event
             {join}
             WHERE event.subject_id = ? AND (? IS NULL OR event.hadm_id = ?) AND (? IS NULL OR event.stay_id = ?)
-              AND (? IS NULL OR event.charttime >= ?) AND (? IS NULL OR event.charttime <= ?)
-            ORDER BY event.charttime, event.subject_id, event.hadm_id, event.stay_id, event.itemid, event.storetime
+              AND (? IS NULL OR COALESCE(event.charttime, event.storetime) >= ?)
+              AND (? IS NULL OR COALESCE(event.charttime, event.storetime) <= ?)
+            ORDER BY COALESCE(event.charttime, event.storetime) DESC,
+                     event.subject_id DESC, event.hadm_id DESC, event.stay_id DESC,
+                     event.itemid DESC, event.storetime DESC
             LIMIT ?
             """,
             self._hadm_stay_time_params(query),
@@ -638,14 +636,18 @@ class SQLiteClinicalRepository:
         label = "dictionary.label" if dictionary_loaded else "NULL AS label"
         rows = self._execute(
             f"""
-            SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime, event.starttime AS event_time,
+                    SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime,
+                           COALESCE(event.starttime, event.storetime) AS event_time,
                    event.endtime, event.storetime, event.itemid, event.amount, event.amountuom,
                    event.rate, event.rateuom, {label}
             FROM inputevents AS event
             {join}
             WHERE event.subject_id = ? AND (? IS NULL OR event.hadm_id = ?) AND (? IS NULL OR event.stay_id = ?)
-              AND (? IS NULL OR event.starttime >= ?) AND (? IS NULL OR event.starttime <= ?)
-            ORDER BY event.starttime, event.subject_id, event.hadm_id, event.stay_id, event.itemid, event.storetime
+              AND (? IS NULL OR COALESCE(event.starttime, event.storetime) >= ?)
+              AND (? IS NULL OR COALESCE(event.starttime, event.storetime) <= ?)
+            ORDER BY COALESCE(event.starttime, event.storetime) DESC,
+                     event.subject_id DESC, event.hadm_id DESC, event.stay_id DESC,
+                     event.itemid DESC, event.storetime DESC
             LIMIT ?
             """,
             self._hadm_stay_time_params(query),
@@ -681,13 +683,17 @@ class SQLiteClinicalRepository:
         label = "dictionary.label" if dictionary_loaded else "NULL AS label"
         rows = self._execute(
             f"""
-            SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime, event.starttime AS event_time,
+                    SELECT event.subject_id, event.hadm_id, event.stay_id, event.starttime,
+                           COALESCE(event.starttime, event.storetime) AS event_time,
                    event.endtime, event.storetime, event.itemid, event.value, event.valueuom, {label}
             FROM procedureevents AS event
             {join}
             WHERE event.subject_id = ? AND (? IS NULL OR event.hadm_id = ?) AND (? IS NULL OR event.stay_id = ?)
-              AND (? IS NULL OR event.starttime >= ?) AND (? IS NULL OR event.starttime <= ?)
-            ORDER BY event.starttime, event.subject_id, event.hadm_id, event.stay_id, event.itemid, event.storetime
+              AND (? IS NULL OR COALESCE(event.starttime, event.storetime) >= ?)
+              AND (? IS NULL OR COALESCE(event.starttime, event.storetime) <= ?)
+            ORDER BY COALESCE(event.starttime, event.storetime) DESC,
+                     event.subject_id DESC, event.hadm_id DESC, event.stay_id DESC,
+                     event.itemid DESC, event.storetime DESC
             LIMIT ?
             """,
             self._hadm_stay_time_params(query),
@@ -802,7 +808,7 @@ class SQLiteClinicalRepository:
             from_time,
             to_time,
             to_time,
-            query.limit,
+            query.limit + 1,
         )
 
     def _hadm_stay_time_params(self, query: ClinicalQuery) -> tuple[Any, ...]:
@@ -818,15 +824,67 @@ class SQLiteClinicalRepository:
             from_time,
             to_time,
             to_time,
-            query.limit,
+            query.limit + 1,
+        )
+
+    def _fetch(
+        self,
+        records: list[EvidenceRecord],
+        unavailable: list[str],
+        limit: int,
+        cursor_position: CursorPosition | None = None,
+    ) -> RepositoryFetch:
+        records.sort(key=self._record_sort_key, reverse=True)
+        if cursor_position is not None:
+            cursor_key = self._position_sort_key(cursor_position)
+            records = [record for record in records if self._record_sort_key(record) < cursor_key]
+
+        has_more = len(records) > limit
+        page_records = records[:limit]
+        next_position = self._position_from_record(page_records[-1]) if has_more else None
+        return RepositoryFetch(
+            records=page_records,
+            unavailable_sources=list(dict.fromkeys(unavailable)),
+            next_position=next_position,
+            has_more=has_more,
+        )
+
+    @classmethod
+    def _record_sort_key(cls, record: EvidenceRecord) -> tuple[datetime, str, tuple[tuple[int, str], ...]]:
+        event_time = cls._normalized_sort_time(record.lineage.event_time)
+        return event_time, record.lineage.table, cls._natural_source_key(record.lineage.source_row_key)
+
+    @classmethod
+    def _position_sort_key(cls, position: CursorPosition) -> tuple[datetime, str, tuple[tuple[int, str], ...]]:
+        return (
+            cls._normalized_sort_time(position.event_time),
+            position.domain,
+            cls._natural_source_key(position.source_key),
         )
 
     @staticmethod
-    def _fetch(records: list[EvidenceRecord], unavailable: list[str], limit: int) -> RepositoryFetch:
-        records.sort(
-            key=lambda record: (
-                record.lineage.event_time.isoformat() if record.lineage.event_time else "",
-                record.lineage.source_row_key,
-            )
+    def _normalized_sort_time(value: datetime | None) -> datetime:
+        if value is None:
+            return datetime.min
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            return value.astimezone(UTC).replace(tzinfo=None)
+        return value
+
+    @staticmethod
+    def _natural_source_key(value: str) -> tuple[tuple[int, str], ...]:
+        parts: list[tuple[int, str]] = []
+        for part in value.split("|"):
+            prefix, separator, suffix = part.rpartition("=")
+            if separator and suffix.isdigit():
+                parts.append((1, f"{prefix}\x00{int(suffix):020d}"))
+            else:
+                parts.append((0, part))
+        return tuple(parts)
+
+    @staticmethod
+    def _position_from_record(record: EvidenceRecord) -> CursorPosition:
+        return CursorPosition(
+            event_time=record.lineage.event_time,
+            domain=record.lineage.table,
+            source_key=record.lineage.source_row_key,
         )
-        return RepositoryFetch(records=records[:limit], unavailable_sources=list(dict.fromkeys(unavailable)))

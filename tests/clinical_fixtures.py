@@ -78,7 +78,7 @@ def create_mock_clinical_db(path: Path) -> None:
                 hadm_id INTEGER,
                 specimen_id INTEGER,
                 itemid INTEGER NOT NULL,
-                charttime TEXT NOT NULL,
+                charttime TEXT,
                 storetime TEXT,
                 value TEXT,
                 valuenum REAL,
