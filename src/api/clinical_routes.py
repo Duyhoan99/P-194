@@ -86,7 +86,6 @@ def register_clinical_error_handlers(app: Any) -> None:
         return JSONResponse(
             status_code=422,
             content=content,
-            headers=dict(default_response.headers),
         )
 
     app.add_exception_handler(RequestValidationError, validation_handler)

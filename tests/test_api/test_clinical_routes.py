@@ -89,6 +89,16 @@ async def test_clinical_route_validation_error_for_malformed_limit_has_trace_id(
 
 
 @pytest.mark.asyncio
+async def test_clinical_validation_content_length_matches_body(authenticated_client):
+    """Adding trace_id must not leave a stale Content-Length header."""
+    response = await authenticated_client.get(
+        "/api/v1/clinical/patients/not-an-int/labs"
+    )
+
+    assert int(response.headers["content-length"]) == len(response.content)
+
+
+@pytest.mark.asyncio
 async def test_chat_validation_error_does_not_use_clinical_trace_handler(client):
     """Non-clinical FastAPI validation behavior remains unchanged."""
     response = await client.post("/api/v1/chat", json={"message": 123})
