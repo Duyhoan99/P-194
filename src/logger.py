@@ -2,10 +2,11 @@ import sys
 
 from loguru import logger
 
+
 def setup_logging():
     # Remove default handler
     logger.remove()
-    
+
     # Add console handler with colors
     logger.add(
         sys.stdout,
@@ -13,7 +14,7 @@ def setup_logging():
         level="INFO",
         colorize=True,
     )
-    
+
     # Add file handler with rotation
     logger.add(
         "logs/app_{time:YYYY-MM-DD}.log",
@@ -22,5 +23,5 @@ def setup_logging():
         format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
         level="INFO",
     )
-    
+
     return logger
