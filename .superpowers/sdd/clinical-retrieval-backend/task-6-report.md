@@ -223,3 +223,78 @@ All checks passed!
 ### Fix-round commit
 
 `ab4050e0c9e60d9215eec8380c9f9bd68964f45b` — `fix: trace clinical validation errors`
+
+## Fix round 2: validation response Content-Length
+
+### Reviewer finding addressed
+
+The clinical `RequestValidationError` handler copied the original FastAPI response headers after adding `trace_id`. That preserved a stale `Content-Length` and made the declared length differ from the actual response body.
+
+### Files changed
+
+- `src/api/clinical_routes.py`
+  - Stops copying the original response headers into the new `JSONResponse`.
+  - Lets `JSONResponse` preserve its normal safe JSON content type and recalculate `Content-Length` from the augmented body.
+- `tests/test_api/test_clinical_routes.py`
+  - Adds a focused clinical validation test asserting `Content-Length == len(response.content)`.
+
+### Fix-round red phase
+
+Command:
+
+```powershell
+& 'C:\Users\daohi\OneDrive\Máy tính\GITHURB\P-194\.venv\Scripts\python.exe' -m pytest tests\test_api\test_clinical_routes.py -q
+```
+
+Output before the header fix:
+
+```text
+.....F...........                                                        [100%]
+1 failed, 16 passed in 0.16s
+assert 162 == 212
+```
+
+The failing test observed the stale `Content-Length` header of 162 bytes versus the actual 212-byte body.
+
+### Fix-round verification
+
+Focused API tests:
+
+```text
+.................                                                        [100%]
+17 passed in 0.14s
+```
+
+Chat and required regression tests:
+
+```text
+......................                                                   [100%]
+22 passed in 0.20s
+```
+
+Full suite:
+
+```text
+...................................................................      [100%]
+67 passed in 0.67s
+```
+
+Task lint:
+
+```text
+All checks passed!
+```
+
+`git diff --check` produced no output and exited 0.
+
+### Fix-round self-review
+
+- Clinical validation responses now use `JSONResponse`'s recalculated headers; no stale `Content-Length` is copied.
+- The test checks the actual serialized response bytes, not only header presence.
+- The clinical-only path filter and server-generated UUID-v4 trace ID remain unchanged.
+- `/api/v1/chat` continues to use FastAPI's original validation handler and has a regression assertion that no clinical `trace_id` is added.
+- No SQL, domain joins, client identity, or route/service contracts changed.
+
+### Fix-round 2 commit
+
+`21e018ba21a9b354a2b45cedf71bf76308f4dce2` — `fix: recalculate clinical validation length`
