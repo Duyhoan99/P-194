@@ -9,10 +9,12 @@ from pydantic import BaseModel, ValidationError
 from src.api.clinical_routes import clinical_error_response
 from src.api.dependencies import (
     get_access_context,
+    get_assignment_checker,
     get_review_service,
     get_summary_repository,
     get_summary_service,
 )
+from src.clinical.access import AssignmentChecker
 from src.clinical.errors import (
     ClinicalAccessDenied,
     ClinicalScopeInvalid,
@@ -55,6 +57,24 @@ def get_assigned_patients(context: AccessContext = Depends(get_access_context)) 
     if context.role != "DOCTOR":
         raise ClinicalAccessDenied
     return AssignedPatientsResponse(patients=sorted(context.assigned_subject_ids), trace_id=context.trace_id)
+
+
+@router.get("/patients/{subject_id}/summaries/current", response_model=SummaryVersion)
+def get_current_summary(
+    subject_id: int,
+    request: Request,
+    context: AccessContext = Depends(get_access_context),
+    assignments: AssignmentChecker = Depends(get_assignment_checker),
+    repository: SQLiteSummaryRepository = Depends(get_summary_repository),
+) -> SummaryVersion | JSONResponse:
+    """Return a subject's current persisted summary only after assignment authorization."""
+    if context.role != "DOCTOR":
+        raise ClinicalAccessDenied
+    assignments.assert_access(context, subject_id)
+    current = repository.get_latest_for_subject(subject_id)
+    if current is None:
+        return _review_error(request, 404)
+    return current
 
 
 @router.post("/patients/{subject_id}/summaries", response_model=SummaryVersion, status_code=201)

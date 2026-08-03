@@ -15,6 +15,7 @@ export function PatientWorkspace({
   onReject,
   onRegenerate,
   onExport,
+  onReload,
   onBack,
 }: {
   workspace: Workspace;
@@ -24,6 +25,7 @@ export function PatientWorkspace({
   onReject?: (reason: string) => Promise<void>;
   onRegenerate?: () => Promise<void>;
   onExport?: () => Promise<void>;
+  onReload?: () => Promise<void>;
   onBack?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Summary");
@@ -67,6 +69,26 @@ export function PatientWorkspace({
     }
   }
 
+  async function regenerate() {
+    if (!onRegenerate) return;
+    setError(null);
+    try {
+      await onRegenerate();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The summary could not be regenerated.");
+    }
+  }
+
+  async function exportApproved() {
+    if (!onExport) return;
+    setError(null);
+    try {
+      await onExport();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The approved summary could not be exported.");
+    }
+  }
+
   return (
     <section aria-labelledby="workspace-title">
       <div className="section-heading">
@@ -80,6 +102,12 @@ export function PatientWorkspace({
       <p className="disclaimer">Decision support only. This interface does not make clinical decisions.</p>
       {workspace.availability !== "AVAILABLE" && <p className="notice warning">Some source data is {workspace.availability.toLowerCase()}.</p>}
       {workspace.warnings.map((warning) => <p className="notice warning" key={warning}>{warning}</p>)}
+      {workspace.evidencePages.some(({ page }) => page.hasMore) && (
+        <div className="notice warning" role="alert">
+          Evidence is truncated; reload to request the continuation.
+          {onReload && <button type="button" onClick={() => void onReload()}>Reload workspace</button>}
+        </div>
+      )}
       {workspace.limitations.map((limitation) => <p className="notice" key={limitation}>{limitation}</p>)}
       {error && <p className="notice error" role="alert">{error}</p>}
       <div className="tabs" role="tablist" aria-label="Clinical workspace sections">
@@ -89,7 +117,10 @@ export function PatientWorkspace({
         <div className="workspace-grid">
           <div>
             {!summary ? (
-              <p>No summary has been generated for this server-authorized workspace.</p>
+              <>
+                <p>No current summary is available for this server-authorized workspace.</p>
+                {onRegenerate && <button type="button" className="primary" onClick={() => void regenerate()}>Generate draft</button>}
+              </>
             ) : (
               <>
                 {Object.entries(summary.sections).map(([section, claims]) => claims.length > 0 && (
@@ -145,13 +176,13 @@ export function PatientWorkspace({
           <textarea id="review-note" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} />
           <div className="action-row">
             <button type="button" onClick={save}>Revalidate and save draft</button>
-            {onRegenerate && <button type="button" onClick={() => void onRegenerate()}>Request regeneration</button>}
+            {onRegenerate && <button type="button" onClick={() => void regenerate()}>Request regeneration</button>}
             <button type="button" onClick={() => setShowReview(true)}>Approve</button>
           </div>
           {onReject && <div className="reject-row"><input aria-label="Rejection reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for rejection" /><button type="button" onClick={reject} disabled={!reason.trim()}>Reject</button></div>}
         </section>
       )}
-      {summary && (summary.status === "APPROVED" || summary.status === "EXPORTED") && onExport && <button type="button" className="primary" onClick={() => void onExport()}>Export approved PDF</button>}
+      {summary && (summary.status === "APPROVED" || summary.status === "EXPORTED") && onExport && <button type="button" className="primary" onClick={() => void exportApproved()}>Export approved PDF</button>}
       {showReview && summary && <ReviewModal summary={summary} reviewerId={reviewerId} onApprove={onApprove} onClose={() => setShowReview(false)} />}
     </section>
   );

@@ -1,5 +1,27 @@
 export type SummaryStatus = "DRAFT" | "NEEDS_REVISION" | "REJECTED" | "APPROVED" | "EXPORTED";
+export type PatientSummaryStatus = SummaryStatus | "UNAVAILABLE";
 export type Availability = "AVAILABLE" | "PARTIAL" | "NOT_LOADED";
+
+export interface EvidencePage {
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export type EvidenceSource = "overview" | "timeline" | "labs";
+
+export interface EvidenceResponse {
+  status: "SUCCESS" | "PARTIAL" | "EMPTY" | "DENIED" | "NOT_LOADED";
+  records: EvidenceRecord[];
+  warnings: string[];
+  limitations: string[];
+  traceId: string;
+  page: EvidencePage;
+}
+
+export interface EvidencePageState {
+  source: EvidenceSource;
+  page: EvidencePage;
+}
 
 export interface AssignedPatient {
   subjectId: number;
@@ -7,7 +29,7 @@ export interface AssignedPatient {
   gender: string;
   admissionCount: number;
   icuStayCount: number;
-  summaryStatus: SummaryStatus | "NOT_STARTED";
+  summaryStatus: PatientSummaryStatus;
 }
 
 export interface SourceLineage {
@@ -72,6 +94,7 @@ export interface PatientWorkspace {
   summary: ClinicalSummaryDraft | null;
   warnings: string[];
   limitations: string[];
+  evidencePages: EvidencePageState[];
   sourceRecords?: EvidenceRecord[];
 }
 

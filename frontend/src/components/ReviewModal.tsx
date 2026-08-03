@@ -31,8 +31,14 @@ export function ReviewModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const unresolvedConflicts = summary.conflicts.filter((conflict) => conflict.status === "UNRESOLVED");
-  const invalidClaims = Object.values(summary.sections).flat().filter((claim) => claim.status !== "VALID");
-  const eligible = Object.values(checklist).every(Boolean) && unresolvedConflicts.length === 0 && invalidClaims.length === 0;
+  const claims = Object.values(summary.sections).flat();
+  const citationIds = new Set(summary.citations.map((citation) => citation.citationId));
+  const invalidClaims = claims.filter((claim) => claim.status !== "VALID");
+  const missingCitations = claims
+    .filter((claim) => claim.status === "VALID")
+    .flatMap((claim) => claim.citationIds.filter((citationId) => !citationIds.has(citationId)));
+  const hasCitationErrors = invalidClaims.length > 0 || missingCitations.length > 0;
+  const eligible = Object.values(checklist).every(Boolean) && unresolvedConflicts.length === 0 && !hasCitationErrors;
 
   async function approve() {
     if (!eligible) return;
@@ -60,7 +66,7 @@ export function ReviewModal({
             <ul>{unresolvedConflicts.map((conflict) => <li key={conflict.conflictId}>{conflict.topic}</li>)}</ul>
           </div>
         )}
-        {invalidClaims.length > 0 && <div className="notice error" role="alert">Citation validation errors block approval.</div>}
+        {hasCitationErrors && <div className="notice error" role="alert">Citation validation errors block approval.</div>}
         <fieldset>
           <legend>Required review checklist</legend>
           {checklistLabels.map(([key, label]) => (

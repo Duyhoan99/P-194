@@ -65,3 +65,57 @@ it("saves an edited claim while retaining its citation token", async () => {
     }),
   }));
 });
+
+it("offers a reload path when evidence is truncated by pagination", async () => {
+  const user = userEvent.setup();
+  const onReload = vi.fn().mockResolvedValue(undefined);
+  const truncatedWorkspace = {
+    ...patientWorkspace,
+    availability: "PARTIAL" as const,
+    warnings: ["Evidence is truncated; reload to request the continuation."],
+    evidencePages: [
+      { source: "overview" as const, page: { hasMore: true, nextCursor: "cursor-2" } },
+    ],
+  };
+
+  render(<PatientWorkspace workspace={truncatedWorkspace} onSave={async () => {}} onApprove={async () => {}} onReload={onReload} />);
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Evidence is truncated");
+  await user.click(screen.getByRole("button", { name: "Reload workspace" }));
+  expect(onReload).toHaveBeenCalledOnce();
+});
+
+it("surfaces regeneration and export errors in the workspace", async () => {
+  const user = userEvent.setup();
+  const onRegenerate = vi.fn().mockRejectedValue(new Error("Regeneration failed."));
+  const onExport = vi.fn().mockRejectedValue(new Error("Export failed."));
+  const approvedWorkspace = {
+    ...patientWorkspace,
+    summary: { ...patientWorkspace.summary!, status: "APPROVED" as const },
+  };
+
+  const { rerender } = render(
+    <PatientWorkspace workspace={patientWorkspace} onSave={async () => {}} onApprove={async () => {}} onRegenerate={onRegenerate} />,
+  );
+  await user.click(screen.getByRole("button", { name: "Request regeneration" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Regeneration failed.");
+
+  rerender(<PatientWorkspace workspace={approvedWorkspace} onSave={async () => {}} onApprove={async () => {}} onExport={onExport} />);
+  await user.click(screen.getByRole("button", { name: "Export approved PDF" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Export failed.");
+});
+
+it("offers draft generation when the server reports no current summary", async () => {
+  const user = userEvent.setup();
+  const onRegenerate = vi.fn().mockResolvedValue(undefined);
+  const workspaceWithoutSummary = {
+    ...patientWorkspace,
+    summary: null,
+    patient: { ...patientWorkspace.patient, summaryStatus: "UNAVAILABLE" as const },
+  };
+
+  render(<PatientWorkspace workspace={workspaceWithoutSummary} onSave={async () => {}} onApprove={async () => {}} onRegenerate={onRegenerate} />);
+
+  await user.click(screen.getByRole("button", { name: "Generate draft" }));
+  expect(onRegenerate).toHaveBeenCalledOnce();
+});

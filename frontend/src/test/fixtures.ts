@@ -57,4 +57,9 @@ export const patientWorkspace: PatientWorkspace = {
   summary: draftSummary,
   warnings: draftSummary.warnings,
   limitations: draftSummary.limitations,
+  evidencePages: [
+    { source: "overview", page: { hasMore: false, nextCursor: null } },
+    { source: "timeline", page: { hasMore: false, nextCursor: null } },
+    { source: "labs", page: { hasMore: false, nextCursor: null } },
+  ],
 };

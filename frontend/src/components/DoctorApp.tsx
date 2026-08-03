@@ -9,12 +9,19 @@ import type { AssignedPatient, ClinicalSummaryDraft, PatientWorkspace as Workspa
 
 function messageFor(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 401) return "Your session has expired. Please sign in again.";
+    if (isSessionExpiryError(error)) return "Your session has expired. Please sign in again.";
     if (error.status === 403) return "Access to this subject is denied by the clinical API.";
     if (error.status >= 500) return "Clinical API is unavailable.";
     return error.message;
   }
   return "Clinical API is unavailable.";
+}
+
+export function isSessionExpiryError(error: unknown): boolean {
+  return error instanceof ApiError && (
+    error.status === 401
+    || (error.status === 503 && /auth|session/i.test(error.message))
+  );
 }
 
 export function DoctorApp() {
@@ -27,12 +34,26 @@ export function DoctorApp() {
   const [error, setError] = useState<string | undefined>();
   const [denied, setDenied] = useState<string | undefined>();
 
+  function expireSession() {
+    setSignedIn(false);
+    setPatients([]);
+    setWorkspace(null);
+    setDenied(undefined);
+    setError("Your session has expired. Please sign in again.");
+  }
+
+  function handleClinicalError(cause: unknown): never {
+    if (isSessionExpiryError(cause)) expireSession();
+    throw cause;
+  }
+
   async function loadPatients() {
     setLoading(true);
     setError(undefined);
     try {
       setPatients(await apiClient.listPatients());
     } catch (cause) {
+      if (isSessionExpiryError(cause)) expireSession();
       setError(messageFor(cause));
     } finally {
       setLoading(false);
@@ -60,6 +81,7 @@ export function DoctorApp() {
     try {
       setWorkspace(await apiClient.getPatientWorkspace(subjectId));
     } catch (cause) {
+      if (isSessionExpiryError(cause)) expireSession();
       setError(messageFor(cause));
     } finally {
       setLoading(false);
@@ -72,6 +94,7 @@ export function DoctorApp() {
       await apiClient.getPatientWorkspace(subjectId);
       setDenied("The clinical API granted access; this workspace is server-authorized.");
     } catch (cause) {
+      if (isSessionExpiryError(cause)) expireSession();
       setDenied(cause instanceof ApiError && cause.status === 403 ? `Access to subject ${subjectId} is denied by the clinical API.` : messageFor(cause));
     }
   }
@@ -81,32 +104,52 @@ export function DoctorApp() {
   }
 
   async function saveSummary(summary: ClinicalSummaryDraft) {
-    setSummary(await apiClient.updateSummary(summary.summaryId, summary));
+    try {
+      setSummary(await apiClient.updateSummary(summary.summaryId, summary));
+    } catch (cause) {
+      handleClinicalError(cause);
+    }
   }
 
   async function regenerateSummary() {
     if (!workspace) return;
-    setSummary(await apiClient.generateSummary(workspace.patient.subjectId));
+    try {
+      setSummary(await apiClient.generateSummary(workspace.patient.subjectId));
+    } catch (cause) {
+      handleClinicalError(cause);
+    }
   }
 
   async function approveSummary(checklist: ReviewChecklist) {
     if (!workspace?.summary) return;
-    setSummary(await apiClient.approveSummary(workspace.summary.summaryId, checklist));
+    try {
+      setSummary(await apiClient.approveSummary(workspace.summary.summaryId, checklist));
+    } catch (cause) {
+      handleClinicalError(cause);
+    }
   }
 
   async function rejectSummary(reason: string) {
     if (!workspace?.summary) return;
-    setSummary(await apiClient.rejectSummary(workspace.summary.summaryId, reason));
+    try {
+      setSummary(await apiClient.rejectSummary(workspace.summary.summaryId, reason));
+    } catch (cause) {
+      handleClinicalError(cause);
+    }
   }
 
   async function exportSummary() {
     if (!workspace?.summary) return;
-    const pdf = await apiClient.exportSummary(workspace.summary.summaryId);
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(pdf);
-    link.download = "clinical-summary.pdf";
-    link.click();
-    URL.revokeObjectURL(link.href);
+    try {
+      const pdf = await apiClient.exportSummary(workspace.summary.summaryId);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(pdf);
+      link.download = "clinical-summary.pdf";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (cause) {
+      handleClinicalError(cause);
+    }
   }
 
   if (!signedIn) {
@@ -141,6 +184,7 @@ export function DoctorApp() {
           onApprove={approveSummary}
           onReject={rejectSummary}
           onExport={exportSummary}
+          onReload={() => openWorkspace(workspace.patient.subjectId)}
         />
       ) : (
         <DoctorDashboard

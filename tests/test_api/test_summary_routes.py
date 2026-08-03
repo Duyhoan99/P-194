@@ -42,6 +42,31 @@ async def test_assigned_patients_response_has_a_trace_id(authenticated_client):
 
 
 @pytest.mark.asyncio
+async def test_current_summary_endpoint_returns_server_owned_status(authenticated_client):
+    """The doctor dashboard must retain the persisted summary status instead of inferring it."""
+    generated = await authenticated_client.post("/api/v1/clinical/patients/101/summaries")
+    approved = await authenticated_client.post(
+        f"/api/v1/clinical/summaries/{generated.json()['summary_id']}/approve",
+        json=complete_checklist(),
+    )
+    current = await authenticated_client.get("/api/v1/clinical/patients/101/summaries/current")
+
+    assert approved.status_code == 200
+    assert current.status_code == 200
+    assert current.json()["status"] == "APPROVED"
+    assert current.json()["summary_id"] == generated.json()["summary_id"]
+
+
+@pytest.mark.asyncio
+async def test_current_summary_endpoint_returns_not_found_without_persisted_summary(authenticated_client):
+    """An absent persisted summary is unavailable, not an inferred NOT_STARTED state."""
+    current = await authenticated_client.get("/api/v1/clinical/patients/101/summaries/current")
+
+    assert current.status_code == 404
+    assert current.json()["trace_id"]
+
+
+@pytest.mark.asyncio
 async def test_signed_demo_doctor_uses_server_side_assignment_in_default_retrieval(
     monkeypatch, tmp_path
 ):

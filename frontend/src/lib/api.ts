@@ -6,6 +6,8 @@ import type {
   ReviewChecklist,
   SourceLineage,
   SummaryScope,
+  EvidencePage,
+  EvidencePageState,
 } from "@/lib/types";
 
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -44,6 +46,7 @@ type RawClinicalResponse = {
   records: RawRecord[];
   warnings?: string[];
   limitations?: string[];
+  page?: { next_cursor?: string | null; has_more?: boolean };
 };
 
 type RawSummaryVersion = {
@@ -187,7 +190,16 @@ function unique(values: string[][]): string[] {
   return [...new Set(values.flat())];
 }
 
-function patientFromResponses(subjectId: number, overview: RawClinicalResponse, timeline: RawClinicalResponse): AssignedPatient {
+function fromPage(page: RawClinicalResponse["page"]): EvidencePage {
+  return { nextCursor: page?.next_cursor ?? null, hasMore: page?.has_more ?? false };
+}
+
+function patientFromResponses(
+  subjectId: number,
+  overview: RawClinicalResponse,
+  timeline: RawClinicalResponse,
+  summaryStatus: AssignedPatient["summaryStatus"],
+): AssignedPatient {
   const patient = overview.records.find((record) => record.record_type === "patient")?.data;
   return {
     subjectId,
@@ -195,12 +207,21 @@ function patientFromResponses(subjectId: number, overview: RawClinicalResponse, 
     gender: typeof patient?.gender === "string" ? patient.gender : "Unknown",
     admissionCount: overview.records.filter((record) => record.record_type === "admission").length,
     icuStayCount: timeline.records.filter((record) => record.record_type === "icu_stay").length,
-    summaryStatus: "NOT_STARTED",
+    summaryStatus,
   };
 }
 
 async function clinicalResponse(path: string): Promise<RawClinicalResponse> {
   return request<RawClinicalResponse>(path);
+}
+
+async function currentSummary(subjectId: number): Promise<RawSummaryVersion | null> {
+  try {
+    return await request<RawSummaryVersion>(`/api/v1/clinical/patients/${subjectId}/summaries/current`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export const apiClient = {
@@ -217,24 +238,36 @@ export const apiClient = {
   },
 
   async getPatientWorkspace(subjectId: number): Promise<PatientWorkspace> {
-    const [overview, timeline, labs] = await Promise.all([
+    const [overview, timeline, labs, version] = await Promise.all([
       clinicalResponse(`/api/v1/clinical/patients/${subjectId}`),
       clinicalResponse(`/api/v1/clinical/patients/${subjectId}/timeline`),
       clinicalResponse(`/api/v1/clinical/patients/${subjectId}/labs`),
+      currentSummary(subjectId),
     ]);
     const responses = [overview, timeline, labs];
-    const availability = responses.some((response) => response.status === "PARTIAL")
+    const evidencePages: EvidencePageState[] = [
+      { source: "overview", page: fromPage(overview.page) },
+      { source: "timeline", page: fromPage(timeline.page) },
+      { source: "labs", page: fromPage(labs.page) },
+    ];
+    const truncatedSources = evidencePages.filter(({ page }) => page.hasMore).map(({ source }) => source);
+    const availability = truncatedSources.length > 0 || responses.some((response) => response.status === "PARTIAL")
       ? "PARTIAL"
       : responses.some((response) => response.status === "NOT_LOADED")
         ? "NOT_LOADED"
         : "AVAILABLE";
+    const summary = version ? fromDraft(version.draft) : null;
     return {
-      patient: patientFromResponses(subjectId, overview, timeline),
+      patient: patientFromResponses(subjectId, overview, timeline, summary?.status ?? "UNAVAILABLE"),
       availability,
       timeline: timeline.records.map(fromRecord),
-      summary: null,
-      warnings: unique(responses.map((response) => response.warnings ?? [])),
+      summary,
+      warnings: unique([
+        ...responses.map((response) => response.warnings ?? []),
+        ...(truncatedSources.length > 0 ? [["Evidence is truncated; reload to request the continuation."]] : []),
+      ]),
       limitations: unique(responses.map((response) => response.limitations ?? [])),
+      evidencePages,
       sourceRecords: responses.flatMap((response) => response.records.map(fromRecord)),
     };
   },

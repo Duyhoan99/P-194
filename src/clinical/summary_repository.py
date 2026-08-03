@@ -40,6 +40,8 @@ class SummaryRepository(Protocol):
 
     def get_for_subject(self, summary_id: UUID, subject_id: int) -> SummaryVersion | None: ...
 
+    def get_latest_for_subject(self, subject_id: int) -> SummaryVersion | None: ...
+
     def update_draft(
         self, summary_id: UUID, actor_id: str, patch: ClinicalSummaryDraft, reason: str | None, event: AuditEvent
     ) -> SummaryVersion: ...
@@ -109,6 +111,19 @@ class SQLiteSummaryRepository(AuditSink):
                    WHERE version.summary_id = ? AND summary.subject_id = ?
                    ORDER BY version_number DESC LIMIT 1""",
                 (str(summary_id), subject_id),
+            ).fetchone()
+        return self._version_from_row(row) if row is not None else None
+
+    def get_latest_for_subject(self, subject_id: int) -> SummaryVersion | None:
+        """Return only the current version for an assigned subject's latest summary scope."""
+        with self._connection() as connection:
+            row = connection.execute(
+                """SELECT version_id, version.summary_id, version_number, status, actor_id, reason, created_at, draft_json
+                   FROM summary_versions AS version
+                   JOIN summaries AS summary ON summary.current_version_id = version.version_id
+                   WHERE summary.subject_id = ?
+                   ORDER BY version.created_at DESC LIMIT 1""",
+                (subject_id,),
             ).fetchone()
         return self._version_from_row(row) if row is not None else None
 
