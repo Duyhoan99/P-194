@@ -51,6 +51,7 @@ def test_repository_preserves_raw_source_timestamps_in_record_data(tmp_path):
     assert microbiology.records[0].data["charttime"] == "2200-01-10 15:00:00"
     assert microbiology.records[0].data["storedate"] == "2200-01-10"
     assert microbiology.records[0].data["storetime"] == "2200-01-10 15:02:00"
+    assert icu_events.records[0].data["intime"] == "2200-01-10 12:00:00"
     assert icu_events.records[1].data["charttime"] == "2200-01-10 16:00:00"
     assert icu_events.records[1].data["storetime"] == "2200-01-10 16:01:00"
     assert icu_events.records[2].data["charttime"] == "2200-01-10 17:00:00"

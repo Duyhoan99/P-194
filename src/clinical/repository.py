@@ -491,7 +491,7 @@ class SQLiteClinicalRepository:
             return []
         rows = self._execute(
             """
-            SELECT subject_id, hadm_id, stay_id, intime AS event_time, outtime, first_careunit,
+            SELECT subject_id, hadm_id, stay_id, intime, intime AS event_time, outtime, first_careunit,
                    last_careunit, los
             FROM icustays
             WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?) AND (? IS NULL OR stay_id = ?)
@@ -504,7 +504,7 @@ class SQLiteClinicalRepository:
         return [
             self._record(
                 "icu_stay",
-                {key: row[key] for key in ("outtime", "first_careunit", "last_careunit", "los")},
+                {key: row[key] for key in ("intime", "outtime", "first_careunit", "last_careunit", "los")},
                 row,
                 module="icu",
                 table="icustays",
