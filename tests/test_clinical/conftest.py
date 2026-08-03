@@ -4,6 +4,7 @@ from src.clinical.access import DemoAssignmentProvider
 from src.clinical.audit import InMemoryAuditSink
 from src.clinical.availability import SourceAvailability
 from src.clinical.errors import ClinicalAccessDenied
+from src.clinical.pagination import CursorPosition
 from src.clinical.repository import RepositoryFetch
 from src.clinical.schemas import AccessContext, ClinicalQuery, EvidenceRecord, SourceLineage
 
@@ -23,7 +24,14 @@ class DenyAllChecker:
     def can_access(self, context: AccessContext, subject_id: int) -> bool:
         return False
 
-    def assert_access(self, context: AccessContext, subject_id: int) -> None:
+    def assert_access(
+        self,
+        context: AccessContext,
+        subject_id: int,
+        hadm_id: int | None = None,
+        stay_id: int | None = None,
+    ) -> None:
+        del hadm_id, stay_id
         raise ClinicalAccessDenied
 
 
@@ -32,6 +40,7 @@ class FakeRepository:
 
     def __init__(self) -> None:
         self.fetch_calls: list[str] = []
+        self.cursor_positions: list[CursorPosition | None] = []
         self.scope_calls = 0
         self.scope_is_valid = True
         self.fetches = {
@@ -66,26 +75,39 @@ class FakeRepository:
     def available_sources(self) -> SourceAvailability:
         return SourceAvailability(available_tables=set(), unavailable_modules=[])
 
-    def fetch_patient_overview(self, query: ClinicalQuery) -> RepositoryFetch:
-        return self._fetch("fetch_patient_overview")
+    def fetch_patient_overview(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_patient_overview", cursor_position)
 
-    def fetch_encounter_timeline(self, query: ClinicalQuery) -> RepositoryFetch:
-        return self._fetch("fetch_encounter_timeline")
+    def fetch_encounter_timeline(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_encounter_timeline", cursor_position)
 
-    def fetch_diagnoses_and_procedures(self, query: ClinicalQuery) -> RepositoryFetch:
-        return self._fetch("fetch_diagnoses_and_procedures")
+    def fetch_diagnoses_and_procedures(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_diagnoses_and_procedures", cursor_position)
 
-    def fetch_laboratory_results(self, query: ClinicalQuery) -> RepositoryFetch:
-        return self._fetch("fetch_laboratory_results")
+    def fetch_laboratory_results(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_laboratory_results", cursor_position)
 
-    def fetch_microbiology_results(self, query: ClinicalQuery) -> RepositoryFetch:
-        return self._fetch("fetch_microbiology_results")
+    def fetch_microbiology_results(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_microbiology_results", cursor_position)
 
-    def fetch_icu_events(self, query: ClinicalQuery) -> RepositoryFetch:
-        return self._fetch("fetch_icu_events")
+    def fetch_icu_events(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_icu_events", cursor_position)
 
-    def _fetch(self, name: str) -> RepositoryFetch:
+    def _fetch(self, name: str, cursor_position: CursorPosition | None = None) -> RepositoryFetch:
         self.fetch_calls.append(name)
+        self.cursor_positions.append(cursor_position)
         outcome = self.fetches[name]
         if isinstance(outcome, Exception):
             raise outcome

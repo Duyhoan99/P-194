@@ -9,15 +9,24 @@ from typing import Any, Protocol
 
 from src.clinical.availability import ALLOWED_SOURCE_TABLES, SourceAvailability, source_availability
 from src.clinical.errors import ClinicalQueryTimeout
+from src.clinical.pagination import CursorPosition
 from src.clinical.schemas import ClinicalQuery, EvidenceRecord, SourceLineage
 
 
 class RepositoryFetch:
     """Records returned by one repository domain plus unavailable source tables."""
 
-    def __init__(self, records: list[EvidenceRecord], unavailable_sources: list[str]) -> None:
+    def __init__(
+        self,
+        records: list[EvidenceRecord],
+        unavailable_sources: list[str],
+        next_position: CursorPosition | None = None,
+        has_more: bool = False,
+    ) -> None:
         self.records = records
         self.unavailable_sources = unavailable_sources
+        self.next_position = next_position
+        self.has_more = has_more
 
 
 class ClinicalRepository(Protocol):
@@ -27,17 +36,29 @@ class ClinicalRepository(Protocol):
 
     def available_sources(self) -> SourceAvailability: ...
 
-    def fetch_patient_overview(self, query: ClinicalQuery) -> RepositoryFetch: ...
+    def fetch_patient_overview(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
 
-    def fetch_encounter_timeline(self, query: ClinicalQuery) -> RepositoryFetch: ...
+    def fetch_encounter_timeline(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
 
-    def fetch_diagnoses_and_procedures(self, query: ClinicalQuery) -> RepositoryFetch: ...
+    def fetch_diagnoses_and_procedures(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
 
-    def fetch_laboratory_results(self, query: ClinicalQuery) -> RepositoryFetch: ...
+    def fetch_laboratory_results(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
 
-    def fetch_microbiology_results(self, query: ClinicalQuery) -> RepositoryFetch: ...
+    def fetch_microbiology_results(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
 
-    def fetch_icu_events(self, query: ClinicalQuery) -> RepositoryFetch: ...
+    def fetch_icu_events(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
 
 
 class SQLiteClinicalRepository:
@@ -97,7 +118,10 @@ class SQLiteClinicalRepository:
 
         return source_availability(self._tables)
 
-    def fetch_patient_overview(self, query: ClinicalQuery) -> RepositoryFetch:
+    def fetch_patient_overview(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        del cursor_position
         records: list[EvidenceRecord] = []
         unavailable: list[str] = []
         if "patients" not in self._tables:
@@ -127,13 +151,19 @@ class SQLiteClinicalRepository:
         records.extend(self._admission_records(query, unavailable))
         return self._fetch(records, unavailable, query.limit)
 
-    def fetch_encounter_timeline(self, query: ClinicalQuery) -> RepositoryFetch:
+    def fetch_encounter_timeline(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        del cursor_position
         unavailable: list[str] = []
         records = self._admission_records(query, unavailable)
         records.extend(self._timeline_records(query, unavailable))
         return self._fetch(records, unavailable, query.limit)
 
-    def fetch_diagnoses_and_procedures(self, query: ClinicalQuery) -> RepositoryFetch:
+    def fetch_diagnoses_and_procedures(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        del cursor_position
         records: list[EvidenceRecord] = []
         unavailable: list[str] = []
         records.extend(self._diagnosis_records(query, unavailable))
@@ -142,7 +172,10 @@ class SQLiteClinicalRepository:
         records.extend(self._procedure_event_records(query, unavailable))
         return self._fetch(records, unavailable, query.limit)
 
-    def fetch_laboratory_results(self, query: ClinicalQuery) -> RepositoryFetch:
+    def fetch_laboratory_results(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        del cursor_position
         unavailable: list[str] = []
         if "labevents" not in self._tables:
             return RepositoryFetch(records=[], unavailable_sources=["labevents"])
@@ -205,7 +238,10 @@ class SQLiteClinicalRepository:
         ]
         return self._fetch(records, unavailable, query.limit)
 
-    def fetch_microbiology_results(self, query: ClinicalQuery) -> RepositoryFetch:
+    def fetch_microbiology_results(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        del cursor_position
         if "microbiologyevents" not in self._tables:
             return RepositoryFetch(records=[], unavailable_sources=["microbiologyevents"])
         rows = self._execute(
@@ -253,7 +289,10 @@ class SQLiteClinicalRepository:
         ]
         return self._fetch(records, [], query.limit)
 
-    def fetch_icu_events(self, query: ClinicalQuery) -> RepositoryFetch:
+    def fetch_icu_events(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        del cursor_position
         unavailable: list[str] = []
         records: list[EvidenceRecord] = []
         records.extend(self._icu_stay_records(query, unavailable))

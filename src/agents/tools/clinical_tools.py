@@ -42,6 +42,7 @@ def _build_tool(
         from_time: Any = None,
         to_time: Any = None,
         limit: int = 200,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         query = ClinicalToolInput(
             subject_id=subject_id,
@@ -50,6 +51,7 @@ def _build_tool(
             from_time=from_time,
             to_time=to_time,
             limit=limit,
+            cursor=cursor,
         )
         response = getattr(service, method_name)(access_context, query)
         return response.model_dump(mode="json")

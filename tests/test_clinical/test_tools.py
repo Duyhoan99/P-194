@@ -37,6 +37,7 @@ def test_tools_expose_only_query_fields(fake_service):
             "from_time",
             "to_time",
             "limit",
+            "cursor",
         }
 
 

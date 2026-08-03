@@ -1,10 +1,12 @@
 import sqlite3
+from datetime import UTC, datetime
 
 import pytest
 
 from src.clinical.access import DemoAssignmentProvider
 from src.clinical.audit import InMemoryAuditSink
 from src.clinical.errors import ClinicalDatabaseUnavailable, ClinicalQueryTimeout, ClinicalScopeInvalid
+from src.clinical.pagination import CursorPosition
 from src.clinical.repository import RepositoryFetch, SQLiteClinicalRepository
 from src.clinical.schemas import AccessContext, ClinicalQuery
 from src.clinical.service import ClinicalRetrievalService
@@ -33,6 +35,47 @@ def test_service_denies_before_repository_scope_or_fetch(fake_repo, audit_sink):
     assert fake_repo.fetch_calls == []
     assert audit_sink.events[-1].result == "DENIED"
     assert audit_sink.events[-1].subject_id == 101
+
+
+def test_service_rejects_invalid_cursor_before_scope_or_fetch(fake_repo, audit_sink):
+    service = ClinicalRetrievalService(
+        fake_repo,
+        DemoAssignmentProvider({"doctor-1": {101}}, set()),
+        audit_sink,
+        cursor_secret="s" * 32,
+    )
+
+    with pytest.raises(ClinicalScopeInvalid):
+        service.get_laboratory_results(
+            allowed_context(), ClinicalQuery(subject_id=101, cursor="invalid")
+        )
+
+    assert fake_repo.scope_calls == 0
+    assert fake_repo.fetch_calls == []
+
+
+def test_service_returns_bound_next_cursor(fake_repo, audit_sink):
+    fake_repo.fetches["fetch_laboratory_results"] = RepositoryFetch(
+        [],
+        [],
+        next_position=CursorPosition(
+            event_time=datetime(2125, 1, 1, tzinfo=UTC),
+            domain="labevents",
+            source_key="9001",
+        ),
+        has_more=True,
+    )
+    service = ClinicalRetrievalService(
+        fake_repo,
+        DemoAssignmentProvider({"doctor-1": {101}}, set()),
+        audit_sink,
+        cursor_secret="s" * 32,
+    )
+
+    result = service.get_laboratory_results(allowed_context(), ClinicalQuery(subject_id=101))
+
+    assert result.page.has_more is True
+    assert result.page.next_cursor
 
 
 def test_service_rejects_invalid_scope_before_fetch(assigned_service, fake_repo, audit_sink):
