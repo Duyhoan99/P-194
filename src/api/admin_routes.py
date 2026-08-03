@@ -1,6 +1,6 @@
 """Role-separated administrative and compliance metadata endpoints."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from src.api.dependencies import get_access_context, get_operational_store
 from src.clinical.audit import AuditAction, AuditResult
-from src.clinical.errors import ClinicalAccessDenied
+from src.clinical.errors import ClinicalAccessDenied, ClinicalScopeInvalid
 from src.clinical.operations import OperationalStore, OperationalUser
 from src.clinical.schemas import AccessContext
 
@@ -60,6 +60,19 @@ def _require_role(context: AccessContext, *roles: str) -> None:
 
 def _subject_reference(subject_id: int) -> str:
     return f"subject-{subject_id}"
+
+
+def _parse_audit_time(value: str | None) -> datetime | None:
+    """Accept only timezone-aware ISO timestamps for audit filtering."""
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise ClinicalScopeInvalid from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ClinicalScopeInvalid
+    return parsed.astimezone(UTC)
 
 
 def _user_response(user: OperationalUser) -> UserResponse:
@@ -134,13 +147,15 @@ def list_audit_events(
     actor: str | None = Query(default=None, max_length=128),
     action: AuditAction | None = None,
     result: AuditResult | None = None,
-    from_time: datetime | None = None,
-    to_time: datetime | None = None,
+    from_time: str | None = Query(default=None, max_length=64),
+    to_time: str | None = Query(default=None, max_length=64),
     context: AccessContext = Depends(get_access_context),
     store: OperationalStore = Depends(get_operational_store),
 ) -> AuditResponse:
     _require_role(context, "ADMIN", "COMPLIANCE")
-    if from_time and to_time and from_time > to_time:
+    parsed_from_time = _parse_audit_time(from_time)
+    parsed_to_time = _parse_audit_time(to_time)
+    if parsed_from_time and parsed_to_time and parsed_from_time > parsed_to_time:
         raise HTTPException(status_code=422, detail="Audit time window is invalid.")
     events = [
         event
@@ -148,8 +163,8 @@ def list_audit_events(
         if (actor is None or event.user_id == actor)
         and (action is None or event.action == action)
         and (result is None or event.result == result)
-        and (from_time is None or event.timestamp >= from_time)
-        and (to_time is None or event.timestamp <= to_time)
+        and (parsed_from_time is None or event.timestamp >= parsed_from_time)
+        and (parsed_to_time is None or event.timestamp <= parsed_to_time)
     ]
     return AuditResponse(
         events=[

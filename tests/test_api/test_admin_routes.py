@@ -165,3 +165,37 @@ async def test_compliance_audit_includes_generation_and_review_events(
     assert {"GENERATE_CLINICAL_SUMMARY", "APPROVE_CLINICAL_SUMMARY"} <= actions
     assert "raw_value" not in audit.text
     assert "prompt" not in audit.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parameter", "value"),
+    [
+        ("from_time", "2026-08-03T00:00:00"),
+        ("to_time", "not-an-iso-datetime"),
+    ],
+)
+async def test_audit_rejects_naive_or_malformed_time_filters_with_trace(parameter, value, monkeypatch):
+    """Comparing a client-naive time to UTC audit events must not escape as a 500."""
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("CLINICAL_CURSOR_SECRET", "s" * 32)
+    get_settings.cache_clear()
+    transport = ASGITransport(app, raise_app_exceptions=False)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            login = await client.post(
+                "/api/v1/auth/demo-login", json={"username": "admin-1", "password": "demo"}
+            )
+            grant = await client.post(
+                "/api/v1/admin/users/doctor-2/assignments", json={"subject_id": 101}
+            )
+            response = await client.get("/api/v1/admin/audit", params={parameter: value})
+            await client.delete("/api/v1/admin/users/doctor-2/assignments/101")
+    finally:
+        get_settings.cache_clear()
+
+    assert login.status_code == 204
+    assert grant.status_code == 200
+    assert response.status_code == 422
+    assert response.json()["trace_id"]
+    assert "not-an-iso-datetime" not in response.text

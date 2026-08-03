@@ -44,3 +44,8 @@
 
 - Initial regression run failed as intended: `doctor-2` login returned `503`; an audit-write failure returned `500` after changing the assignment; and compliance did not receive `GENERATE_CLINICAL_SUMMARY` or `APPROVE_CLINICAL_SUMMARY` events.
 - Focused backend verification after the fixes: `tests/test_api/test_admin_routes.py`, `test_ops_routes.py`, `test_summary_routes.py`, and `test_auth.py` passed 31 tests.
+
+## Audit time-filter remediation
+
+- `GET /api/v1/admin/audit` now parses `from_time` and `to_time` at the route boundary, accepts only timezone-aware ISO timestamps, and normalizes accepted values to UTC before comparing them with UTC audit timestamps. Timezone-naive and malformed inputs return the existing safe `422` domain response with a trace ID; their raw query value is not echoed.
+- The regression initially reproduced both failures: a naive `from_time` returned `500` after comparing naive and UTC-aware datetimes, while malformed `to_time` returned FastAPI's `422` without a trace ID. The focused two-case regression now passes.
