@@ -1,10 +1,23 @@
 """Scope-only audit events for clinical retrieval."""
 
 from datetime import datetime
-from typing import Protocol
+from typing import Annotated, Literal, Protocol
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+AuditAction = Literal[
+    "VIEW_PATIENT_OVERVIEW",
+    "VIEW_ENCOUNTER_TIMELINE",
+    "VIEW_DIAGNOSES_AND_PROCEDURES",
+    "VIEW_LABS",
+    "VIEW_LABORATORY_RESULTS",
+    "VIEW_MICROBIOLOGY",
+    "VIEW_MICROBIOLOGY_RESULTS",
+    "VIEW_ICU_EVENTS",
+]
+AuditResult = Literal["SUCCESS", "PARTIAL", "EMPTY", "DENIED", "NOT_LOADED", "ERROR"]
+TraceId = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")]
 
 
 class AuditEvent(BaseModel):
@@ -13,12 +26,12 @@ class AuditEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     user_id: str
-    action: str
+    action: AuditAction
     subject_id: int
     hadm_id: int | None
     stay_id: int | None
-    result: str
-    trace_id: str
+    result: AuditResult
+    trace_id: TraceId
     timestamp: datetime
 
 

@@ -3,8 +3,9 @@
 from collections.abc import Mapping
 from typing import Protocol
 
-from src.clinical.errors import ClinicalAccessDenied
+from src.clinical.errors import ClinicalAccessDenied, ClinicalAuthNotConfigured
 from src.clinical.schemas import AccessContext
+from src.config import get_settings
 
 
 class AssignmentChecker(Protocol):
@@ -21,6 +22,8 @@ class DemoAssignmentProvider:
     """Fail-closed assignment checker for local development."""
 
     def __init__(self, assignments: Mapping[str, set[int]], admin_users: set[str]) -> None:
+        if get_settings().app_env == "production":
+            raise ClinicalAuthNotConfigured("Demo assignment provider is disabled in production")
         self._assignments = {user_id: set(subject_ids) for user_id, subject_ids in assignments.items()}
         self._admin_users = set(admin_users)
 
