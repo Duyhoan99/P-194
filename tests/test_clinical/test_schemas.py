@@ -86,12 +86,23 @@ def test_contract_models_preserve_defaults_and_context():
         user_id="doctor-1",
         role="DOCTOR",
         assigned_subject_ids={1},
-        trace_id="trace-1",
+        trace_id="123e4567-e89b-42d3-a456-426614174000",
     )
 
     assert response.records[0].data["value"] == "1.2"
     assert response.warnings == []
     assert context.assigned_subject_ids == {1}
+
+
+def test_access_context_rejects_noncanonical_v4_trace_id():
+    """Removing the trace ID contract would defer denial failure to audit recording."""
+    with pytest.raises(ValidationError):
+        AccessContext(
+            user_id="doctor-1",
+            role="DOCTOR",
+            assigned_subject_ids={1},
+            trace_id="not-a-uuid",
+        )
 
 
 def test_domain_errors_are_concrete_exceptions():

@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.clinical.audit import TraceId
 from src.config import get_settings
 
 ClinicalStatus = Literal["SUCCESS", "PARTIAL", "EMPTY", "DENIED", "NOT_LOADED"]
@@ -77,4 +78,4 @@ class AccessContext(BaseModel):
     user_id: str
     role: Literal["DOCTOR", "ADMIN"]
     assigned_subject_ids: set[int] = Field(default_factory=set)
-    trace_id: str
+    trace_id: TraceId

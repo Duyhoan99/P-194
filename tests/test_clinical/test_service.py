@@ -118,3 +118,17 @@ def test_service_maps_timeout_errors(assigned_service, fake_repo, audit_sink):
 
     assert str(error.value) == ""
     assert audit_sink.events[-1].result == "ERROR"
+
+
+def test_service_sanitizes_existing_query_timeout_messages(assigned_service, fake_repo, audit_sink):
+    """Re-raising an existing timeout would expose its sensitive repository message."""
+    fake_repo.fetches["fetch_icu_events"] = ClinicalQueryTimeout(
+        "SELECT raw_value FROM restricted_clinical_values"
+    )
+
+    with pytest.raises(ClinicalQueryTimeout) as error:
+        assigned_service.get_icu_events(allowed_context(), ClinicalQuery(subject_id=101, stay_id=7001))
+
+    assert str(error.value) == ""
+    assert error.value.__cause__ is None
+    assert audit_sink.events[-1].result == "ERROR"

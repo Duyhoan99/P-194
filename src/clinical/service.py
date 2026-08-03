@@ -88,7 +88,7 @@ class ClinicalRetrievalService:
             raise
         except ClinicalQueryTimeout:
             self._record_audit(context, query, action, "ERROR")
-            raise
+            raise ClinicalQueryTimeout from None
         except TimeoutError:
             self._record_audit(context, query, action, "ERROR")
             raise ClinicalQueryTimeout from None
