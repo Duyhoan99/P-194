@@ -10,10 +10,12 @@ from src.clinical.errors import ClinicalAccessDenied, ClinicalAuthNotConfigured
 from src.clinical.schemas import AccessContext
 from src.config import get_settings
 
+TRACE_ID = "123e4567-e89b-42d3-a456-426614174000"
+
 
 def test_doctor_can_access_only_assigned_subject():
     provider = DemoAssignmentProvider({"doctor-1": {10}}, set())
-    context = AccessContext(user_id="doctor-1", role="DOCTOR", assigned_subject_ids={10}, trace_id="t1")
+    context = AccessContext(user_id="doctor-1", role="DOCTOR", assigned_subject_ids={10}, trace_id=TRACE_ID)
 
     provider.assert_access(context, 10)
 
@@ -23,7 +25,7 @@ def test_doctor_can_access_only_assigned_subject():
 
 def test_doctor_is_denied_when_context_assignment_set_is_empty():
     provider = DemoAssignmentProvider({"doctor-1": {10}}, set())
-    context = AccessContext(user_id="doctor-1", role="DOCTOR", assigned_subject_ids=set(), trace_id="t1")
+    context = AccessContext(user_id="doctor-1", role="DOCTOR", assigned_subject_ids=set(), trace_id=TRACE_ID)
 
     assert provider.can_access(context, 10) is False
     with pytest.raises(ClinicalAccessDenied):
@@ -32,7 +34,7 @@ def test_doctor_is_denied_when_context_assignment_set_is_empty():
 
 def test_non_admin_context_is_denied_even_when_client_claims_admin_role():
     provider = DemoAssignmentProvider({"doctor-1": {10}}, {"admin-1"})
-    context = AccessContext(user_id="doctor-1", role="ADMIN", assigned_subject_ids={10}, trace_id="t1")
+    context = AccessContext(user_id="doctor-1", role="ADMIN", assigned_subject_ids={10}, trace_id=TRACE_ID)
 
     assert provider.can_access(context, 10) is False
     with pytest.raises(ClinicalAccessDenied):
@@ -41,7 +43,7 @@ def test_non_admin_context_is_denied_even_when_client_claims_admin_role():
 
 def test_explicitly_configured_admin_can_access_any_subject():
     provider = DemoAssignmentProvider({}, {"admin-1"})
-    context = AccessContext(user_id="admin-1", role="ADMIN", trace_id="t1")
+    context = AccessContext(user_id="admin-1", role="ADMIN", trace_id=TRACE_ID)
 
     provider.assert_access(context, 999)
 
@@ -65,7 +67,7 @@ def test_audit_sink_keeps_scope_only(audit_sink: InMemoryAuditSink):
             hadm_id=20,
             stay_id=None,
             result="SUCCESS",
-            trace_id="t1",
+            trace_id=TRACE_ID,
             timestamp=datetime.now(UTC),
         )
     )
@@ -83,7 +85,7 @@ def test_audit_event_rejects_raw_clinical_data_fields():
             hadm_id=None,
             stay_id=None,
             result="SUCCESS",
-            trace_id="t1",
+            trace_id=TRACE_ID,
             timestamp=datetime.now(UTC),
             raw_value="7.1",
         )
@@ -94,8 +96,8 @@ def test_audit_event_rejects_raw_clinical_data_fields():
     [
         ("action", "patient potassium is 7.1"),
         ("result", "Bearer secret-token"),
-        ("trace_id", "contains a space"),
-        ("trace_id", "t" * 65),
+        ("trace_id", "secret-token"),
+        ("trace_id", "123e4567-e89b-12d3-a456-426614174000"),
     ],
 )
 def test_audit_event_rejects_unapproved_scope_metadata(field: str, value: str):
@@ -106,7 +108,7 @@ def test_audit_event_rejects_unapproved_scope_metadata(field: str, value: str):
         "hadm_id": None,
         "stay_id": None,
         "result": "SUCCESS",
-        "trace_id": "trace-1",
+        "trace_id": TRACE_ID,
         "timestamp": datetime.now(UTC),
     }
     event[field] = value
@@ -127,7 +129,7 @@ def test_structured_audit_sink_emits_only_approved_fields():
                 hadm_id=20,
                 stay_id=None,
                 result="SUCCESS",
-                trace_id="trace-1",
+                trace_id=TRACE_ID,
                 timestamp=datetime.now(UTC),
             )
         )

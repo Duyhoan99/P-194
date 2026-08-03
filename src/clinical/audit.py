@@ -17,7 +17,7 @@ AuditAction = Literal[
     "VIEW_ICU_EVENTS",
 ]
 AuditResult = Literal["SUCCESS", "PARTIAL", "EMPTY", "DENIED", "NOT_LOADED", "ERROR"]
-TraceId = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")]
+TraceId = Annotated[str, Field(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")]
 
 
 class AuditEvent(BaseModel):

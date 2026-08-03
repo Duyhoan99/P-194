@@ -4,13 +4,15 @@ from src.clinical.audit import InMemoryAuditSink
 from src.clinical.errors import ClinicalAccessDenied
 from src.clinical.schemas import AccessContext
 
+TEST_TRACE_ID = "123e4567-e89b-42d3-a456-426614174000"
+
 
 def allowed_context() -> AccessContext:
     return AccessContext(
         user_id="doctor-1",
         role="DOCTOR",
         assigned_subject_ids={101},
-        trace_id="trace-allowed",
+        trace_id=TEST_TRACE_ID,
     )
 
 
