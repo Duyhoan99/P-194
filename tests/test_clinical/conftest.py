@@ -1,3 +1,7 @@
+from collections.abc import Callable
+from datetime import UTC, datetime
+from uuid import uuid4
+
 import pytest
 
 from src.clinical.access import DemoAssignmentProvider
@@ -139,3 +143,67 @@ def assigned_service(fake_repo: FakeRepository, audit_sink: InMemoryAuditSink):
 @pytest.fixture
 def fake_service(assigned_service):
     return assigned_service
+
+
+@pytest.fixture
+def evidence() -> list[EvidenceRecord]:
+    return [
+        EvidenceRecord(
+            record_type="lab",
+            data={
+                "label": "Creatinine",
+                "value": "1.2",
+                "valuenum": 1.2,
+                "valueuom": "mg/dL",
+            },
+            lineage=SourceLineage(
+                dataset="MIMIC-IV",
+                version="3.1",
+                module="hosp",
+                table="labevents",
+                source_row_key="labevent_id=9001",
+                subject_id=101,
+                hadm_id=5001,
+                event_time=datetime(2200, 1, 10, 14, tzinfo=UTC),
+            ),
+        )
+    ]
+
+
+@pytest.fixture
+def draft_with_claim() -> Callable[[str, list[str]], object]:
+    from src.clinical.summary_schemas import Claim, ClinicalSummaryDraft
+
+    def build(text: str, citation_ids: list[str]) -> ClinicalSummaryDraft:
+        return ClinicalSummaryDraft(
+            summary_id=uuid4(),
+            subject_id=101,
+            hadm_id=5001,
+            stay_id=None,
+            status="DRAFT",
+            sections={
+                "Clinical Overview": [
+                    Claim(
+                        claim_id="claim-1",
+                        section="Clinical Overview",
+                        text=text,
+                        citation_ids=citation_ids,
+                        status="VALID",
+                    )
+                ]
+            },
+            citations=[],
+            conflicts=[],
+            limitations=[],
+            trace_id=TEST_TRACE_ID,
+        )
+
+    return build
+
+
+@pytest.fixture
+def first_claim() -> Callable[[object, str], object]:
+    def get(draft: object, section: str) -> object:
+        return draft.sections[section][0]
+
+    return get
