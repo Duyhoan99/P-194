@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,11 +28,30 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./data/app.db"
     clinical_database_path: str = "mimic_demo.db"
+    clinical_backend: Literal["sqlite", "postgresql"] = "sqlite"
+    clinical_postgres_dsn: str = ""
+    clinical_pool_size: int = Field(default=5, ge=1, le=50)
+    clinical_source_dataset: str = "MIMIC-IV"
+    clinical_source_version: str = "3.1"
+    clinical_source_profile: str = "mimic-iv-3.1"
     clinical_query_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
     clinical_max_limit: int = Field(default=1000, ge=1, le=5000)
+    clinical_cursor_secret: str = ""
+    clinical_cursor_ttl_seconds: int = Field(default=900, ge=60, le=86400)
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"
+
+    @model_validator(mode="after")
+    def validate_production_clinical_configuration(self) -> "Settings":
+        if self.app_env == "production":
+            if self.clinical_backend != "postgresql":
+                raise ValueError("production clinical backend must be explicitly set to postgresql")
+            if not self.clinical_postgres_dsn:
+                raise ValueError("production PostgreSQL DSN is required")
+            if len(self.clinical_cursor_secret) < 32:
+                raise ValueError("production cursor secret must contain at least 32 characters")
+        return self
 
 
 @lru_cache

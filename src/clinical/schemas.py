@@ -18,6 +18,7 @@ class ClinicalQuery(BaseModel):
     from_time: datetime | None = None
     to_time: datetime | None = None
     limit: int = 200
+    cursor: str | None = Field(default=None, max_length=4096)
 
     @field_validator("subject_id", "hadm_id", "stay_id")
     @classmethod
@@ -37,11 +38,10 @@ class ClinicalQuery(BaseModel):
 
     @model_validator(mode="after")
     def time_window_must_be_ordered(self) -> "ClinicalQuery":
+        for field_name, value in (("from_time", self.from_time), ("to_time", self.to_time)):
+            if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+                raise ValueError(f"{field_name} must be timezone-aware")
         if self.from_time is not None and self.to_time is not None:
-            from_time_aware = self.from_time.tzinfo is not None and self.from_time.utcoffset() is not None
-            to_time_aware = self.to_time.tzinfo is not None and self.to_time.utcoffset() is not None
-            if from_time_aware != to_time_aware:
-                raise ValueError("from_time and to_time must have matching timezone awareness")
             if self.from_time > self.to_time:
                 raise ValueError("from_time must not be after to_time")
         return self
@@ -72,6 +72,12 @@ class ClinicalResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     trace_id: str
+    page: "ClinicalPage" = Field(default_factory=lambda: ClinicalPage())
+
+
+class ClinicalPage(BaseModel):
+    next_cursor: str | None = None
+    has_more: bool = False
 
 
 class AccessContext(BaseModel):

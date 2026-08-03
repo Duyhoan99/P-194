@@ -17,6 +17,7 @@ from src.clinical.schemas import (
     EvidenceRecord,
     SourceLineage,
 )
+from src.config import Settings
 
 
 def test_query_requires_positive_subject_and_bounded_limit():
@@ -24,6 +25,8 @@ def test_query_requires_positive_subject_and_bounded_limit():
         ClinicalQuery(subject_id=0)
     with pytest.raises(ValidationError):
         ClinicalQuery(subject_id=1, limit=1001)
+    with pytest.raises(ValidationError):
+        ClinicalQuery(subject_id=1, cursor="x" * 10001)
 
 
 def test_query_rejects_non_positive_encounter_ids():
@@ -49,6 +52,20 @@ def test_query_rejects_mixed_timezone_awareness():
             from_time=datetime(2025, 1, 1),
             to_time=datetime(2025, 1, 2, tzinfo=UTC),
         )
+
+
+def test_query_rejects_any_naive_datetime():
+    with pytest.raises(ValidationError):
+        ClinicalQuery(subject_id=1, from_time=datetime(2025, 1, 1))
+    with pytest.raises(ValidationError):
+        ClinicalQuery(subject_id=1, to_time=datetime(2025, 1, 2))
+
+
+def test_production_settings_require_postgres_and_cursor_secret():
+    with pytest.raises(ValueError):
+        Settings(app_env="production", clinical_backend="sqlite", clinical_cursor_secret="secret")
+    with pytest.raises(ValueError):
+        Settings(app_env="production", clinical_backend="postgresql", clinical_postgres_dsn="")
 
 
 def test_lineage_requires_mimic_version_and_source_identity():
@@ -91,6 +108,8 @@ def test_contract_models_preserve_defaults_and_context():
 
     assert response.records[0].data["value"] == "1.2"
     assert response.warnings == []
+    assert response.page.next_cursor is None
+    assert response.page.has_more is False
     assert context.assigned_subject_ids == {1}
 
 
