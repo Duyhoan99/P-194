@@ -48,6 +48,17 @@ pip install -r requirements.txt
 uvicorn src.main:app --reload --port 8000
 ```
 
+### Next.js doctor interface
+
+The clinician demo uses an explicit development-only login that creates an HTTP-only server session. The browser stores neither clinical data nor identity in localStorage, URL query strings, or analytics events.
+
+```powershell
+npm.cmd --prefix frontend install
+npm.cmd --prefix frontend run dev
+```
+
+Set `NEXT_PUBLIC_API_URL=http://localhost:8000` locally, open `http://localhost:3000`, then use the development-only account `doctor-1` / `demo`. The UI renders only patients returned by the server-side assignment boundary. Production requires trusted SSO/OIDC, PostgreSQL, patient-identity mapping, and clinical governance approval; demo authentication is disabled when `APP_ENV=production`.
+
 Endpoints của skeleton:
 
 | Method | Path | Mục đích |
