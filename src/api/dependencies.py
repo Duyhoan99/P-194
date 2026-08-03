@@ -10,7 +10,7 @@ from src.clinical.access import (
     ConfiguredAuthProvider,
     DemoAssignmentProvider,
 )
-from src.clinical.audit import StructuredAuditSink
+from src.clinical.audit import AuditSink, CompositeAuditSink, StructuredAuditSink
 from src.clinical.demo_auth import DemoSessionProvider
 from src.clinical.errors import ClinicalAccessDenied, ClinicalDatabaseUnavailable
 from src.clinical.operations import OperationalStore, operational_store
@@ -48,6 +48,13 @@ class _FailClosedAssignmentChecker:
         raise ClinicalAccessDenied
 
 
+def get_audit_sink() -> AuditSink:
+    """Compose the development/test compliance feed with structured audit logging."""
+    if get_settings().app_env in {"development", "test"}:
+        return CompositeAuditSink(operational_store, StructuredAuditSink())
+    return StructuredAuditSink()
+
+
 def build_clinical_repository(settings: Settings) -> ClinicalRepository:
     """Select the configured clinical backend without an implicit fallback."""
 
@@ -69,12 +76,14 @@ def build_clinical_repository(settings: Settings) -> ClinicalRepository:
     raise ClinicalDatabaseUnavailable
 
 
-def get_clinical_service() -> ClinicalRetrievalService:
+def get_clinical_service(
+    audit_sink: AuditSink = Depends(get_audit_sink),
+) -> ClinicalRetrievalService:
     """Build the production clinical service from configured infrastructure."""
     settings = get_settings()
     repository = build_clinical_repository(settings)
     access_checker = get_assignment_checker()
-    return ClinicalRetrievalService(repository, access_checker, StructuredAuditSink())
+    return ClinicalRetrievalService(repository, access_checker, audit_sink)
 
 
 def get_assignment_checker() -> AssignmentChecker:
@@ -105,16 +114,18 @@ def get_summary_repository() -> SQLiteSummaryRepository:
 
 def get_summary_service(
     clinical_service: ClinicalRetrievalService = Depends(get_clinical_service),
+    audit_sink: AuditSink = Depends(get_audit_sink),
 ) -> ClinicalSummaryService:
-    return ClinicalSummaryService(clinical_service, audit_sink=StructuredAuditSink())
+    return ClinicalSummaryService(clinical_service, audit_sink=audit_sink)
 
 
 def get_review_service(
     repository: SQLiteSummaryRepository = Depends(get_summary_repository),
     assignments: AssignmentChecker = Depends(get_assignment_checker),
     summary_service: ClinicalSummaryService = Depends(get_summary_service),
+    audit_sink: AuditSink = Depends(get_audit_sink),
 ) -> ReviewService:
-    return ReviewService(repository, assignments, repository, summary_service)
+    return ReviewService(repository, assignments, audit_sink, summary_service)
 
 
 def get_access_context(request: Request) -> AccessContext:

@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from src.api.dependencies import get_access_context, get_clinical_service
 from src.clinical.errors import (
     ClinicalAccessDenied,
+    ClinicalAuditUnavailable,
     ClinicalAuthNotConfigured,
     ClinicalDatabaseUnavailable,
     ClinicalQueryTimeout,
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/clinical", tags=["clinical"])
 _ERROR_DETAILS: dict[type[Exception], str] = {
     ClinicalAuthNotConfigured: "Clinical authentication is not configured.",
     ClinicalAccessDenied: "Access to the requested clinical subject is denied.",
+    ClinicalAuditUnavailable: "Clinical audit service is currently unavailable.",
     ClinicalScopeInvalid: "The requested clinical scope is invalid.",
     ClinicalDatabaseUnavailable: "Clinical data is currently unavailable.",
     ClinicalQueryTimeout: "The clinical query timed out.",
@@ -37,6 +39,7 @@ _ERROR_DETAILS: dict[type[Exception], str] = {
 _ERROR_STATUS_CODES: dict[type[Exception], int] = {
     ClinicalAuthNotConfigured: 503,
     ClinicalAccessDenied: 403,
+    ClinicalAuditUnavailable: 503,
     ClinicalScopeInvalid: 422,
     ClinicalDatabaseUnavailable: 503,
     ClinicalQueryTimeout: 504,

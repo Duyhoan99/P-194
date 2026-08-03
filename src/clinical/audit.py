@@ -60,6 +60,17 @@ class InMemoryAuditSink:
         self.events.append(event)
 
 
+class CompositeAuditSink:
+    """Writes the same scope-only event to each configured audit destination."""
+
+    def __init__(self, *sinks: AuditSink) -> None:
+        self._sinks = sinks
+
+    def record(self, event: AuditEvent) -> None:
+        for sink in self._sinks:
+            sink.record(event)
+
+
 class StructuredAuditSink:
     """Emits scope-only audit fields through the structured application logger."""
 

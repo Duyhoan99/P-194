@@ -17,6 +17,10 @@ class ClinicalDatabaseUnavailable(Exception):  # noqa: N818
     """Raised when the clinical database cannot be queried."""
 
 
+class ClinicalAuditUnavailable(Exception):  # noqa: N818
+    """Raised when a required scope-only audit event cannot be recorded."""
+
+
 class ClinicalQueryTimeout(Exception):  # noqa: N818
     """Raised when a clinical query exceeds its timeout."""
 

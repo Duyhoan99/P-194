@@ -31,3 +31,16 @@
 - `loguru` is available in `C:\Users\daohi\OneDrive\Máy tính\github\P-194\.venv` (`import loguru` succeeded); there is no missing-Loguru limitation for this task.
 - Chromium is present at `C:\Users\daohi\AppData\Local\ms-playwright\chromium_headless_shell-1223\chrome-headless-shell-win64\chrome-headless-shell.exe`. Playwright was not run because Task 6 requested bounded frontend unit/build verification and this task does not alter the doctor browser scenario.
 - The pre-existing deletions of `docs/superpowers/plans/2026-08-03-clinical-retrieval-backend.md` and `docs/superpowers/specs/2026-08-03-clinical-retrieval-backend-design.md` remain intentionally excluded.
+- A full `pytest -q` collection remains blocked by the existing non-top-level `pytest_plugins` declaration in `tests/test_api/conftest.py`; this review-fix task ran the requested focused API suites instead.
+
+## Review remediation
+
+- Demo sessions now sign only a server-recognized user identity and expiry. On every development/test request, `DemoSessionProvider` reads the current role and assignment scope from the locked operational registry; `doctor-2` is enabled. Admin grants and revocations therefore affect the next signed doctor request and `GET /api/v1/clinical/patients` without accepting identity, role, or assignment headers. Production remains fail-closed.
+- Assignment change and its required scope-only audit event run under one lock. An audit-write failure rolls back the assignment and history, then returns a safe `503`.
+- Clinical retrieval, summary generation, and review services now compose structured logging with the compliance registry in development/test, so `/api/v1/admin/audit` shows their safe metadata alongside assignment events. It excludes clinical values, prompts, SQL, secrets, and request headers.
+- Fixed Ruff I001 import ordering in `src/main.py`.
+
+## Review-fix regressions
+
+- Initial regression run failed as intended: `doctor-2` login returned `503`; an audit-write failure returned `500` after changing the assignment; and compliance did not receive `GENERATE_CLINICAL_SUMMARY` or `APPROVE_CLINICAL_SUMMARY` events.
+- Focused backend verification after the fixes: `tests/test_api/test_admin_routes.py`, `test_ops_routes.py`, `test_summary_routes.py`, and `test_auth.py` passed 31 tests.

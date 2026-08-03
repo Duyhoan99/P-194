@@ -15,17 +15,11 @@ from src.config import Settings, get_settings
 
 DEMO_SESSION_COOKIE: Final = "demo_session"
 _DEMO_PASSWORD: Final = "demo"
-_DEMO_ACCOUNTS: Final[dict[str, tuple[str, set[int]]]] = {
-    "doctor-1": ("DOCTOR", {101}),
-    "admin-1": ("ADMIN", set()),
-    "steward-1": ("DATA_STEWARD", set()),
-    "compliance-1": ("COMPLIANCE", set()),
-}
-
-
 def authenticate_demo_credentials(username: str, password: str) -> str:
     """Validate fixed local credentials without exposing account details."""
-    if username not in _DEMO_ACCOUNTS or not hmac.compare_digest(password, _DEMO_PASSWORD):
+    from src.clinical.operations import operational_store
+
+    if operational_store.session_identity(username) is None or not hmac.compare_digest(password, _DEMO_PASSWORD):
         raise ClinicalAuthNotConfigured("Demo credentials are invalid")
     return username
 
@@ -40,14 +34,17 @@ class DemoSessionProvider:
         if token is None:
             raise ClinicalAuthNotConfigured("A demo clinical session is required")
         payload = _verify_session(token, settings)
-        account = _DEMO_ACCOUNTS.get(payload.get("user_id"))
-        if account is None:
+        user_id = payload.get("user_id")
+        if not isinstance(user_id, str):
             raise ClinicalAuthNotConfigured("Demo clinical session is invalid")
-        role, assigned_subject_ids = account
-        if payload.get("role") != role or payload.get("assigned_subject_ids") != sorted(assigned_subject_ids):
+        from src.clinical.operations import operational_store
+
+        identity = operational_store.session_identity(user_id)
+        if identity is None:
             raise ClinicalAuthNotConfigured("Demo clinical session is invalid")
+        role, assigned_subject_ids = identity
         return AccessContext(
-            user_id=payload["user_id"],
+            user_id=user_id,
             role=role,
             assigned_subject_ids=assigned_subject_ids,
             trace_id=getattr(request.state, "clinical_trace_id"),
@@ -58,17 +55,15 @@ def create_demo_session(username: str, settings: Settings | None = None) -> tupl
     """Create a canonical, signed session token and its cookie lifetime."""
     configured = settings or get_settings()
     _require_demo_environment(configured)
-    account = _DEMO_ACCOUNTS.get(username)
-    if account is None:
+    from src.clinical.operations import operational_store
+
+    if operational_store.session_identity(username) is None:
         raise ClinicalAuthNotConfigured("Demo credentials are invalid")
-    role, assigned_subject_ids = account
     now = datetime.now(UTC)
     expires_at = now + timedelta(seconds=configured.clinical_cursor_ttl_seconds)
     payload = {
-        "assigned_subject_ids": sorted(assigned_subject_ids),
         "expires_at": int(expires_at.timestamp()),
         "issued_at": int(now.timestamp()),
-        "role": role,
         "user_id": username,
     }
     body = _canonical_json(payload)

@@ -1,13 +1,13 @@
 """Role-separated administrative and compliance metadata endpoints."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.api.dependencies import get_access_context, get_operational_store
-from src.clinical.audit import AuditAction, AuditEvent, AuditResult
+from src.clinical.audit import AuditAction, AuditResult
 from src.clinical.errors import ClinicalAccessDenied
 from src.clinical.operations import OperationalStore, OperationalUser
 from src.clinical.schemas import AccessContext
@@ -80,26 +80,6 @@ def _user_response(user: OperationalUser) -> UserResponse:
     )
 
 
-def _record_assignment_audit(
-    store: OperationalStore,
-    context: AccessContext,
-    subject_id: int,
-    action: Literal["ASSIGN_CLINICAL_SUBJECT", "REVOKE_CLINICAL_SUBJECT"],
-) -> None:
-    store.record(
-        AuditEvent(
-            user_id=context.user_id,
-            action=action,
-            subject_id=subject_id,
-            hadm_id=None,
-            stay_id=None,
-            result="SUCCESS",
-            trace_id=context.trace_id,
-            timestamp=datetime.now(UTC),
-        )
-    )
-
-
 @router.get("/users", response_model=UsersResponse)
 def list_users(
     context: AccessContext = Depends(get_access_context),
@@ -118,12 +98,13 @@ def grant_assignment(
 ) -> UserResponse:
     _require_role(context, "ADMIN")
     try:
-        user = store.grant_assignment(user_id, payload.subject_id, context.user_id)
+        user = store.change_assignment(
+            user_id, payload.subject_id, context.user_id, context.trace_id, "ASSIGN_CLINICAL_SUBJECT"
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail="Assignments may only target doctor accounts.") from error
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Operational user was not found.") from error
-    _record_assignment_audit(store, context, payload.subject_id, "ASSIGN_CLINICAL_SUBJECT")
     return _user_response(user)
 
 
@@ -138,12 +119,13 @@ def revoke_assignment(
     if subject_id <= 0:
         raise HTTPException(status_code=422, detail="Subject reference is invalid.")
     try:
-        user = store.revoke_assignment(user_id, subject_id, context.user_id)
+        user = store.change_assignment(
+            user_id, subject_id, context.user_id, context.trace_id, "REVOKE_CLINICAL_SUBJECT"
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail="Assignments may only target doctor accounts.") from error
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Operational user was not found.") from error
-    _record_assignment_audit(store, context, subject_id, "REVOKE_CLINICAL_SUBJECT")
     return _user_response(user)
 
 

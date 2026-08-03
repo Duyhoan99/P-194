@@ -5,8 +5,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from src.api.auth_routes import router as auth_router
 from src.api.admin_routes import router as admin_router
+from src.api.auth_routes import router as auth_router
 from src.api.clinical_routes import register_clinical_error_handlers
 from src.api.clinical_routes import router as clinical_router
 from src.api.ops_routes import router as ops_router
