@@ -109,7 +109,7 @@ class DeterministicDemoSummaryGenerator(SummaryGenerator):
         timestamp = lineage.event_time.isoformat() if lineage.event_time else "timestamp unavailable"
         if record.lineage.table == "labevents" or record.record_type == "lab":
             label = record.data.get("label", record.data.get("itemid", "Laboratory result"))
-            value = record.data.get("value", record.data.get("valuenum", "value unavailable"))
+            value = record.data.get("valuenum", record.data.get("value", "value unavailable"))
             unit = record.data.get("valueuom", "unit unavailable")
             return f"{label}: {value} {unit} at {timestamp}."
         details = ", ".join(f"{key}={value}" for key, value in sorted(record.data.items()))

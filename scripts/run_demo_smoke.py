@@ -1,4 +1,4 @@
-"""Run a metadata-only smoke check against the local synthetic demo API.
+"""Run a metadata-only smoke check against the local MIMIC demo API.
 
 The script deliberately accepts only loopback API targets and never prints
 response bodies. Its output is restricted to statuses, counts, synthetic
@@ -101,7 +101,7 @@ def _summary_metadata(version: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_smoke() -> None:
-    """Check health, assignment, evidence lineage, and the reviewable draft state."""
+    """Check health, assignment, evidence tools, and the reviewable draft state."""
     client = LocalDemoClient(local_api_url())
 
     health_status, _ = client.request("GET", "/health")
@@ -128,6 +128,11 @@ def run_smoke() -> None:
     subject_id = subject_ids[0]
     evidence_status, evidence = client.request("GET", f"/api/v1/clinical/patients/{subject_id}/labs?limit=1")
     print(format_safe_event("laboratory_evidence", evidence, status_code=evidence_status))
+
+    medication_status, medications = client.request(
+        "GET", f"/api/v1/clinical/patients/{subject_id}/medications?limit=1"
+    )
+    print(format_safe_event("medication_evidence", medications, status_code=medication_status))
 
     generate_status, generated = client.request("POST", f"/api/v1/clinical/patients/{subject_id}/summaries", {})
     print(format_safe_event("summary_generation", _summary_metadata(generated), status_code=generate_status))

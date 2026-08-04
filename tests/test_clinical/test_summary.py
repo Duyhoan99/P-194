@@ -292,6 +292,8 @@ def test_summary_service_retrieves_authorized_evidence_before_generation(
         "fetch_diagnoses_and_procedures",
         "fetch_laboratory_results",
         "fetch_microbiology_results",
+        "fetch_medications",
+        "fetch_patient_metrics",
         "fetch_icu_events",
     ]
     assert draft.subject_id == 101

@@ -28,11 +28,18 @@ class ClinicalSummaryService:
 
     def generate(self, context: AccessContext, query: ClinicalQuery) -> ClinicalSummaryDraft:
         try:
-            responses = self._responses(context, query)
-            if any(response.status == "DENIED" for response in responses):
-                raise ClinicalAccessDenied
-            evidence = [record for response in responses for record in response.records]
-            draft = self._generator.generate(evidence)
+            agent_run = getattr(self._generator, "run", None)
+            if callable(agent_run):
+                agent_result = agent_run(context, query)
+                responses = agent_result.responses
+                evidence = agent_result.evidence
+                draft = agent_result.draft
+            else:
+                responses = self._responses(context, query)
+                if any(response.status == "DENIED" for response in responses):
+                    raise ClinicalAccessDenied
+                evidence = [record for response in responses for record in response.records]
+                draft = self._generator.generate(evidence)
         except ClinicalAccessDenied:
             self._record_audit(context, query, "DENIED")
             raise
@@ -49,7 +56,10 @@ class ClinicalSummaryService:
                 "hadm_id": query.hadm_id,
                 "stay_id": query.stay_id,
                 "trace_id": context.trace_id,
-                "warnings": self._unique(response.warnings for response in responses),
+                "warnings": [
+                    *draft.warnings,
+                    *self._unique(response.warnings for response in responses),
+                ],
                 "limitations": [
                     *draft.limitations,
                     *self._unique(response.limitations for response in responses),
@@ -90,6 +100,8 @@ class ClinicalSummaryService:
             self._retrieval_service.get_diagnoses_and_procedures(context, query),
             self._retrieval_service.get_laboratory_results(context, query),
             self._retrieval_service.get_microbiology_results(context, query),
+            self._retrieval_service.get_medications(context, query),
+            self._retrieval_service.get_patient_metrics(context, query),
             self._retrieval_service.get_icu_events(context, query),
         )
 

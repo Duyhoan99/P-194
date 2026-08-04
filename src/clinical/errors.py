@@ -25,6 +25,10 @@ class ClinicalQueryTimeout(Exception):  # noqa: N818
     """Raised when a clinical query exceeds its timeout."""
 
 
+class ClinicalAgentUnavailable(Exception):  # noqa: N818
+    """Raised when structured clinical summary generation cannot complete safely."""
+
+
 class ReviewPolicyError(Exception):  # noqa: N818
     """Raised when a clinical summary review policy cannot be satisfied."""
 

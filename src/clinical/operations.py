@@ -170,7 +170,9 @@ class OperationalStore:
     @staticmethod
     def _effective_assignments(user: OperationalUser) -> set[int]:
         if get_settings().app_env == "test" and user.role == "DOCTOR":
-            return {101} if user.user_id == "doctor-1" else set()
+            # Keep the stable synthetic fixture for doctor-1 while preserving
+            # runtime assignment mutations for admin/session boundary tests.
+            return {101} if user.user_id == "doctor-1" else set(user.assigned_subject_ids)
         return set(user.assigned_subject_ids)
 
 

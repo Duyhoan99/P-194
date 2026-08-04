@@ -13,6 +13,16 @@ from src.clinical.summary_schemas import (
 )
 
 _NUMERIC_WITH_UNIT_PATTERN = r"(-?\d+(?:\.\d+)?)\s+{unit}"
+_UNSAFE_DIRECTIVE_PATTERN = re.compile(
+    r"(?:^|\b)(?:recommend(?:ation|ed|s)?|prescrib(?:e|ed|ing|es)|"
+    r"diagnos(?:e|ed|ing)|treat(?:ment|ed|ing)?)\s+(?:the\s+)?"
+    r"(?:patient|condition|medication|treatment|therapy|drug)|"
+    r"(?:^|\b)(?:start|stop|increase|decrease|take|continue|hold)\s+"
+    r"(?:the\s+)?(?:patient|medication|treatment|therapy|drug|dose)|"
+    r"\b(?:should|must)\s+(?:start|stop|increase|decrease|take|continue|hold|"
+    r"recommend|prescribe|diagnose|treat)\b",
+    re.IGNORECASE,
+)
 
 
 class ClaimValidator:
@@ -26,7 +36,9 @@ class ClaimValidator:
         errors: list[ValidationIssue] = []
 
         for citation in draft.citations:
-            evidence_record = evidence_by_id.get(citation.citation_id)
+            evidence_record = self._evidence_for_citation(citation, evidence)
+            if evidence_record is not None:
+                evidence_by_id[citation.citation_id] = evidence_record
             if evidence_record is None:
                 errors.append(self._issue("MISSING_SOURCE", None, "Cited evidence is unavailable."))
             elif evidence_record.lineage.table not in ALLOWED_SOURCE_TABLES:
@@ -38,12 +50,40 @@ class ClaimValidator:
                 errors.extend(self._validate_claim(claim, citations_by_id, evidence_by_id))
         return ValidationReport(valid=not errors, errors=errors, warnings=[])
 
+    @staticmethod
+    def _evidence_for_citation(
+        citation: Citation, evidence: list[EvidenceRecord]
+    ) -> EvidenceRecord | None:
+        """Resolve normal and disambiguated deterministic citation IDs by lineage."""
+        if citation.citation_id == citation.lineage.source_row_key:
+            return next(
+                (record for record in evidence if record.lineage.source_row_key == citation.citation_id),
+                None,
+            )
+        prefix = f"{citation.lineage.table}:{citation.lineage.source_row_key}:"
+        if not citation.citation_id.startswith(prefix) or not citation.citation_id[len(prefix) :].isdigit():
+            return None
+        matches = [record for record in evidence if record.lineage == citation.lineage]
+        return matches[0] if matches else None
+
     def _validate_claim(
         self,
         claim: Claim,
         citations_by_id: dict[str, Citation],
         evidence_by_id: dict[str, EvidenceRecord],
     ) -> list[ValidationIssue]:
+        # Source values can legitimately contain words such as ``Hold`` or
+        # ``Continue``. Treat key=value fragments as quoted evidence before
+        # checking the model's surrounding prose for directives.
+        prose = re.sub(r"\b[\w]+=[^,]+", "", claim.text)
+        if _UNSAFE_DIRECTIVE_PATTERN.search(prose):
+            return [
+                self._issue(
+                    "OUT_OF_SCOPE_CONTENT",
+                    claim.claim_id,
+                    "Claim contains treatment, diagnostic, or advisory language.",
+                )
+            ]
         if not claim.citation_ids:
             return [self._issue("MISSING_CITATION", claim.claim_id, "Claim has no citation IDs.")]
 

@@ -13,10 +13,10 @@ async def chat(request: ChatRequest) -> ChatResponse:
         result = await agent.ainvoke({"query": request.message})
         return ChatResponse(
             response=result.get("response", ""),
-            analysis=result.get("analysis", ""),
+            analysis="",
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="The AI Agent is currently unavailable.") from error
 
 
 @router.get("/status")

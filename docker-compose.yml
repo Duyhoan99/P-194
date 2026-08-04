@@ -12,9 +12,10 @@ services:
       - .env
     environment:
       CLINICAL_BACKEND: sqlite
-      CLINICAL_DATABASE_PATH: ./data/synthetic_demo.db
+      CLINICAL_DATABASE_PATH: ./data/mimic_demo.db
     volumes:
       - ./data:/app/data
+      - ./mimic-iv-clinical-database-demo-2.2:/app/mimic-iv-clinical-database-demo-2.2:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]

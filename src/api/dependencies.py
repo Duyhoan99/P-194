@@ -10,6 +10,7 @@ from src.clinical.access import (
     ConfiguredAuthProvider,
     DemoAssignmentProvider,
 )
+from src.clinical.agent import ClinicalAgent
 from src.clinical.audit import AuditSink, CompositeAuditSink, StructuredAuditSink
 from src.clinical.demo_auth import DemoSessionProvider
 from src.clinical.errors import ClinicalAccessDenied, ClinicalDatabaseUnavailable
@@ -19,9 +20,11 @@ from src.clinical.repository import ClinicalRepository, SQLiteClinicalRepository
 from src.clinical.review import ReviewService
 from src.clinical.schemas import AccessContext
 from src.clinical.service import ClinicalRetrievalService
+from src.clinical.summary_generator import DeterministicDemoSummaryGenerator
 from src.clinical.summary_repository import SQLiteSummaryRepository
 from src.clinical.summary_service import ClinicalSummaryService
 from src.config import Settings, get_settings
+from src.services.llm import get_structured_llm
 
 
 class _FailClosedAssignmentChecker:
@@ -46,6 +49,13 @@ class _FailClosedAssignmentChecker:
     ) -> None:
         del context, subject_id, hadm_id, stay_id
         raise ClinicalAccessDenied
+
+
+class _UnavailableStructuredLLM:
+    """Invocation stub that lets the Agent use its evidence-only fallback."""
+
+    def invoke(self, _messages):
+        raise RuntimeError("Structured LLM is not configured.")
 
 
 def get_audit_sink() -> AuditSink:
@@ -112,11 +122,29 @@ def get_summary_repository() -> SQLiteSummaryRepository:
     return build_summary_repository(get_settings())
 
 
+def get_summary_generator(
+    clinical_service: ClinicalRetrievalService = Depends(get_clinical_service),
+):
+    settings = get_settings()
+    if settings.summary_agent_backend == "langgraph":
+        try:
+            structured_llm = get_structured_llm()
+        except Exception:
+            structured_llm = _UnavailableStructuredLLM()
+        return ClinicalAgent(
+            clinical_service,
+            structured_llm,
+            fallback_generator=DeterministicDemoSummaryGenerator(),
+        )
+    return DeterministicDemoSummaryGenerator()
+
+
 def get_summary_service(
     clinical_service: ClinicalRetrievalService = Depends(get_clinical_service),
+    generator=Depends(get_summary_generator),
     audit_sink: AuditSink = Depends(get_audit_sink),
 ) -> ClinicalSummaryService:
-    return ClinicalSummaryService(clinical_service, audit_sink=audit_sink)
+    return ClinicalSummaryService(clinical_service, generator=generator, audit_sink=audit_sink)
 
 
 def get_review_service(

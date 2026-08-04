@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_patients_subject ON patients(subject_id)",
     "CREATE INDEX IF NOT EXISTS idx_admissions_subject_hadm ON admissions(subject_id, hadm_id)",

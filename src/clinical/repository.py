@@ -87,6 +87,7 @@ class SQLiteClinicalRepository:
         self._connection.row_factory = sqlite3.Row
         self._connection.execute("PRAGMA query_only = ON")
         self._tables = self._load_allow_listed_tables()
+        self._table_columns = self._load_table_columns()
 
     @property
     def connection(self) -> sqlite3.Connection:
@@ -255,10 +256,12 @@ class SQLiteClinicalRepository:
     ) -> RepositoryFetch:
         if "microbiologyevents" not in self._tables:
             return RepositoryFetch(records=[], unavailable_sources=["microbiologyevents"])
+        isolation_column = "isolation" if "isolation" in self._table_columns.get("microbiologyevents", set()) else "isolate_num"
         rows = self._execute(
-            """
+            f"""
             SELECT microevent_id, subject_id, hadm_id, micro_specimen_id, chartdate, charttime,
-                    COALESCE(charttime, storetime) AS event_time, storedate, storetime, spec_type_desc, test_name, org_name, isolation, quantity, ab_name,
+                    COALESCE(charttime, storetime) AS event_time, storedate, storetime, spec_type_desc, test_name, org_name,
+                    {isolation_column} AS isolation, quantity, ab_name,
                    dilution_text, dilution_comparison, dilution_value, interpretation
             FROM microbiologyevents
             WHERE subject_id = ?
@@ -364,7 +367,9 @@ class SQLiteClinicalRepository:
                 row,
                 module="hosp",
                 table="prescriptions",
-                source_key=f"pharmacy_id={row['pharmacy_id']}",
+                source_key=self._composite_key(
+                    row, ("subject_id", "hadm_id", "pharmacy_id", "event_time", "drug", "route")
+                ),
             )
             for row in rows
         ]
@@ -393,7 +398,9 @@ class SQLiteClinicalRepository:
                 row,
                 module="hosp",
                 table="pharmacy",
-                source_key=f"pharmacy_id={row['pharmacy_id']}",
+                source_key=self._composite_key(
+                    row, ("subject_id", "hadm_id", "pharmacy_id", "event_time", "medication", "status")
+                ),
             )
             for row in rows
         ]
@@ -797,7 +804,16 @@ class SQLiteClinicalRepository:
                 module="icu",
                 table=table,
                 source_key=self._composite_key(
-                    row, ("subject_id", "hadm_id", "stay_id", "event_time", "itemid", "storetime")
+                    row,
+                    (
+                        "subject_id",
+                        "hadm_id",
+                        "stay_id",
+                        "event_time",
+                        "itemid",
+                        "storetime",
+                        *value_columns,
+                    ),
                 ),
                 related_sources=[self._dictionary_lineage(row, "icu", "d_items", f"itemid={row['itemid']}")]
                 if dictionary_loaded
@@ -844,7 +860,19 @@ class SQLiteClinicalRepository:
                 module="icu",
                 table="inputevents",
                 source_key=self._composite_key(
-                    row, ("subject_id", "hadm_id", "stay_id", "event_time", "itemid", "storetime")
+                    row,
+                    (
+                        "subject_id",
+                        "hadm_id",
+                        "stay_id",
+                        "event_time",
+                        "itemid",
+                        "storetime",
+                        "amount",
+                        "amountuom",
+                        "rate",
+                        "rateuom",
+                    ),
                 ),
                 related_sources=[self._dictionary_lineage(row, "icu", "d_items", f"itemid={row['itemid']}")]
                 if dictionary_loaded
@@ -899,6 +927,12 @@ class SQLiteClinicalRepository:
     def _load_allow_listed_tables(self) -> set[str]:
         rows = self._execute("SELECT name FROM sqlite_master WHERE type = ?", ("table",))
         return {row["name"] for row in rows if row["name"] in ALLOWED_SOURCE_TABLES}
+
+    def _load_table_columns(self) -> dict[str, set[str]]:
+        return {
+            table: {row["name"] for row in self._connection.execute(f"PRAGMA table_info({table})")}
+            for table in self._tables
+        }
 
     def _exists(self, sql: str, params: tuple[Any, ...]) -> bool:
         return bool(self._execute(sql, params))

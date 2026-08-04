@@ -50,6 +50,30 @@ uvicorn src.main:app --reload --port 8000
 
 ### Next.js doctor interface
 
+### MIMIC-IV local demo quick start
+
+The default local demo reads only the MIMIC demo CSVs already present in
+`mimic-iv-clinical-database-demo-2.2`. Build the read-only indexed SQLite
+projection once, then start backend and frontend together:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\setup_db.py
+npm.cmd --prefix frontend install
+.\scripts\start-dev.ps1
+```
+
+Open `http://localhost:3000` and sign in with `doctor-1` / `demo`. The demo
+assignment is limited to the first subjects listed in
+`MIMIC_DEMO_SUBJECTS_FILE`; the default limit is 3. If the configured LLM is
+unavailable, summary generation still returns a reviewable evidence-only
+`DRAFT` with a limitation explaining the fallback.
+
+Run the metadata-only backend smoke check while both services are running:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_demo_smoke.py
+```
+
 ### Synthetic release-demo quick start
 
 Run this path only with the fabricated local database; it never connects to a
@@ -161,6 +185,7 @@ Routes:
 | GET | `/api/v1/clinical/patients/{subject_id}/labs` | Laboratory evidence |
 | GET | `/api/v1/clinical/patients/{subject_id}/microbiology` | Microbiology evidence |
 | GET | `/api/v1/clinical/patients/{subject_id}/icu-events` | ICU events |
+| GET | `/api/v1/clinical/patients/{subject_id}/medications` | Medication evidence and status |
 | POST | `/api/v1/auth/demo-login` | Development/test-only signed demo session |
 | POST | `/api/v1/auth/logout` | Clear the demo session |
 | GET | `/api/v1/clinical/patients` | Patients assigned to the signed demo doctor |
