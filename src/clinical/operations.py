@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from threading import RLock
 from typing import Literal
 
 from src.clinical.audit import AuditEvent
 from src.clinical.errors import ClinicalAuditUnavailable
+from src.config import get_settings
 
 OperationalRole = Literal["DOCTOR", "ADMIN", "DATA_STEWARD", "COMPLIANCE"]
 AccountState = Literal["ACTIVE", "LOCKED"]
@@ -36,11 +39,12 @@ class OperationalUser:
 
 
 class OperationalStore:
-    """In-memory operational state used only by the synthetic demo surface."""
+    """In-memory operational state used only by the local MIMIC demo surface."""
 
     def __init__(self) -> None:
+        demo_subjects = self._load_demo_subjects()
         self._users: dict[str, OperationalUser] = {
-            "doctor-1": OperationalUser("doctor-1", "DOCTOR", assigned_subject_ids={101}),
+            "doctor-1": OperationalUser("doctor-1", "DOCTOR", assigned_subject_ids=demo_subjects),
             "doctor-2": OperationalUser("doctor-2", "DOCTOR"),
             "admin-1": OperationalUser("admin-1", "ADMIN"),
             "steward-1": OperationalUser("steward-1", "DATA_STEWARD"),
@@ -63,12 +67,12 @@ class OperationalStore:
             user = self._users.get(user_id)
             if user is None or user.state != "ACTIVE":
                 return None
-            return user.role, set(user.assigned_subject_ids)
+            return user.role, self._effective_assignments(user)
 
     def assignments(self) -> dict[str, set[int]]:
         with self._lock:
             return {
-                user.user_id: set(user.assigned_subject_ids)
+                user.user_id: self._effective_assignments(user)
                 for user in self._users.values()
                 if user.role == "DOCTOR" and user.state == "ACTIVE"
             }
@@ -135,15 +139,39 @@ class OperationalStore:
             raise KeyError(user_id)
         return user
 
-    @staticmethod
-    def _snapshot(user: OperationalUser) -> OperationalUser:
+    def _snapshot(self, user: OperationalUser) -> OperationalUser:
         return OperationalUser(
             user_id=user.user_id,
             role=user.role,
             state=user.state,
-            assigned_subject_ids=set(user.assigned_subject_ids),
+            assigned_subject_ids=self._effective_assignments(user),
             assignment_history=list(user.assignment_history),
         )
+
+    @staticmethod
+    def _load_demo_subjects() -> set[int]:
+        settings = get_settings()
+        if settings.app_env == "test":
+            return {101}
+        manifest = Path(settings.mimic_demo_subjects_file)
+        if not manifest.exists():
+            return set()
+        with manifest.open(newline="", encoding="utf-8-sig") as handle:
+            reader = csv.DictReader(handle)
+            subjects = []
+            for row in reader:
+                value = row.get("subject_id", "").strip()
+                if value.isdigit():
+                    subjects.append(int(value))
+                if len(subjects) >= settings.mimic_demo_subject_limit:
+                    break
+        return set(subjects)
+
+    @staticmethod
+    def _effective_assignments(user: OperationalUser) -> set[int]:
+        if get_settings().app_env == "test" and user.role == "DOCTOR":
+            return {101} if user.user_id == "doctor-1" else set()
+        return set(user.assigned_subject_ids)
 
 
 operational_store = OperationalStore()

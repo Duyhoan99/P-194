@@ -1,6 +1,8 @@
 import sqlite3
 
 from scripts.create_synthetic_demo import create_synthetic_demo_database
+from src.clinical.operations import operational_store
+from src.config import get_settings
 
 
 def test_synthetic_demo_has_expected_domains_without_raw_mimic_files(tmp_path):
@@ -22,3 +24,19 @@ def test_synthetic_demo_has_expected_domains_without_raw_mimic_files(tmp_path):
     assert stay == (101, 201, 301)
     assert lab_value == 1.2
     assert medication_statuses == ["ACTIVE", "DISCONTINUED"]
+
+
+def test_development_defaults_use_mimic_database_and_subject_manifest(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.delenv("CLINICAL_DATABASE_PATH", raising=False)
+    monkeypatch.delenv("SUMMARY_DATABASE_PATH", raising=False)
+    get_settings.cache_clear()
+
+    settings = get_settings()
+    _, assigned_subjects = operational_store.session_identity("doctor-1")
+
+    assert settings.clinical_database_path == "./data/mimic_demo.db"
+    assert settings.summary_database_path == "./data/clinical_summaries.db"
+    assert assigned_subjects == {10000032, 10001217, 10001725}
+
+    get_settings.cache_clear()

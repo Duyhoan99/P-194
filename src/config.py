@@ -27,10 +27,11 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite:///./data/app.db"
-    summary_database_path: str = "clinical_summaries.db"
+    summary_database_path: str = "./data/clinical_summaries.db"
     summary_backend: Literal["sqlite", "postgresql"] = "sqlite"
+    summary_agent_backend: Literal["deterministic", "langgraph"] = "deterministic"
     summary_postgres_dsn: str = ""
-    clinical_database_path: str = "mimic_demo.db"
+    clinical_database_path: str = "./data/mimic_demo.db"
     clinical_backend: Literal["sqlite", "postgresql"] = "sqlite"
     clinical_postgres_dsn: str = ""
     clinical_pool_size: int = Field(default=5, ge=1, le=50)
@@ -41,6 +42,9 @@ class Settings(BaseSettings):
     clinical_max_limit: int = Field(default=1000, ge=1, le=5000)
     clinical_cursor_secret: str = ""
     clinical_cursor_ttl_seconds: int = Field(default=900, ge=60, le=86400)
+    mimic_demo_source_dir: str = "./mimic-iv-clinical-database-demo-2.2"
+    mimic_demo_subjects_file: str = "./mimic-iv-clinical-database-demo-2.2/demo_subject_id.csv"
+    mimic_demo_subject_limit: int = Field(default=3, ge=1, le=100)
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"
