@@ -77,6 +77,12 @@ class ClinicalRetrievalService:
             context, query, "VIEW_MICROBIOLOGY_RESULTS", "microbiology_results", self._repository.fetch_microbiology_results
         )
 
+    def get_medications(self, context: AccessContext, query: ClinicalQuery) -> ClinicalResponse:
+        return self._retrieve(context, query, "VIEW_MEDICATIONS", "medications", self._repository.fetch_medications)
+
+    def get_patient_metrics(self, context: AccessContext, query: ClinicalQuery) -> ClinicalResponse:
+        return self._retrieve(context, query, "VIEW_PATIENT_METRICS", "patient_metrics", self._repository.fetch_patient_metrics)
+
     def get_icu_events(self, context: AccessContext, query: ClinicalQuery) -> ClinicalResponse:
         return self._retrieve(context, query, "VIEW_ICU_EVENTS", "icu_events", self._repository.fetch_icu_events)
 

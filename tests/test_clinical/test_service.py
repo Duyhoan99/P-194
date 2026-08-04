@@ -166,6 +166,8 @@ def test_service_preserves_empty_result_when_sources_are_available(assigned_serv
         ("get_diagnoses_and_procedures", "fetch_diagnoses_and_procedures"),
         ("get_laboratory_results", "fetch_laboratory_results"),
         ("get_microbiology_results", "fetch_microbiology_results"),
+        ("get_medications", "fetch_medications"),
+        ("get_patient_metrics", "fetch_patient_metrics"),
         ("get_icu_events", "fetch_icu_events"),
     ],
 )

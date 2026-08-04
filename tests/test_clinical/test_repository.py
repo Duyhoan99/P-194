@@ -36,6 +36,21 @@ def test_microbiology_lineage_uses_unique_microevent_ids(tmp_path):
     ]
 
 
+def test_repository_returns_medication_evidence_with_source_status(tmp_path):
+    db_path = tmp_path / "clinical.sqlite"
+    create_mock_clinical_db(db_path)
+    repo = SQLiteClinicalRepository(str(db_path))
+
+    result = repo.fetch_medications(ClinicalQuery(subject_id=101, hadm_id=5001))
+
+    assert {record.data["source_status"] for record in result.records} == {
+        "PRESCRIBED",
+        "DISCONTINUED",
+        "ADMINISTERED",
+    }
+    assert {record.lineage.table for record in result.records} == {"prescriptions", "pharmacy", "emar"}
+
+
 def test_repository_preserves_raw_source_timestamps_in_record_data(tmp_path):
     """Dropping source timestamps from domain data should fail this test."""
     db_path = tmp_path / "clinical.sqlite"

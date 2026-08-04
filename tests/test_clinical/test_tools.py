@@ -10,6 +10,9 @@ EXPECTED_TOOL_NAMES = {
     "get_diagnoses_and_procedures",
     "get_laboratory_results",
     "get_microbiology_results",
+    "get_medications",
+    "get_patient_metrics",
+    "check_drug_interactions",
     "get_icu_events",
 }
 
@@ -24,6 +27,9 @@ def test_tool_factory_binds_context_and_exposes_safe_names(fake_service):
     assert result["trace_id"] == context.trace_id
     assert result["records"][0]["data"] == {"itemid": 3001}
     assert fake_service._audit_sink.events[-1].trace_id == context.trace_id
+
+    interaction = tools["check_drug_interactions"].invoke({"subject_id": 101})
+    assert interaction == {"status": "NOT_LOADED", "trace_id": context.trace_id}
 
 
 def test_tools_expose_only_query_fields(fake_service):

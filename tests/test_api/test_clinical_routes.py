@@ -79,6 +79,13 @@ async def test_clinical_route_returns_lineage(authenticated_client):
 
 
 @pytest.mark.asyncio
+async def test_medications_route_returns_lineage(authenticated_client, fake_service):
+    response = await authenticated_client.get("/api/v1/clinical/patients/101/medications")
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_clinical_route_returns_next_cursor(authenticated_client, fake_service):
     fake_service._repository.fetches["fetch_laboratory_results"] = RepositoryFetch(
         [],

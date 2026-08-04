@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from src.api.dependencies import get_access_context, get_clinical_service
 from src.clinical.errors import (
     ClinicalAccessDenied,
+    ClinicalAgentUnavailable,
     ClinicalAuditUnavailable,
     ClinicalAuthNotConfigured,
     ClinicalDatabaseUnavailable,
@@ -31,6 +32,7 @@ _ERROR_DETAILS: dict[type[Exception], str] = {
     ClinicalAuthNotConfigured: "Clinical authentication is not configured.",
     ClinicalAccessDenied: "Access to the requested clinical subject is denied.",
     ClinicalAuditUnavailable: "Clinical audit service is currently unavailable.",
+    ClinicalAgentUnavailable: "Clinical summary generation is currently unavailable.",
     ClinicalScopeInvalid: "The requested clinical scope is invalid.",
     ClinicalDatabaseUnavailable: "Clinical data is currently unavailable.",
     ClinicalQueryTimeout: "The clinical query timed out.",
@@ -40,6 +42,7 @@ _ERROR_STATUS_CODES: dict[type[Exception], int] = {
     ClinicalAuthNotConfigured: 503,
     ClinicalAccessDenied: 403,
     ClinicalAuditUnavailable: 503,
+    ClinicalAgentUnavailable: 503,
     ClinicalScopeInvalid: 422,
     ClinicalDatabaseUnavailable: 503,
     ClinicalQueryTimeout: 504,
@@ -235,6 +238,24 @@ def get_microbiology_results(
 ) -> ClinicalResponse | JSONResponse:
     return _retrieve(
         request, service.get_microbiology_results, context, subject_id, hadm_id, stay_id, from_time, to_time, limit, cursor
+    )
+
+
+@router.get("/patients/{subject_id}/medications", response_model=ClinicalResponse)
+def get_medications(
+    request: Request,
+    subject_id: int,
+    hadm_id: int | None = None,
+    stay_id: int | None = None,
+    from_time: datetime | None = None,
+    to_time: datetime | None = None,
+    limit: int = 200,
+    cursor: str | None = None,
+    context: AccessContext = Depends(get_access_context),
+    service: ClinicalRetrievalService = Depends(get_clinical_service),
+) -> ClinicalResponse | JSONResponse:
+    return _retrieve(
+        request, service.get_medications, context, subject_id, hadm_id, stay_id, from_time, to_time, limit, cursor
     )
 
 

@@ -17,6 +17,11 @@ HOSPITAL_TABLES = frozenset(
         "labevents",
         "d_labitems",
         "microbiologyevents",
+        "prescriptions",
+        "pharmacy",
+        "emar",
+        "emar_detail",
+        "omr",
     }
 )
 ICU_TABLES = frozenset(

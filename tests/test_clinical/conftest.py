@@ -69,6 +69,8 @@ class FakeRepository:
                 ["d_labitems"],
             ),
             "fetch_microbiology_results": RepositoryFetch([], []),
+            "fetch_medications": RepositoryFetch([], []),
+            "fetch_patient_metrics": RepositoryFetch([], []),
             "fetch_icu_events": RepositoryFetch([], []),
         }
 
@@ -103,6 +105,16 @@ class FakeRepository:
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch:
         return self._fetch("fetch_microbiology_results", cursor_position)
+
+    def fetch_medications(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_medications", cursor_position)
+
+    def fetch_patient_metrics(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        return self._fetch("fetch_patient_metrics", cursor_position)
 
     def fetch_icu_events(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None

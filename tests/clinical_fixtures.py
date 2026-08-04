@@ -148,6 +148,40 @@ def create_mock_clinical_db(path: Path) -> None:
                 lownormalvalue REAL,
                 highnormalvalue REAL
             );
+            CREATE TABLE prescriptions (
+                subject_id INTEGER NOT NULL,
+                hadm_id INTEGER NOT NULL,
+                pharmacy_id INTEGER NOT NULL,
+                starttime TEXT,
+                stoptime TEXT,
+                drug TEXT,
+                prod_strength TEXT,
+                dose_val_rx TEXT,
+                dose_unit_rx TEXT,
+                form_rx TEXT,
+                route TEXT
+            );
+            CREATE TABLE pharmacy (
+                subject_id INTEGER NOT NULL,
+                hadm_id INTEGER NOT NULL,
+                pharmacy_id INTEGER NOT NULL,
+                starttime TEXT,
+                stoptime TEXT,
+                medication TEXT,
+                status TEXT,
+                route TEXT,
+                frequency TEXT
+            );
+            CREATE TABLE emar (
+                subject_id INTEGER NOT NULL,
+                hadm_id INTEGER NOT NULL,
+                emar_id INTEGER PRIMARY KEY,
+                charttime TEXT,
+                medication TEXT,
+                event_txt TEXT,
+                scheduletime TEXT,
+                storetime TEXT
+            );
             """
         )
         connection.executemany(
@@ -197,6 +231,18 @@ def create_mock_clinical_db(path: Path) -> None:
         connection.execute("INSERT INTO d_items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (4002, "Synthetic output", "SO", "outputevents", "Output", "mL", "Numeric", None, None))
         connection.execute("INSERT INTO chartevents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (101, 5001, 7001, "2200-01-10 16:00:00", "2200-01-10 16:01:00", 4001, "98", 98.0, "unit", 0))
         connection.execute("INSERT INTO outputevents VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (101, 5001, 7001, "2200-01-10 17:00:00", "2200-01-10 17:01:00", 4002, 250.0, "mL"))
+        connection.execute(
+            "INSERT INTO prescriptions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (101, 5001, 9101, "2200-01-10 18:00:00", "2200-01-11 18:00:00", "Synthetic drug", "10 mg", "10", "mg", "tablet", "PO"),
+        )
+        connection.execute(
+            "INSERT INTO pharmacy VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (101, 5001, 9102, "2200-01-10 19:00:00", "2200-01-12 19:00:00", "Synthetic drug", "Discontinued", "PO", "daily"),
+        )
+        connection.execute(
+            "INSERT INTO emar VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (101, 5001, 9201, "2200-01-10 20:00:00", "Synthetic drug", "Given", "2200-01-10 20:00:00", "2200-01-10 20:01:00"),
+        )
         connection.commit()
     finally:
         connection.close()

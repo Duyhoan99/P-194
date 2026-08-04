@@ -56,6 +56,14 @@ class ClinicalRepository(Protocol):
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch: ...
 
+    def fetch_medications(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
+
+    def fetch_patient_metrics(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch: ...
+
     def fetch_icu_events(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
     ) -> RepositoryFetch: ...
@@ -291,6 +299,171 @@ class SQLiteClinicalRepository:
             for row in rows
         ]
         return self._fetch(records, [], query.limit, cursor_position)
+
+    def fetch_medications(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        unavailable: list[str] = []
+        records: list[EvidenceRecord] = []
+        records.extend(self._prescription_records(query, unavailable))
+        records.extend(self._pharmacy_records(query, unavailable))
+        records.extend(self._emar_records(query, unavailable))
+        records.extend(self._input_medication_records(query, unavailable))
+        return self._fetch(records, unavailable, query.limit, cursor_position)
+
+    def fetch_patient_metrics(
+        self, query: ClinicalQuery, cursor_position: CursorPosition | None = None
+    ) -> RepositoryFetch:
+        if "omr" not in self._tables:
+            return RepositoryFetch([], ["omr"])
+        rows = self._execute(
+            """
+            SELECT subject_id, chartdate AS event_time, chartdate, seq_num, result_name, result_value
+            FROM omr
+            WHERE subject_id = ? AND (? IS NULL OR chartdate >= ?) AND (? IS NULL OR chartdate <= ?)
+            ORDER BY chartdate DESC, seq_num DESC, result_name DESC
+            LIMIT ?
+            """,
+            (query.subject_id, self._time_value(query.from_time), self._time_value(query.from_time),
+             self._time_value(query.to_time), self._time_value(query.to_time), query.limit + 1),
+        )
+        records = [
+            self._record(
+                "metric",
+                {key: row[key] for key in ("chartdate", "seq_num", "result_name", "result_value")},
+                row,
+                module="hosp",
+                table="omr",
+                source_key=self._composite_key(row, ("subject_id", "chartdate", "seq_num", "result_name")),
+            )
+            for row in rows
+        ]
+        return self._fetch(records, [], query.limit, cursor_position)
+
+    def _prescription_records(self, query: ClinicalQuery, unavailable: list[str]) -> list[EvidenceRecord]:
+        if "prescriptions" not in self._tables:
+            unavailable.append("prescriptions")
+            return []
+        rows = self._execute(
+            """
+            SELECT subject_id, hadm_id, pharmacy_id, starttime AS event_time, starttime, stoptime,
+                   drug, prod_strength, dose_val_rx, dose_unit_rx, form_rx, route
+            FROM prescriptions
+            WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?)
+              AND (? IS NULL OR starttime >= ?) AND (? IS NULL OR starttime <= ?)
+            ORDER BY starttime DESC, pharmacy_id DESC
+            LIMIT ?
+            """,
+            self._hadm_time_params(query),
+        )
+        return [
+            self._record(
+                "medication",
+                {**{key: row[key] for key in ("drug", "prod_strength", "dose_val_rx", "dose_unit_rx", "form_rx", "route", "starttime", "stoptime")},
+                 "medication": row["drug"], "source_status": "PRESCRIBED"},
+                row,
+                module="hosp",
+                table="prescriptions",
+                source_key=f"pharmacy_id={row['pharmacy_id']}",
+            )
+            for row in rows
+        ]
+
+    def _pharmacy_records(self, query: ClinicalQuery, unavailable: list[str]) -> list[EvidenceRecord]:
+        if "pharmacy" not in self._tables:
+            unavailable.append("pharmacy")
+            return []
+        rows = self._execute(
+            """
+            SELECT subject_id, hadm_id, pharmacy_id, starttime AS event_time, starttime, stoptime,
+                   medication, status, route, frequency
+            FROM pharmacy
+            WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?)
+              AND (? IS NULL OR starttime >= ?) AND (? IS NULL OR starttime <= ?)
+            ORDER BY starttime DESC, pharmacy_id DESC
+            LIMIT ?
+            """,
+            self._hadm_time_params(query),
+        )
+        return [
+            self._record(
+                "medication",
+                {**{key: row[key] for key in ("medication", "status", "route", "frequency", "starttime", "stoptime")},
+                 "source_status": self._medication_status(row["status"], "PRESCRIBED")},
+                row,
+                module="hosp",
+                table="pharmacy",
+                source_key=f"pharmacy_id={row['pharmacy_id']}",
+            )
+            for row in rows
+        ]
+
+    def _emar_records(self, query: ClinicalQuery, unavailable: list[str]) -> list[EvidenceRecord]:
+        if "emar" not in self._tables:
+            unavailable.append("emar")
+            return []
+        rows = self._execute(
+            """
+            SELECT subject_id, hadm_id, emar_id, charttime AS event_time, charttime,
+                   medication, event_txt, scheduletime, storetime
+            FROM emar
+            WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?)
+              AND (? IS NULL OR charttime >= ?) AND (? IS NULL OR charttime <= ?)
+            ORDER BY charttime DESC, emar_id DESC
+            LIMIT ?
+            """,
+            self._hadm_time_params(query),
+        )
+        return [
+            self._record(
+                "medication",
+                {**{key: row[key] for key in ("medication", "event_txt", "charttime", "scheduletime", "storetime")},
+                 "source_status": self._medication_status(row["event_txt"], "UNKNOWN_STATUS")},
+                row,
+                module="hosp",
+                table="emar",
+                source_key=f"emar_id={row['emar_id']}",
+            )
+            for row in rows
+        ]
+
+    def _input_medication_records(self, query: ClinicalQuery, unavailable: list[str]) -> list[EvidenceRecord]:
+        if "inputevents" not in self._tables:
+            unavailable.append("inputevents")
+            return []
+        rows = self._execute(
+            """
+            SELECT subject_id, hadm_id, stay_id, starttime AS event_time, starttime, endtime,
+                   storetime, itemid, amount, amountuom, rate, rateuom, statusdescription
+            FROM inputevents
+            WHERE subject_id = ? AND (? IS NULL OR hadm_id = ?) AND (? IS NULL OR stay_id = ?)
+              AND (? IS NULL OR starttime >= ?) AND (? IS NULL OR starttime <= ?)
+            ORDER BY starttime DESC, itemid DESC
+            LIMIT ?
+            """,
+            self._hadm_stay_time_params(query),
+        )
+        return [
+            self._record(
+                "medication",
+                {**{key: row[key] for key in ("itemid", "starttime", "endtime", "storetime", "amount", "amountuom", "rate", "rateuom", "statusdescription")},
+                 "source_status": "ADMINISTERED"},
+                row,
+                module="icu",
+                table="inputevents",
+                source_key=self._composite_key(row, ("subject_id", "hadm_id", "stay_id", "event_time", "itemid", "storetime")),
+            )
+            for row in rows
+        ]
+
+    @staticmethod
+    def _medication_status(value: Any, default: str) -> str:
+        text = str(value or "").casefold()
+        if any(token in text for token in ("discontinu", "stopped", "cancel")):
+            return "DISCONTINUED"
+        if any(token in text for token in ("given", "administered", "complete")) and "not given" not in text:
+            return "ADMINISTERED"
+        return default
 
     def fetch_icu_events(
         self, query: ClinicalQuery, cursor_position: CursorPosition | None = None

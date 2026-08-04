@@ -21,6 +21,8 @@ _TOOL_METHODS = (
     "get_diagnoses_and_procedures",
     "get_laboratory_results",
     "get_microbiology_results",
+    "get_medications",
+    "get_patient_metrics",
     "get_icu_events",
 )
 
@@ -29,7 +31,21 @@ def build_clinical_tools(
     service: ClinicalRetrievalService, access_context: AccessContext
 ) -> list[BaseTool]:
     """Build clinical retrieval tools with the authenticated context bound in closures."""
-    return [_build_tool(service, access_context, method_name) for method_name in _TOOL_METHODS]
+    tools = [_build_tool(service, access_context, method_name) for method_name in _TOOL_METHODS]
+    tools.append(_build_interaction_tool(access_context))
+    return tools
+
+
+def _build_interaction_tool(access_context: AccessContext) -> StructuredTool:
+    def check_drug_interactions(**_: Any) -> dict[str, str]:
+        return {"status": "NOT_LOADED", "trace_id": access_context.trace_id}
+
+    return StructuredTool.from_function(
+        func=check_drug_interactions,
+        name="check_drug_interactions",
+        description="Drug interaction knowledge base is not loaded; never infer an interaction.",
+        args_schema=ClinicalToolInput,
+    )
 
 
 def _build_tool(
