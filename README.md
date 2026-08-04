@@ -33,11 +33,73 @@ Agent chỉ tạo bản `DRAFT`. Bác sĩ được phân công phải kiểm tra
 | LLM | Long-context provider, cấu hình qua environment variable (mặc định skeleton: `gpt-4o-mini`) |
 | Retrieval | Parameterized SQL/tools trên dữ liệu cấu trúc; vector search chỉ khi có nguồn văn bản được cấp phép |
 | Backend | FastAPI + Python 3.11+ |
-| Frontend | Next.js + TypeScript (chưa triển khai) |
+| Frontend | Next.js 16 + TypeScript + Tailwind CSS (Tone xanh y tế) |
 | Database | PostgreSQL mục tiêu; SQLite chỉ cho local skeleton |
 | Deployment | Docker; object storage riêng tư cho PDF được phép |
 
-## Chạy backend hiện tại
+## 🚀 Hướng dẫn khởi chạy ứng dụng (Quick Start Guide)
+
+### 1. Setup môi trường Backend
+```powershell
+# Tạo môi trường ảo Python
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# Cài đặt thư viện Python
+pip install -r requirements.txt
+```
+
+### 2. Cấu hình file `.env`
+Sao chép file cấu hình từ `.env.example`:
+```powershell
+cp .env.example .env
+```
+> ⚠️ **Lưu ý:** Đảm bảo biến `CLINICAL_CURSOR_SECRET` trong `.env` có độ dài tối thiểu 32 ký tự (mặc định trong mẫu: `local-development-only-change-me`).
+
+### 3. Khởi tạo Cơ sở dữ liệu mẫu y tế (MIMIC-IV Demo DB)
+```powershell
+.\.venv\Scripts\python.exe scripts\setup_db.py
+```
+*(Script sẽ tự động chuyển đổi dữ liệu từ `mimic-iv-clinical-database-demo-2.2` thành cơ sở dữ liệu SQLite tại `data/mimic_demo.db`).*
+
+### 4. Cài đặt thư viện Frontend
+```powershell
+cd frontend
+npm install
+cd ..
+```
+
+### 5. Khởi chạy Ứng dụng
+
+#### 🔹 Cách 1: Chạy tự động cả Backend + Frontend (Khuyên dùng)
+```powershell
+.\.venv\Scripts\python.exe start.py
+```
+*(Script `start.py` sẽ tự động khởi chạy Backend ở cổng 8000, Frontend ở cổng 3000 và mở trình duyệt).*
+
+#### 🔹 Cách 2: Chạy thủ công ở 2 Terminal riêng biệt
+* **Terminal 1 (Backend FastAPI):**
+  ```powershell
+  .\.venv\Scripts\python.exe -m uvicorn src.main:app --reload --port 8000
+  ```
+* **Terminal 2 (Frontend Next.js):**
+  ```powershell
+  cd frontend
+  npm run dev
+  ```
+
+---
+
+### 🔑 Đăng nhập & Trải nghiệm
+* **Giao diện Web Frontend:** 👉 [http://localhost:3000](http://localhost:3000)
+  * **Tài khoản bác sĩ mẫu:** `doctor-1` / Mật khẩu: `demo`
+  * **Tài khoản bác sĩ 2:** `doctor-2` / Mật khẩu: `demo`
+  * **Tài khoản quản trị:** `admin-1` / Mật khẩu: `demo`
+* **Tài liệu API Backend (Swagger UI):** 👉 [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+## Chạy backend hiện tại (Chi tiết cấu hình)
 
 Không đưa file MIMIC, credential hoặc dữ liệu restricted vào repository. Cấu hình secret trong `.env` cục bộ.
 
