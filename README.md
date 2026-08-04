@@ -60,10 +60,24 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python scripts/create_synthetic_demo.py data/synthetic_demo.db
-uvicorn src.main:app --reload --port 8000
 npm --prefix frontend install
-npm --prefix frontend run dev
+.\scripts\start-dev.ps1
 ```
+
+The local launcher starts the backend and frontend together. It keeps both
+service logs in the same terminal and stops the sibling service when either
+one exits. The backend is available at `http://localhost:8000` and the
+frontend at `http://localhost:3000`.
+
+For a containerized workflow, use Docker Compose instead:
+
+```powershell
+make demo-db
+docker compose --profile local up --build
+```
+
+This starts the same backend and frontend ports in the `local` Compose
+profile. Docker Desktop is required for this option.
 
 After creating the synthetic database, `make demo-up` starts the local Compose
 backend and frontend profiles. With the backend running, `make demo-smoke`
@@ -93,7 +107,7 @@ The clinician demo uses an explicit development-only login that creates an HTTP-
 
 ```powershell
 npm.cmd --prefix frontend install
-npm.cmd --prefix frontend run dev
+.\scripts\start-dev.ps1
 ```
 
 Set `NEXT_PUBLIC_API_URL=http://localhost:8000` locally, open `http://localhost:3000`, then use the development-only account `doctor-1` / `demo`. The UI renders only patients returned by the server-side assignment boundary. Production requires trusted SSO/OIDC, PostgreSQL, patient-identity mapping, and clinical governance approval; demo authentication is disabled when `APP_ENV=production`.

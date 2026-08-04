@@ -16,10 +16,25 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python scripts/create_synthetic_demo.py data/synthetic_demo.db
-uvicorn src.main:app --reload --port 8000
 npm --prefix frontend install
-npm --prefix frontend run dev
+.\scripts\start-dev.ps1
 ```
+
+The launcher keeps FastAPI and Next.js running together in one terminal:
+
+- Backend: `http://localhost:8000`
+- Frontend: `http://localhost:3000`
+
+For Docker Desktop, use the Compose workflow instead:
+
+```powershell
+make demo-db
+docker compose --profile local up --build
+```
+
+Both workflows use the synthetic local database only. The local workflow
+requires the Python environment and `frontend\node_modules`; the Docker
+workflow installs frontend dependencies inside its container.
 
 Open `http://localhost:3000`. The local actor accounts are `doctor-1`,
 `doctor-2`, `admin-1`, `steward-1`, and `compliance-1`; all use password

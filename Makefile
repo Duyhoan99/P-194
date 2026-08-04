@@ -1,7 +1,10 @@
-.PHONY: run test lint format typecheck check clean demo-db demo-test demo-smoke demo-up demo-release
+.PHONY: run dev-local test lint format typecheck check clean demo-db demo-test demo-smoke demo-up demo-release
 
 run:
 	uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+
+dev-local:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev.ps1
 
 test:
 	pytest tests/ -v
