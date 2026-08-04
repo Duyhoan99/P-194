@@ -5,9 +5,7 @@ from src.agents.state import AgentState
 
 
 def should_continue(state: AgentState) -> str:
-    """Route based on whether an error occurred during analysis."""
-    if state.get("error"):
-        return END
+    """Always reach the response node so model failures get a safe message."""
     return "respond"
 
 
