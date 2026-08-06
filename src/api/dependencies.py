@@ -9,6 +9,7 @@ from src.clinical.access import (
     AuthProvider,
     ConfiguredAuthProvider,
     DemoAssignmentProvider,
+    JwtAssignmentProvider,
 )
 from src.clinical.agent import ClinicalAgent
 from src.clinical.audit import AuditSink, CompositeAuditSink, StructuredAuditSink
@@ -21,7 +22,8 @@ from src.clinical.review import ReviewService
 from src.clinical.schemas import AccessContext
 from src.clinical.service import ClinicalRetrievalService
 from src.clinical.summary_generator import DeterministicDemoSummaryGenerator
-from src.clinical.summary_repository import SQLiteSummaryRepository
+from src.clinical.summary_repository import SQLiteSummaryRepository, SummaryRepository
+from src.clinical.postgres_summary_repository import PostgresSummaryRepository
 from src.clinical.summary_service import ClinicalSummaryService
 from src.config import Settings, get_settings
 from src.services.llm import get_structured_llm
@@ -101,7 +103,7 @@ def get_assignment_checker() -> AssignmentChecker:
     settings = get_settings()
     if settings.app_env in {"development", "test"}:
         return DemoAssignmentProvider(operational_store.assignments(), operational_store.admin_users())
-    return _FailClosedAssignmentChecker()
+    return JwtAssignmentProvider()
 
 
 def get_operational_store() -> OperationalStore:
@@ -111,14 +113,21 @@ def get_operational_store() -> OperationalStore:
     return operational_store
 
 
-def build_summary_repository(settings: Settings) -> SQLiteSummaryRepository:
-    """Use local application storage only for development and test environments."""
-    if settings.app_env in {"development", "test"} and settings.summary_backend == "sqlite":
-        return SQLiteSummaryRepository(settings.summary_database_path)
+def build_summary_repository(settings: Settings) -> SummaryRepository:
+    """Select the configured summary backend."""
+    if settings.summary_backend == "sqlite":
+        if settings.app_env in {"development", "test"}:
+            return SQLiteSummaryRepository(settings.summary_database_path)
+        raise ClinicalDatabaseUnavailable
+    if settings.summary_backend == "postgresql":
+        return PostgresSummaryRepository(
+            settings.summary_postgres_dsn,
+            pool_size=settings.clinical_pool_size,
+        )
     raise ClinicalDatabaseUnavailable
 
 
-def get_summary_repository() -> SQLiteSummaryRepository:
+def get_summary_repository() -> SummaryRepository:
     return build_summary_repository(get_settings())
 
 
@@ -148,7 +157,7 @@ def get_summary_service(
 
 
 def get_review_service(
-    repository: SQLiteSummaryRepository = Depends(get_summary_repository),
+    repository: SummaryRepository = Depends(get_summary_repository),
     assignments: AssignmentChecker = Depends(get_assignment_checker),
     summary_service: ClinicalSummaryService = Depends(get_summary_service),
     audit_sink: AuditSink = Depends(get_audit_sink),

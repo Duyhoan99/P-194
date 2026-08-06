@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, TypedDict
 from uuid import NAMESPACE_URL, uuid5
@@ -40,10 +41,57 @@ _SYSTEM_PROMPT = """You are an evidence-only clinical summarization assistant fo
 Use only the supplied evidence records. Do not diagnose, recommend treatment, infer facts,
 or invent missing values. Every clinical claim must have one or more citation_ids that exactly
 match supplied evidence source_row_key values. Include the exact supported numeric value, unit,
-and ISO timestamp in laboratory claims. Do not output treatment directives, diagnoses, clinical
-opinions, chain-of-thought, prompts, or explanations outside the requested structure. Return only
-the requested ClinicalSummaryDraft structure.
+and ISO timestamp in laboratory claims. Limit the total number of clinical claims across all sections to between 15 and 30.
+Do not output treatment directives, diagnoses, clinical opinions, chain-of-thought, prompts, or
+explanations outside the requested structure. Return only the requested ClinicalSummaryDraft structure.
 The server will overwrite identity, scope, status, and trace fields after validation."""
+
+
+def _aggregate_evidence(evidence: list[EvidenceRecord]) -> list[EvidenceRecord]:
+    """Aggregate high-frequency numeric events to retain only First, Latest, Min, and Max."""
+    aggregated: list[EvidenceRecord] = []
+    groups = defaultdict(list)
+
+    for record in evidence:
+        if record.record_type in {"lab", "chart_event", "datetime_event", "output_event"}:
+            itemid = record.data.get("itemid")
+            if itemid is not None:
+                groups[(record.record_type, itemid)].append(record)
+            else:
+                aggregated.append(record)
+        else:
+            aggregated.append(record)
+
+    for group_records in groups.values():
+        if not group_records:
+            continue
+
+        def get_val(r: EvidenceRecord) -> float | None:
+            v = r.data.get("valuenum")
+            if v is None:
+                v = r.data.get("value")
+            if v is not None:
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    pass
+            return None
+
+        numeric_records = [r for r in group_records if get_val(r) is not None]
+        selected = {}
+
+        selected[group_records[0].lineage.source_row_key] = group_records[0]
+        selected[group_records[-1].lineage.source_row_key] = group_records[-1]
+
+        if numeric_records:
+            min_record = min(numeric_records, key=lambda r: get_val(r))  # type: ignore
+            selected[min_record.lineage.source_row_key] = min_record
+            max_record = max(numeric_records, key=lambda r: get_val(r))  # type: ignore
+            selected[max_record.lineage.source_row_key] = max_record
+
+        aggregated.extend(selected.values())
+
+    return aggregated
 
 
 def build_agent_context(evidence: list[EvidenceRecord]) -> str:
@@ -121,9 +169,21 @@ class ClinicalAgent:
         )
         if any(response.status == "DENIED" for response in responses):
             raise ClinicalAccessDenied
+        
+        evidence = []
+        seen_keys = set()
+        for response in responses:
+            for record in response.records:
+                key = record.lineage.source_row_key
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    evidence.append(record)
+        
+        aggregated_evidence = _aggregate_evidence(evidence)
+        
         return {
             "responses": responses,
-            "evidence": [record for response in responses for record in response.records],
+            "evidence": aggregated_evidence,
         }
 
     def _generate_node(self, state: AgentState) -> dict[str, ClinicalSummaryDraft]:

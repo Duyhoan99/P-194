@@ -30,10 +30,14 @@ def test_assignment_provider_accepts_encounter_and_stay_scope():
     provider.assert_access(context, 10, hadm_id=20, stay_id=30)
 
 
-def test_unconfigured_auth_provider_is_fail_closed():
+class MockRequest:
+    def __init__(self):
+        self.headers = {}
+
+def test_configured_auth_provider_rejects_missing_header():
     provider: AuthProvider = ConfiguredAuthProvider()
-    with pytest.raises(ClinicalAuthNotConfigured):
-        provider.authenticate(None)
+    with pytest.raises(ClinicalAccessDenied, match="Missing or invalid Authorization header"):
+        provider.authenticate(MockRequest())
 
 
 def test_doctor_is_denied_when_context_assignment_set_is_empty():

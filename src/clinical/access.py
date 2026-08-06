@@ -4,6 +4,7 @@ import os
 from collections.abc import Mapping
 from typing import Protocol
 
+import jwt
 from fastapi import Request
 
 from src.clinical.errors import ClinicalAccessDenied, ClinicalAuthNotConfigured
@@ -44,10 +45,62 @@ AssignmentChecker = AssignmentProvider
 
 
 class ConfiguredAuthProvider:
-    """Fail-closed placeholder for an organization-provided auth integration."""
+    """Production JWT-based authentication provider."""
 
     def authenticate(self, request: Request) -> AccessContext:
-        raise ClinicalAuthNotConfigured("A trusted clinical authentication provider is required")
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise ClinicalAccessDenied("Missing or invalid Authorization header")
+
+        token = auth_header.split("Bearer ")[1]
+        # The cursor secret is guaranteed to be 32+ chars in production and serves as our symmetric key.
+        secret = get_settings().clinical_cursor_secret
+        
+        try:
+            payload = jwt.decode(token, secret, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError as e:
+            raise ClinicalAccessDenied("Token has expired") from e
+        except jwt.PyJWTError as e:
+            raise ClinicalAccessDenied("Invalid token") from e
+
+        user_id = payload.get("user_id")
+        role = payload.get("role")
+        assigned_subject_ids = payload.get("assigned_subject_ids", [])
+
+        if not user_id or not role:
+            raise ClinicalAccessDenied("Invalid token payload")
+
+        return AccessContext(
+            user_id=str(user_id),
+            role=role,
+            assigned_subject_ids=set(assigned_subject_ids),
+            trace_id=getattr(request.state, "clinical_trace_id", ""),
+        )
+
+
+class JwtAssignmentProvider:
+    """Checks assignments directly from the authenticated JWT context."""
+
+    def can_access(
+        self,
+        context: AccessContext,
+        subject_id: int,
+        hadm_id: int | None = None,
+        stay_id: int | None = None,
+    ) -> bool:
+        if context.role == "ADMIN":
+            return True
+        return subject_id in context.assigned_subject_ids
+
+    def assert_access(
+        self,
+        context: AccessContext,
+        subject_id: int,
+        hadm_id: int | None = None,
+        stay_id: int | None = None,
+    ) -> None:
+        if not self.can_access(context, subject_id, hadm_id, stay_id):
+            raise ClinicalAccessDenied
 
 
 class DemoAssignmentProvider:
