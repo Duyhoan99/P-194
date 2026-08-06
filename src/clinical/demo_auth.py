@@ -7,6 +7,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Final
 
+# pyrefly: ignore [missing-import]
 from fastapi import Request
 
 from src.clinical.errors import ClinicalAuthNotConfigured

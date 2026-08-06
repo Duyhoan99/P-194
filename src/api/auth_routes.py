@@ -1,6 +1,8 @@
 """Development/test-only demo session endpoints."""
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, HTTPException, Response, status
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 
 from src.clinical.demo_auth import (

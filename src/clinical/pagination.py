@@ -6,6 +6,7 @@ import hmac
 import json
 from datetime import UTC, datetime
 
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.clinical.errors import ClinicalScopeInvalid

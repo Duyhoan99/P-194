@@ -1,6 +1,8 @@
 """Safe, role-bound operational status endpoints."""
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 
 from src.api.dependencies import get_access_context, get_operational_store

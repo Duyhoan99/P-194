@@ -21,7 +21,9 @@ class PostgresClinicalRepository(SQLiteClinicalRepository):
         if not dsn:
             raise ClinicalDatabaseUnavailable
         try:
+            # pyrefly: ignore [missing-import]
             from psycopg.rows import dict_row
+            # pyrefly: ignore [missing-import]
             from psycopg_pool import ConnectionPool
         except ImportError as error:
             raise ClinicalDatabaseUnavailable from error

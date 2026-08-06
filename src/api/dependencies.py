@@ -2,6 +2,7 @@
 
 from uuid import uuid4
 
+# pyrefly: ignore [missing-import]
 from fastapi import Depends, Request
 
 from src.clinical.access import (

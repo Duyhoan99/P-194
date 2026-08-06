@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 from uuid import UUID, uuid4
 
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 
 from src.clinical.audit import AuditEvent, AuditSink

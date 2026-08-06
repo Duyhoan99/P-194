@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Annotated, Literal, Protocol
 
+# pyrefly: ignore [missing-import]
 from loguru import logger
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, ConfigDict, Field
 
 AuditAction = Literal[

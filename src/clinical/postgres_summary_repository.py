@@ -19,7 +19,9 @@ class PostgresSummaryRepository(AuditSink):
             raise RuntimeError("PostgreSQL DSN is required")
         
         try:
+            # pyrefly: ignore [missing-import]
             from psycopg.rows import dict_row
+            # pyrefly: ignore [missing-import]
             from psycopg_pool import ConnectionPool
         except ImportError as error:
             raise RuntimeError("psycopg and psycopg_pool must be installed") from error

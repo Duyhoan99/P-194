@@ -4,7 +4,9 @@ import os
 from collections.abc import Mapping
 from typing import Protocol
 
+# pyrefly: ignore [missing-import]
 import jwt
+# pyrefly: ignore [missing-import]
 from fastapi import Request
 
 from src.clinical.errors import ClinicalAccessDenied, ClinicalAuthNotConfigured

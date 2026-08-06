@@ -2,8 +2,11 @@
 
 from uuid import UUID
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Body, Depends, Request
+# pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse, Response
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, ValidationError
 
 from src.api.clinical_routes import clinical_error_response

@@ -6,10 +6,15 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, Request
+# pyrefly: ignore [missing-import]
 from fastapi.exception_handlers import request_validation_exception_handler
+# pyrefly: ignore [missing-import]
 from fastapi.exceptions import RequestValidationError
+# pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
+# pyrefly: ignore [missing-import]
 from pydantic import ValidationError
 
 from src.api.dependencies import get_access_context, get_clinical_service

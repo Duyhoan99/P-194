@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.clinical.audit import TraceId

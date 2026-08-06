@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 
 from src.clinical.access import AssignmentChecker
