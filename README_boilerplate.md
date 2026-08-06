@@ -90,14 +90,14 @@ uvicorn src.main:app --reload
 
 - [x] Source Code (GitHub)
 - [x] README.md
-- [ ] Architecture Diagram (`docs/architecture_diagram.md`)
+- [x] Architecture Diagram (`docs/architecture_diagram.md`)
 - [x] AI Logs (auto-collected)
 - [ ] Live URL / Deploy
 - [ ] Video Demo
 - [ ] Pitch Deck (`presentation/`)
-- [ ] Weekly Journal (`JOURNAL.md`)
-- [ ] Worklog (`WORKLOG.md`)
-- [ ] Evaluation Evidence (`eval/results/`)
+- [x] Weekly Journal (`JOURNAL.md`)
+- [x] Worklog (`WORKLOG.md`)
+- [x] Evaluation Evidence (`eval/results/`)
 
 ## Team
 
@@ -110,4 +110,4 @@ uvicorn src.main:app --reload
 
 ## License
 
-MIT
+MIT c

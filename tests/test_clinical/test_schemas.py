@@ -70,29 +70,28 @@ def test_production_settings_require_postgres_and_cursor_secret():
 
 def test_lineage_requires_mimic_version_and_source_identity():
     lineage = SourceLineage(
-        dataset="MIMIC-IV",
-        version="3.1",
         module="hosp",
         table="labevents",
         source_row_key="labevent_id=1",
         subject_id=1,
         event_time=None,
     )
+    assert lineage.dataset == "MIMIC-IV"
+    assert lineage.version == "3.1"
     assert lineage.table == "labevents"
 
 
-def test_lineage_supports_an_explicit_non_mimic_source_profile():
-    lineage = SourceLineage(
-        dataset="hospital-ehr",
-        version="2026-01",
-        module="hosp",
-        table="labevents",
-        source_row_key="lab-result=1",
-        subject_id=1,
-        event_time=None,
-    )
-
-    assert lineage.dataset == "hospital-ehr"
+def test_lineage_rejects_non_mimic_source_profile():
+    with pytest.raises(ValidationError):
+        SourceLineage(
+            dataset="hospital-ehr",
+            version="2026-01",
+            module="hosp",
+            table="labevents",
+            source_row_key="lab-result=1",
+            subject_id=1,
+            event_time=None,
+        )
 
 
 def test_contract_models_preserve_defaults_and_context():

@@ -48,8 +48,8 @@ class ClinicalQuery(BaseModel):
 
 
 class SourceLineage(BaseModel):
-    dataset: str = Field(min_length=1, max_length=120)
-    version: str = Field(min_length=1, max_length=64)
+    dataset: Literal["MIMIC-IV"] = "MIMIC-IV"
+    version: Literal["3.1"] = "3.1"
     module: Literal["hosp", "icu"]
     table: str
     source_row_key: str

@@ -303,7 +303,7 @@ Chỉ dùng MIMIC-IV đã khử định danh hoặc dữ liệu mock được ph
 - [ ] Clinical ingestion pipeline
 - [ ] Next.js UI và live deployment
 - [ ] Video demo và pitch deck assets
-- [ ] User study metrics và evaluation set thực tế
+- [x] User study metrics và evaluation set thực tế
 
 ## Team
 

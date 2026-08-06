@@ -6,18 +6,20 @@ weight: 1
 
 ## State Schema
 
-State là "bộ nhớ" của agent, truyền giữa các nodes:
+State là "bộ nhớ" của agent, truyền giữa các nodes. Dưới đây là state thực tế của Clinical Agent (`src/clinical/agent.py`):
 
 ```python
 from typing import TypedDict
+from src.clinical.schemas import AccessContext, ClinicalQuery, ClinicalResponse, EvidenceRecord
+from src.clinical.summary_schemas import ClinicalSummaryDraft, ValidationReport
 
 class AgentState(TypedDict, total=False):
-    query: str        # Input từ user
-    context: str      # Context từ RAG
-    analysis: str     # Kết quả phân tích
-    response: str     # Response cuối cùng
-    error: str        # Error nếu có
-    metadata: dict    # Extra info
+    context: AccessContext                  # Thông tin phân quyền, trace_id
+    query: ClinicalQuery                    # Scope truy vấn lâm sàng (bệnh nhân, đợt nhập viện)
+    responses: tuple[ClinicalResponse, ...] # Phản hồi thô từ các module retrieval
+    evidence: list[EvidenceRecord]          # Danh sách chứng cứ đã được chuẩn hóa
+    draft: ClinicalSummaryDraft             # Bản nháp tóm tắt lâm sàng (kết quả của generate_node)
+    validation: ValidationReport            # Báo cáo kiểm tra citation từ validate_node
 ```
 
 ## Nguyên tắc thiết kế State
@@ -27,35 +29,40 @@ class AgentState(TypedDict, total=False):
 ```python
 # ✅ TỐT — TypedDict cho state
 class AgentState(TypedDict, total=False):
-    query: str
-    response: str
+    query: ClinicalQuery
+    draft: ClinicalSummaryDraft
 
-# ❌ TỆ — Không dùng Pydantic cho LangGraph state
+# ❌ TỆ — Không dùng Pydantic BaseModel làm LangGraph state
 class AgentState(BaseModel):
-    query: str  # LangGraph expects TypedDict
+    query: ClinicalQuery  # LangGraph mong đợi TypedDict
 ```
 
 ### 2. total=False cho optional fields
 
 ```python
 class AgentState(TypedDict, total=False):
-    query: str           # Input (luôn có)
-    context: str         # Optional — chỉ có khi dùng RAG
-    error: str           # Optional — chỉ có khi lỗi
+    context: AccessContext       # Input ban đầu (cùng với query)
+    query: ClinicalQuery         # Input ban đầu
+    draft: ClinicalSummaryDraft  # Optional — chỉ có sau khi qua generate_node
 ```
 
-### 3. Chỉ thêm fields thực sự cần
+### 3. Chỉ thêm fields thực sự cần thiết cho workflow
 
-- Mỗi field = data được truyền giữa nodes
-- Không dùng state như "trash can" chứa mọi thứ
-- Thêm docstring cho từng field
+- Mỗi field đại diện cho dữ liệu được truyền giữa các nodes hoặc dùng để quyết định hướng đi trong graph.
+- Không dùng state như "trash can" chứa mọi thứ (ví dụ: không lưu credentials, api keys vào state).
+- Nên sử dụng Pydantic models (như `ClinicalSummaryDraft`, `EvidenceRecord`) làm kiểu dữ liệu bên trong `TypedDict` để tận dụng validate.
 
-### 4. State更新 pattern
+### 4. Pattern cập nhật State
 
 ```python
-# Mỗi node chỉ return fields nó thay đổi
-async def analyze_node(state: AgentState) -> dict:
-    query = state.get("query", "")
-    analysis = await process(query)
-    return {"analysis": analysis}  # Chỉ update "analysis"
+# Mỗi node chỉ return một dictionary chứa các fields nó cần thay đổi
+def _generate_node(self, state: AgentState) -> dict[str, ClinicalSummaryDraft]:
+    query = state["query"]
+    evidence = state["evidence"]
+    
+    # ... logic tạo bản nháp ...
+    draft = self._structured_llm.invoke(messages)
+    
+    # Chỉ update field "draft" trong state
+    return {"draft": draft}
 ```
