@@ -47,6 +47,16 @@ Các mục dưới đây ghi lại công việc đã thực hiện trong reposit
 
 **Tổng kết ngày:** Tài liệu đã được cập nhật theo P-194; code và UI vẫn giữ nguyên scope chưa triển khai.
 
+## 2026-08-07
+
+| Member | Task | Status | Output | Time |
+|---|---|---|---|---|
+| Phạm Duy Hoàn | Rà soát và đánh giá thiết kế kiến trúc hệ thống Clinical Review Copilot | ✅ Done | `ARCHITECTURE_Clinical_Review_Copilot.md` | ~2h |
+| Phạm Duy Hoàn | Phân tích và thẩm định bộ sơ đồ Mermaid kiến trúc (Overview, Agent Flow, Deployment) | ✅ Done | `Clinical_Review_Copilot_Diagrams.md` | ~1.5h |
+| Phạm Duy Hoàn | Kiểm tra, cấu hình và xác minh hệ thống ghi log prompt AI tự động cho dự án | ✅ Done | `scripts/log_antigravity.py`, `scripts/submit_log.py`, `.ai-log/` | ~1h |
+
+**Tổng kết ngày:** Hoàn tất rà soát toàn bộ thiết kế kiến trúc y tế, sơ đồ hệ thống Mermaid và cấu hình luồng logging an toàn, chuẩn bị sẵn sàng cho giai đoạn lập trình.
+
 ## Open items
 
 | Item | Owner | Status |
@@ -56,3 +66,4 @@ Các mục dưới đây ghi lại công việc đã thực hiện trong reposit
 | Clinical retrieval/citation validator | Chưa phân công | 🔄 Chưa bắt đầu |
 | Next.js UI and deployment | Chưa phân công | 🔄 Chưa bắt đầu |
 | User study and evaluation set | Chưa phân công | 🔄 Chưa bắt đầu |
+
