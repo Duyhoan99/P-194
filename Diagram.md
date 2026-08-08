@@ -19,7 +19,6 @@ flowchart TD
         PdfText["PDF có text"]
         PdfScan["PDF scan / ảnh"]
         Fhir["FHIR R4 JSON Bundle"]
-        Csv["CSV synthetic: seed, fixture, evaluation"]
     end
 
     subgraph Frontend["Frontend — Next.js"]
@@ -38,7 +37,6 @@ flowchart TD
         FormatRouter{"Source Adapter Router"}
         PdfAdapter["PDF Adapter: PyMuPDF/pdfplumber, layout, bảng và local OCR"]
         FhirAdapter["FHIR Adapter: validate Bundle và map resource"]
-        CsvAdapter["CSV Adapter: chỉ fixture/seed synthetic"]
         Canonical["Canonical Patient Model: normalize ngày, đơn vị, thuốc và nguồn"]
         Rules["Deterministic Engine: timeline, trend, conflict, data gap và drug interaction"]
         ReviewService["Review Service: version, lifecycle, watermark và optimistic locking"]
@@ -75,21 +73,18 @@ flowchart TD
     PdfText -->|"(4) chọn file"| Upload
     PdfScan -->|"(4) chọn file"| Upload
     Fhir -->|"(4) chọn file"| Upload
-    Csv -->|"(4) seed/evaluation"| Upload
     Upload -->|"(5) upload kèm patient_id"| Api
     Api -->|"(6) import đã authorize"| Ingestion
     Ingestion -->|"(7) lưu nguyên bản trước khi xử lý"| Raw
     Ingestion -->|"(8) phát hiện định dạng"| FormatRouter
     FormatRouter -->|"(9a) PDF text/scan"| PdfAdapter
     FormatRouter -->|"(9b) FHIR R4"| FhirAdapter
-    FormatRouter -->|"(9c) CSV synthetic"| CsvAdapter
 
     PdfAdapter -->|"(10a) extraction đủ tin cậy + provenance"| Canonical
     PdfAdapter -->|"(10b) OCR/table low-confidence → needs_verification"| OcrReview
     OcrReview -->|"(11) clinician sửa/xác nhận"| Api
     Api -->|"(12) dữ liệu extraction đã xác minh"| Canonical
     FhirAdapter -->|"(10) resource hợp lệ"| Canonical
-    CsvAdapter -->|"(10) fixture hợp lệ"| Canonical
     Canonical -->|"(13) records có provenance"| Pg
     Canonical -->|"(14) note/PDF chunks đã khóa patient scope"| Vector
     Pg -->|"(15) dữ liệu cấu trúc"| Rules
@@ -297,8 +292,8 @@ flowchart TD
 | ID | Invariant |
 |---|---|
 | INV-01 | Mọi truy cập lâm sàng đều qua Auth/RBAC và tenant/patient scope trước khi xử lý. |
-| INV-02 | Raw PDF/FHIR/CSV được lưu bất biến cùng checksum trước khi parse/normalize. |
-| INV-03 | PDF, FHIR và CSV đi qua adapter riêng; CSV chỉ dùng synthetic fixture/seed. |
+| INV-02 | Raw PDF/FHIR/ảnh được lưu bất biến cùng checksum trước khi parse/normalize. |
+| INV-03 | PDF/ảnh và FHIR đi qua adapter riêng trước khi cùng được ánh xạ về mô hình bệnh nhân chuẩn. |
 | INV-04 | OCR/table low-confidence mang `needs_verification` và không trở thành verified fact trước khi clinician xác nhận. |
 | INV-05 | Timeline, trend, conflict, data gap và drug interaction chạy bằng deterministic code/rule trước LLM. |
 | INV-06 | Retrieval lọc tenant/patient trước rerank; citation quay lại đúng file/trang/block hoặc FHIR resource. |

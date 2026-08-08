@@ -7,7 +7,7 @@
 **Kiến trúc:** Patient-first, hybrid rule + NLP/RAG, evidence-first, source read-only + HITL  
 **Use case MVP:** Bác sĩ Nội tiết/Nội tổng hợp rà soát bệnh nhân đái tháo đường type 2 có thể kèm tăng huyết áp hoặc bệnh thận mạn
 
-**Tài liệu kỹ thuật chi tiết:** [`ARCHITECTURE_Clinical_Review_Copilot.md`](ARCHITECTURE_Clinical_Review_Copilot.md)
+**Tài liệu kỹ thuật chi tiết:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 
@@ -105,7 +105,7 @@ Một bệnh nhân mạn tính có thể có nhiều năm dữ liệu và hàng 
 - Đăng nhập bằng tài khoản bác sĩ/quản trị viên và phân quyền theo vai trò.
 - Tìm kiếm, chọn hoặc nhập một hồ sơ bệnh nhân mô phỏng.
 - Nhập **PDF có text** là luồng chính; nhập FHIR R4 JSON Bundle là luồng chuẩn có cấu trúc.
-- Hỗ trợ PDF scan/ảnh qua OCR có kiểm soát trong P1 bắt buộc; CSV chỉ dùng seed/import hàng loạt dữ liệu synthetic.
+- Hỗ trợ PDF scan/ảnh qua OCR có kiểm soát trong P1 bắt buộc.
 - Giữ bản dữ liệu gốc bất biến để đối chiếu.
 - Chuẩn hóa bệnh nhân, lượt khám, xét nghiệm, thuốc, chẩn đoán, dấu hiệu sinh tồn và ghi chú.
 - Xây dựng timeline dọc theo bệnh nhân.
@@ -203,7 +203,7 @@ Luồng demo MVP bắt buộc có cả hai pha: `đăng nhập → chọn/nhập
 | Tổng lượt khám | Khoảng 1.000–1.500 |
 | Hồ sơ công khai để kiểm tra ETL | MIMIC-IV Demo |
 | Pilot bệnh viện tương lai | 20–50 hồ sơ đã ẩn danh |
-| Dữ liệu nhập | PDF có text và FHIR R4 JSON Bundle; PDF scan/OCR P1 bắt buộc; CSV synthetic phụ trợ |
+| Dữ liệu nhập | PDF có text và FHIR R4 JSON Bundle; PDF scan/ảnh qua OCR là P1 bắt buộc |
 | Dữ liệu xử lý | Xét nghiệm, thuốc, chẩn đoán, vital signs, ghi chú |
 
 ---
@@ -290,14 +290,13 @@ flowchart TD
 
 ## 7.1. Hợp đồng đầu vào MVP
 
-PDF là định dạng **tài liệu phổ biến để người dùng đưa vào hệ thống**, còn FHIR là định dạng **trao đổi dữ liệu có cấu trúc giữa các hệ thống**. Chúng được chuẩn hóa về cùng Canonical Patient Model; không đưa nguyên file cho LLM và không quảng bá CSV là chuẩn hồ sơ y tế.
+PDF/ảnh là định dạng **tài liệu phổ biến để người dùng đưa vào hệ thống**, còn FHIR là định dạng **trao đổi dữ liệu có cấu trúc giữa các hệ thống**. Chúng được chuẩn hóa về cùng Canonical Patient Model; không đưa nguyên file cho LLM.
 
 | Input | Mức | Mục đích | Kỹ thuật triển khai khả thi |
 |---|---|---|---|
 | PDF có text | **P0 bắt buộc** | Đơn thuốc, phiếu xét nghiệm, giấy ra viện, ghi chú khám | PyMuPDF/pdfplumber trích text theo từng trang và block tọa độ; giữ bảng; section-aware chunking; citation `file · page · block/table` |
 | FHIR R4 JSON Bundle | **P0 bắt buộc** | Chứng minh khả năng tích hợp chuẩn y tế | Validate JSON/schema; adapter cho `Patient`, `Encounter`, `Observation`, `Condition`, `MedicationRequest`, `AllergyIntolerance`, `DiagnosticReport`, `DocumentReference` |
 | PDF scan hoặc ảnh | **P1 bắt buộc** | Hỗ trợ tài liệu không có text layer | Phát hiện text layer rỗng → render trang 300 dpi → PaddleOCR/VietOCR/Tesseract; lưu confidence, bounding box và bắt buộc người dùng sửa/xác nhận khi dùng dữ kiện OCR |
-| CSV | Phụ trợ | Seed, fixture, bulk synthetic import/evaluation | CSV contract tách bảng; parser có schema validation; không hiển thị như input y tế chuẩn trong pitch |
 
 ### Hợp đồng citation cho tài liệu
 
@@ -318,7 +317,7 @@ OCR không phải điều kiện để checkpoint P0 pass, nhưng là điều ki
 
 | Nguồn | Vai trò trong dự án | Ưu điểm | Hạn chế |
 |---|---|---|---|
-| [Synthea](https://synthetichealth.github.io/synthea/) | Sinh hồ sơ bệnh nhân giả theo thời gian | Không chứa bệnh nhân thật; hỗ trợ FHIR, C-CDA và CSV | Dữ liệu khá sạch và theo bối cảnh Mỹ |
+| [Synthea](https://synthetichealth.github.io/synthea/) | Sinh hồ sơ bệnh nhân giả theo thời gian | Không chứa bệnh nhân thật; dự án chỉ sử dụng đầu ra FHIR | Dữ liệu khá sạch và theo bối cảnh Mỹ |
 | Bộ dữ liệu giả tiếng Việt có gold label | Kiểm thử đúng các kịch bản sản phẩm cần phát hiện | Biết chính xác đáp án đúng | Phải thiết kế kịch bản có kiểm soát |
 | [MIMIC-IV Demo](https://physionet.org/content/mimic-iv-demo/) | Kiểm tra ETL trên dữ liệu bệnh viện đã ẩn danh | Dữ liệu thực tế hơn; demo mở gồm 100 bệnh nhân | Chủ yếu nội trú/critical care; không có clinical notes tự do |
 | Dữ liệu bệnh viện đã ẩn danh | Pilot cuối cùng | Phản ánh bối cảnh Việt Nam | Cần phê duyệt đạo đức, pháp lý và quản trị dữ liệu |
@@ -335,7 +334,7 @@ Không nên dùng bệnh án lấy từ Internet hoặc Kaggle nếu không xác
 
 | Lớp | Nội dung | Quy tắc |
 |---|---|---|
-| Raw zone | PDF/FHIR Bundle/CSV nhận được | Bất biến; có checksum; không ghi đè |
+| Raw zone | PDF/ảnh/FHIR Bundle nhận được | Bất biến; có checksum; không ghi đè |
 | Staging zone | Dữ liệu đã parse và gắn lỗi validation | Có thể tái tạo từ raw |
 | Canonical clinical store | Dữ liệu đã chuẩn hóa theo schema nội bộ | Mọi record giữ liên kết về nguồn |
 | Derived event store | Thay đổi, xu hướng, cảnh báo dữ liệu thiếu | Có version của rule/profile |
@@ -437,7 +436,7 @@ flowchart TD
     A["Sinh hồ sơ nền bằng Synthea"] --> B["Chèn kịch bản có gold label"]
     B --> C["Sinh ghi chú tiếng Việt từ sự kiện"]
     C --> D["Tạo clean / realistic / challenge"]
-    D --> E["Xuất PDF text, FHIR Bundle và CSV seed"]
+    D --> E["Xuất PDF text, PDF scan và FHIR Bundle"]
     E --> F["Chạy hệ thống và chấm theo gold"]
 ```
 
@@ -523,7 +522,7 @@ flowchart TD
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Source adapters | Đọc PDF text/scan theo trang/block, FHIR R4 JSON Bundle và CSV synthetic; ánh xạ về schema nội bộ |
+| Source adapters | Đọc PDF text/scan/ảnh theo trang/block và FHIR R4 JSON Bundle; ánh xạ về schema nội bộ |
 | Document extraction | Phát hiện text layer, trích xuất layout/bảng, tạo page/block citation; OCR P1 bắt buộc cho tài liệu scan, có confidence và xác minh |
 | Raw store | Lưu dữ liệu gốc bất biến để tái xử lý/đối chiếu |
 | Validator | Kiểm tra schema, kiểu dữ liệu, trùng, conflict và chất lượng |
@@ -566,7 +565,7 @@ LLM không được dùng làm máy tính cho những phần đã có thể xác
 
 ### Bước 2 — Ingestion
 
-- Adapter nhận PDF text, FHIR R4 JSON Bundle hoặc CSV synthetic.
+- Adapter nhận PDF text, PDF scan/ảnh hoặc FHIR R4 JSON Bundle.
 - Mỗi batch có `ingestion_batch_id`.
 - Lưu raw payload trước khi biến đổi.
 - Tính checksum để phát hiện file/bản ghi lặp.
@@ -1123,7 +1122,6 @@ Không được sửa trực tiếp một version đã duyệt. Mọi chỉnh s�
 | `POST` | `/api/v1/auth/logout` | Kết thúc session hiện tại |
 | `GET` | `/api/v1/auth/me` | Lấy người dùng, role và permission scope |
 | `GET` | `/api/v1/patients` | Danh sách/tìm kiếm bệnh nhân trong phạm vi quyền |
-| `POST` | `/api/v1/synthetic-records/import` | Nhập hồ sơ mô phỏng và tạo ingestion batch |
 | `POST` | `/api/v1/ingestions` | Tạo một batch nhập dữ liệu |
 | `GET` | `/api/v1/ingestions/{id}` | Xem trạng thái và lỗi batch |
 | `POST` | `/api/v1/patients/{patient_id}/process` | Yêu cầu xử lý/cập nhật bệnh nhân |
@@ -1252,7 +1250,7 @@ P-194-master/
 │   ├── models/
 │   │   └── schemas.py                        🔄 Request/response/evidence schemas
 │   ├── services/                             🔄 Business logic xác định
-│   │   ├── ingestion.py                      ➕ PDF/FHIR/CSV adapters + ingestion orchestration
+│   │   ├── ingestion.py                      ➕ PDF/ảnh/FHIR adapters + ingestion orchestration
 │   │   ├── document_extraction.py            ➕ PDF page/block/table extraction + OCR gate
 │   │   ├── normalization.py                  ➕ Chuẩn hóa dữ liệu
 │   │   ├── timeline.py                       ➕ Xây hồ sơ dọc
@@ -1739,7 +1737,7 @@ Mục tiêu nội bộ là đạt ít nhất **35/50**, nhưng không hy sinh sa
 
 MVP được coi là hoàn thành khi có thể trình diễn toàn bộ luồng sau:
 
-1. Nạp được ít nhất một **PDF có text**, một **PDF scan/ảnh qua OCR** và một **FHIR R4 JSON Bundle** về cùng canonical timeline; CSV chỉ là fixture/seed.
+1. Nạp được ít nhất một **PDF có text**, một **PDF scan/ảnh qua OCR** và một **FHIR R4 JSON Bundle** về cùng canonical timeline.
 2. Giữ PDF/FHIR raw bất biến, checksum và provenance đến đúng file/trang/block hoặc resource.
 3. Chuẩn hóa về cùng patient timeline.
 4. Phát hiện chính xác ít nhất:

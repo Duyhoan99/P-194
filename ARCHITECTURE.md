@@ -341,7 +341,7 @@ Quy tắc kiểm tra:
 
 | Zone | Nội dung | Tính chất |
 |---|---|---|
-| Raw | PDF/FHIR/CSV file ban đầu + checksum | immutable |
+| Raw | PDF/ảnh/FHIR file ban đầu + checksum | immutable |
 | Staging | parsed record + validation issue | tái tạo được |
 | Canonical | patient, encounter, observation, medication, condition, note | normalized + provenance |
 | Derived | timeline event, trend, conflict, interaction flag | rule/profile versioned |
@@ -531,9 +531,9 @@ Yêu cầu:
 
 ### 10.2. Import và xử lý PDF/FHIR/synthetic record
 
-1. API kiểm tra quyền import, magic bytes/MIME, số trang/kích thước và allowlist: PDF text, FHIR R4 JSON, CSV synthetic.
+1. API kiểm tra quyền import, magic bytes/MIME, số trang/kích thước và allowlist: PDF text, PDF scan/ảnh và FHIR R4 JSON.
 2. Lưu raw bytes/payload, checksum và batch metadata.
-3. Detect adapter; PDF text đi qua page → block/table → section/chunk, FHIR đi qua Bundle/resource adapter; CSV chỉ dùng fixture/seed.
+3. Detect adapter; PDF/ảnh đi qua page → OCR nếu cần → block/table → section/chunk, FHIR đi qua Bundle/resource adapter.
 4. Validate schema/identity/time/unit.
 5. Với PDF, lưu `document_id`, page/block/table reference, bbox/char range và extraction version; scan không text layer được gắn `ocr_pending`.
 6. Quarantine record lỗi hoặc table/OCR low-confidence; không xóa raw và không tự đưa thành verified fact.
@@ -739,8 +739,7 @@ Prefix: /api/v1. Tất cả response lỗi theo ErrorResponse ở mục 17.
 | Method | Path | Request | Response | Permission |
 |---|---|---|---|---|
 | GET | /patients | search, page, page_size | PatientListResponse | patient.list |
-| POST | /documents/import | multipart PDF/FHIR/CSV + format? | IngestionBatchResponse | clinical.import (demo synthetic/de-identified only) |
-| POST | /synthetic-records/import | multipart CSV/FHIR fixture + format? | IngestionBatchResponse | synthetic.import |
+| POST | /ingestions | multipart PDF/ảnh/FHIR + format? | IngestionBatchResponse | clinical.import (demo synthetic/de-identified only) |
 | GET | /documents/{document_id}/pages/{page_number} | none | safe PDF page/image + blocks | clinical.read |
 | GET | /ingestions/{batch_id} | none | IngestionBatchResponse | ingestion.read |
 | POST | /patients/{patient_id}/process | profile/version | ProcessResponse | patient.process |
@@ -997,7 +996,6 @@ Route signature rút gọn; tất cả route clinical dùng dependency auth/scop
 | detect_text_layer | (pdf) -> TextLayerStatus | Chuyển scan sang OCR queue/policy, không OCR im lặng |
 | parse_pdf_table | (page, block) -> TableParseResult | Parse bảng đơn giản; fail thì giữ text + quality flag |
 | create_document_citation | (block, snippet) -> DocumentCitation | File/page/block/table reference, checksum |
-| parse_csv | (stream) -> Iterator[RawRecord] | CSV adapter |
 | parse_json | (stream) -> Iterator[RawRecord] | Internal JSON adapter |
 | parse_fhir_bundle | (payload) -> Iterator[RawRecord] | FHIR R4 demo subset |
 | parse_xml | (stream) -> Iterator[RawRecord] | XML demo schema; disable external entities |
@@ -1363,7 +1361,7 @@ Không expose patient_id như tham số tự do cho model khi graph đã khóa p
 | logout | () -> Promise<void> | POST /auth/logout |
 | getMe | () -> Promise<UserMe> | GET /auth/me |
 | listPatients | (filters) -> Promise<PatientPage> | GET /patients |
-| importSynthetic | (file, format?) -> Promise<Batch> | POST /synthetic-records/import |
+| createIngestion | (file, patientId?, format?) -> Promise<Batch> | POST /ingestions |
 | generateReview | (patientId, request) -> Promise<Review> | POST reviews/generate |
 | getReview | (patientId, version?) -> Promise<Review> | GET patient review |
 | getTimeline | (patientId, filters) -> Promise<Timeline> | GET timeline |
