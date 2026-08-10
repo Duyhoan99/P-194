@@ -264,8 +264,19 @@ type TrendPoint = {
   observed_at: string;
   value: number;
   unit: string;
+  raw_value?: number;
+  raw_unit?: string;
+  calculation?: CalculationProvenance;
   reference_range: { low: number | null; high: number | null } | null;
   citations: Citation[];
+};
+
+type CalculationProvenance = {
+  calculation_id: string;
+  calculation_version: string;
+  method: "unit_conversion" | "derived";
+  source: string;
+  input_evidence_ids: string[];
 };
 
 type ConflictFlag = {
@@ -297,6 +308,8 @@ type DataQualityFlag = {
   verification_item_id: string | null;
 };
 ```
+
+`TrendPoint.value/unit` luôn là giá trị canonical. Khi điểm dữ liệu được đổi đơn vị hoặc suy diễn, backend phải trả `raw_value/raw_unit` và `calculation`; công thức, hệ số và rounding tuân theo `ARCHITECTURE.md` mục 14.11.1. Điểm lấy nguyên giá trị nguồn có thể bỏ ba trường tùy chọn này. Frontend chỉ hiển thị kết quả và provenance, không tự chuyển đổi hoặc tính lại.
 
 ## 4. Hợp đồng API HTTP
 
