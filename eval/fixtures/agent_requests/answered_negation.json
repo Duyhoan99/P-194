@@ -1,0 +1,30 @@
+{
+  "request_id": "req_ASK-002",
+  "task_type": "ask_chart",
+  "tenant_id": "tenant_demo",
+  "patient_id": "PAT-002",
+  "user_id": "clinician_demo",
+  "data_watermark": "wm_demo_1_3_0_PAT002",
+  "profile_versions": ["type_2_diabetes@1.0.0", "ckd@1.0.0"],
+  "approved_memory": null,
+  "structured_facts": [],
+  "note_evidence": [
+    {
+      "evidence_id": "DOC-PAT002-NOTE-001",
+      "fact_type": "negated_symptom_note_event",
+      "normalized_value": {
+        "statement": "Ghi chú ghi nhận bệnh nhân không đau ngực.",
+        "assertion": "absent",
+        "required_tokens": ["không đau ngực"],
+        "section_code": "patient_overview"
+      },
+      "source_value": "Bệnh nhân không đau ngực, không khó thở; phù chân nhẹ.",
+      "source_time": "2026-04-15",
+      "verification_status": "verified",
+      "citations": [
+        {"citation_id": "DOC-PAT002-NOTE-001", "source_type": "pdf", "document_id": "DOC-PAT002-NOTE-001", "document_name": "PAT-002_followup_note.pdf", "page_number": 1, "block_id": "symptoms", "table_id": null, "bbox": null, "char_start": null, "char_end": null, "snippet": "không đau ngực", "source_checksum": "4d19b312922099211dc7a5d1e5679e3ed515d86b9210d78d1c93fdd82f0619e4", "extraction_version": "demo_mvp_v1@1.3.0", "ocr_confidence": null}
+      ]
+    }
+  ],
+  "question": "Bệnh nhân có ghi nhận đau ngực không?"
+}

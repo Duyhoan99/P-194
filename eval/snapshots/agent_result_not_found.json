@@ -1,0 +1,11 @@
+{
+  "task_type": "ask_chart",
+  "status": "not_found",
+  "data_watermark": "wm_demo_1_3_0_PAT004",
+  "sections": null,
+  "answer": "Không tìm thấy thông tin này trong dữ liệu được cung cấp.",
+  "confidence": null,
+  "claims": [],
+  "citations": [],
+  "errors": []
+}

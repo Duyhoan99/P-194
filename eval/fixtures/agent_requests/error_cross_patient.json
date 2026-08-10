@@ -1,0 +1,27 @@
+{
+  "request_id": "req_CROSS-PATIENT-EVIDENCE",
+  "task_type": "ask_chart",
+  "tenant_id": "tenant_demo",
+  "patient_id": "PAT-006",
+  "user_id": "clinician_demo",
+  "data_watermark": "wm_demo_1_3_0_PAT006",
+  "profile_versions": ["type_2_diabetes@1.0.0"],
+  "approved_memory": null,
+  "structured_facts": [
+    {
+      "evidence_id": "FACT-PAT-005-FOREIGN",
+      "tenant_id": "tenant_demo",
+      "patient_id": "PAT-005",
+      "fact_type": "foreign_patient_fact",
+      "normalized_value": {"statement": "Foreign patient content must never be returned."},
+      "source_value": null,
+      "source_time": null,
+      "verification_status": "verified",
+      "citations": [
+        {"citation_id": "PAT-005-ALLERGY-001", "source_type": "canonical_record", "source_record_id": "PAT-005-ALLERGY-001", "source_time": "2024-03-10", "snippet": "Penicillin allergy", "rule_version": null}
+      ]
+    }
+  ],
+  "note_evidence": [],
+  "question": "Có dữ kiện nào?"
+}

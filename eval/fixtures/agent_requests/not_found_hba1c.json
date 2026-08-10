@@ -1,0 +1,13 @@
+{
+  "request_id": "req_GAP-PAT004-HBA1C",
+  "task_type": "ask_chart",
+  "tenant_id": "tenant_demo",
+  "patient_id": "PAT-004",
+  "user_id": "clinician_demo",
+  "data_watermark": "wm_demo_1_3_0_PAT004",
+  "profile_versions": ["type_2_diabetes@1.0.0"],
+  "approved_memory": null,
+  "structured_facts": [],
+  "note_evidence": [],
+  "question": "HbA1c gần nhất là bao nhiêu?"
+}

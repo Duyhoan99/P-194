@@ -1,0 +1,28 @@
+{
+  "request_id": "req_NOISE-001",
+  "task_type": "ask_chart",
+  "tenant_id": "tenant_demo",
+  "patient_id": "PAT-001",
+  "user_id": "clinician_demo",
+  "data_watermark": "wm_demo_1_3_0_PAT001",
+  "profile_versions": ["type_2_diabetes@1.0.0"],
+  "approved_memory": null,
+  "structured_facts": [
+    {
+      "evidence_id": "PAT-001-HBA1C-PRELIM",
+      "tenant_id": "tenant_demo",
+      "patient_id": "PAT-001",
+      "record_status": "entered-in-error",
+      "fact_type": "lab_observation",
+      "normalized_value": {"statement": "HbA1c 9.9%.", "required_tokens": ["9.9", "%"], "section_code": "recent_results"},
+      "source_value": 9.9,
+      "source_time": "2026-01-10",
+      "verification_status": "verified",
+      "citations": [
+        {"citation_id": "PAT-001-HBA1C-PRELIM", "source_type": "canonical_record", "source_record_id": "PAT-001-HBA1C-PRELIM", "source_time": "2026-01-10", "snippet": "entered-in-error HbA1c 9.9%", "rule_version": null}
+      ]
+    }
+  ],
+  "note_evidence": [],
+  "question": "HbA1c là bao nhiêu?"
+}
