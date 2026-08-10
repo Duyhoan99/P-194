@@ -28,8 +28,10 @@ env/
 .DS_Store
 Thumbs.db
 
-# Data (never commit large data)
-data/
+# Data (never commit large/restricted data; allow the controlled synthetic demo set)
+data/*
+!data/demo_mvp_v1/
+!data/demo_mvp_v1/**
 *.db
 *.sqlite3
 mimic-iv-clinical-database-demo-2.2/

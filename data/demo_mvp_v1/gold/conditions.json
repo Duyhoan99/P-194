@@ -1,0 +1,117 @@
+{
+  "cases": [
+    {
+      "case_id": "COND-PAT001",
+      "patient_id": "PAT-001",
+      "expected_conditions": [
+        {
+          "code": "44054006",
+          "name": "Đái tháo đường type 2"
+        },
+        {
+          "code": "38341003",
+          "name": "Tăng huyết áp"
+        }
+      ],
+      "evidence_ids": [
+        "PAT-001-COND-001",
+        "PAT-001-COND-002"
+      ]
+    },
+    {
+      "case_id": "COND-PAT002",
+      "patient_id": "PAT-002",
+      "expected_conditions": [
+        {
+          "code": "44054006",
+          "name": "Đái tháo đường type 2"
+        },
+        {
+          "code": "38341003",
+          "name": "Tăng huyết áp"
+        },
+        {
+          "code": "709044004",
+          "name": "Bệnh thận mạn"
+        }
+      ],
+      "evidence_ids": [
+        "PAT-002-COND-001",
+        "PAT-002-COND-002",
+        "PAT-002-COND-003"
+      ]
+    },
+    {
+      "case_id": "COND-PAT003",
+      "patient_id": "PAT-003",
+      "expected_conditions": [
+        {
+          "code": "44054006",
+          "name": "Đái tháo đường type 2"
+        },
+        {
+          "code": "55822004",
+          "name": "Rối loạn lipid máu"
+        }
+      ],
+      "evidence_ids": [
+        "PAT-003-COND-001",
+        "PAT-003-COND-002"
+      ]
+    },
+    {
+      "case_id": "COND-PAT004",
+      "patient_id": "PAT-004",
+      "expected_conditions": [
+        {
+          "code": "44054006",
+          "name": "Đái tháo đường type 2"
+        },
+        {
+          "code": "414915002",
+          "name": "Béo phì"
+        }
+      ],
+      "evidence_ids": [
+        "PAT-004-COND-001",
+        "PAT-004-COND-002"
+      ]
+    },
+    {
+      "case_id": "COND-PAT005",
+      "patient_id": "PAT-005",
+      "expected_conditions": [
+        {
+          "code": "44054006",
+          "name": "Đái tháo đường type 2"
+        },
+        {
+          "code": "424736006",
+          "name": "Bệnh lý thần kinh ngoại biên do đái tháo đường"
+        }
+      ],
+      "evidence_ids": [
+        "PAT-005-COND-001",
+        "PAT-005-COND-002"
+      ]
+    },
+    {
+      "case_id": "COND-PAT006",
+      "patient_id": "PAT-006",
+      "expected_conditions": [
+        {
+          "code": "44054006",
+          "name": "Đái tháo đường type 2"
+        },
+        {
+          "code": "197321007",
+          "name": "Gan nhiễm mỡ"
+        }
+      ],
+      "evidence_ids": [
+        "PAT-006-COND-001",
+        "PAT-006-COND-002"
+      ]
+    }
+  ]
+}

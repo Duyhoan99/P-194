@@ -7,7 +7,34 @@
 **Kiến trúc:** Patient-first, hybrid rule + NLP/RAG, evidence-first, source read-only + HITL  
 **Use case MVP:** Bác sĩ Nội tiết/Nội tổng hợp rà soát bệnh nhân đái tháo đường type 2 có thể kèm tăng huyết áp hoặc bệnh thận mạn
 
-**Tài liệu kỹ thuật chi tiết:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
+**Bộ tài liệu triển khai:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`API_CONTRACT.md`](API_CONTRACT.md) · [`Diagram.md`](Diagram.md)
+
+### Cách dùng bộ tài liệu để giao việc cho AI
+
+Đây là bộ đặc tả liên kết, không phải bốn mô tả độc lập. AI phải đọc theo thứ tự sau trước khi sửa mã:
+
+1. `Readme-Clinical.md` — nguồn sự thật về bài toán, phạm vi, hành vi lâm sàng, tiêu chí nghiệm thu và non-goals.
+2. `ARCHITECTURE.md` — nguồn sự thật về invariant, ranh giới component, data flow, state machine, module và Definition of Done.
+3. `API_CONTRACT.md` — nguồn sự thật cuối cùng về endpoint, request/response, enum, lỗi và compatibility.
+4. `Diagram.md` — hình chiếu trực quan của ba tài liệu trên; dùng để kiểm tra luồng, không dùng để tự tạo yêu cầu mới.
+
+Nếu có mâu thuẫn: API theo `API_CONTRACT.md`; invariant/security/state theo `ARCHITECTURE.md`; phạm vi và acceptance theo file này. `Diagram.md` phải được sửa để phản ánh ba nguồn trên. AI không được tự chọn một biến thể hoặc âm thầm mở rộng P0/P1.
+
+Mỗi lệnh triển khai phải nêu: phạm vi P0/P1, requirement/acceptance liên quan, endpoint/schema bị tác động, invariant phải giữ, file dự kiến sửa và test cần chạy. Nếu thiếu một dữ kiện làm thay đổi public contract hoặc an toàn lâm sàng, AI phải dừng và hỏi; các chi tiết nội bộ không ảnh hưởng contract có thể chọn theo pattern trong `ARCHITECTURE.md`.
+
+Prompt khởi động khuyến nghị (thay `<vertical slice>` bằng một lát cắt trong `ARCHITECTURE.md` mục 23.1):
+
+```text
+Đọc đầy đủ Readme-Clinical.md, ARCHITECTURE.md, API_CONTRACT.md và Diagram.md theo quyền ưu tiên được ghi trong tài liệu. Triển khai <vertical slice> end-to-end trong phạm vi P0/P1 đã chốt. Trước khi sửa, nêu requirement/acceptance, endpoint/schema, invariant và test liên quan; kiểm tra code hiện tại để chỉ sửa phần còn thiếu. Không đổi public contract hoặc mở rộng phạm vi nếu chưa cập nhật đặc tả. Sau khi sửa, chạy test phù hợp, đối chiếu Definition of Done và báo rõ phần đã xong, phần chưa xong, giả định và rủi ro còn lại. Tiếp tục từng vertical slice theo thứ tự mục 23.1; không tuyên bố hoàn tất toàn MVP khi chưa đạt toàn bộ gate mục 24.
+```
+
+Không nên yêu cầu “làm hết hệ thống” trong một lượt không có checkpoint. Bộ tài liệu đủ để AI triển khai tuần tự, nhưng mỗi vertical slice vẫn phải được test và đối chiếu contract trước khi chuyển sang slice kế tiếp.
+
+### Dataset chuẩn để triển khai và demo
+
+Nguồn dữ liệu chuẩn của MVP là [`data/demo_mvp_v1/dataset_manifest.json`](data/demo_mvp_v1/dataset_manifest.json), phiên bản `1.3.0`: 6 FHIR R4 Bundle, 18 PDF, 7 biến thể OCR và 49 gold assertions. Đọc [`data/demo_mvp_v1/DATASET_CARD.md`](data/demo_mvp_v1/DATASET_CARD.md) trước khi dùng; kiểm tra checksum bằng `data/demo_mvp_v1/checksums.json`. Tái tạo có xác định bằng `python scripts/generate_demo_mvp_data.py`.
+
+AI không được tự sinh một dataset thay thế, đổi evidence ID hoặc sửa trực tiếp artifact đã đóng băng. Thay đổi kịch bản phải sửa generator, tăng version manifest, sinh lại checksum và cập nhật gold labels trong cùng change. Hai file SQLite cũ `data/synthetic_demo.db` và `data/clinical_summaries.db` chỉ phục vụ implementation cũ, không phải nguồn sự thật của target MVP; chỉ loại bỏ sau khi migration và regression test hoàn tất.
 
 ---
 
@@ -1294,7 +1321,7 @@ P-194-master/
 │   ├── scripts/                              ➕ B0–B3 runners/metrics
 │   └── results/report.md                     🔄 Kết quả thực nghiệm
 ├── docs/
-│   ├── architecture_diagram.md               🔄 Mermaid kiến trúc thật
+│   ├── (không sao chép Diagram.md)            ℹ️ dùng Diagram.md ở repo root
 │   └── guide/                                ✅ Technical Guidebook của BTC
 ├── presentation/                             🔄 Pitch deck + video link
 ├── scripts/                                  ✅ AI logging hooks của BTC
@@ -1332,7 +1359,7 @@ Không cần tạo cấu trúc `apps/` và `packages/` mới. Trong phạm vi s�
 | API | `src/api/routes.py`, `src/models/schemas.py` | `tests/test_api/` |
 | Patient Review UI | `frontend/` | Login, patient selection, citation, HITL, PDF và audit demo |
 | Benchmark B0–B3 | `eval/datasets/`, `eval/scripts/` | `eval/results/report.md` |
-| Kiến trúc và quyết định | `docs/architecture_diagram.md`, `ARCHITECTURE_Clinical_Review_Copilot.md` | Mermaid render được trên GitHub; khi tích hợp repo có thể dùng nội dung này thay `ARCHITECTURE.md` mẫu |
+| Kiến trúc và quyết định | `Diagram.md`, `ARCHITECTURE.md` | Mermaid render được trên GitHub; hai file phải được cập nhật cùng thay đổi kiến trúc |
 
 ## 18.5. Quick Start theo repo hiện tại
 
@@ -1684,7 +1711,7 @@ Nhóm chỉ có ba thành viên nên mỗi người sở hữu một trục chí
 |---:|---|---|---|
 | 1 | Source Code | `src/`, `frontend/` | Code chạy được; có auth, patient selection/import, agent, HITL, memory, PDF, audit; tách agent, API, schema và business logic rõ ràng |
 | 2 | Product README | `README.md` | Problem → Solution → Target User → Tech Stack → Setup → Team; dùng README này làm nội dung chính |
-| 3 | Architecture Diagram | `docs/architecture_diagram.md`, `ARCHITECTURE.md` | Mermaid mô tả auth/RBAC, hybrid rule + RAG + verifier, HITL, memory, PDF, audit và deployment; không giữ sơ đồ agent mẫu |
+| 3 | Architecture Diagram | `Diagram.md`, `ARCHITECTURE.md` | Mermaid mô tả auth/RBAC, hybrid rule + RAG + verifier, HITL, memory, PDF, audit và deployment; không giữ sơ đồ agent mẫu |
 | 4 | AI Logs | LangSmith + AI hooks | Cài hooks; log interaction AI theo yêu cầu; tuyệt đối chỉ dùng dữ liệu synthetic/ẩn danh được phép |
 | 5 | Live URL | URL backend/frontend | Sản phẩm truy cập được trên Internet trong ngày chấm |
 | 6 | Video Demo | Link trong `presentation/` hoặc README | Video tối đa 5 phút, tập trung vào luồng review hồ sơ và mở bằng chứng |
@@ -1717,7 +1744,7 @@ Mục tiêu nội bộ là đạt ít nhất **35/50**, nhưng không hy sinh sa
 ### 24.4. Checklist trước Demo Day
 
 - [ ] `README.md` là README sản phẩm, không còn chỉ là hướng dẫn starter template.
-- [ ] `docs/architecture_diagram.md` phản ánh code đang chạy.
+- [ ] `Diagram.md` phản ánh `ARCHITECTURE.md`, `API_CONTRACT.md` và code đang chạy.
 - [ ] `ruff check src/ tests/` pass.
 - [ ] `ruff format --check src/ tests/` pass.
 - [ ] `pytest tests/ -v` pass và có patient-isolation test.

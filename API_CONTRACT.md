@@ -2,7 +2,17 @@
 
 Phiên bản hợp đồng: `1.0.0`  
 Tiền tố API: `/api/v1`  
-Nguồn thiết kế: `Readme-Clinical.md`, `ARCHITECTURE.md`, `Diagram.md`
+Nguồn thiết kế: [`Readme-Clinical.md`](Readme-Clinical.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`Diagram.md`](Diagram.md)
+
+### Vai trò và quyền ưu tiên
+
+File này là nguồn sự thật cuối cùng cho HTTP method/path, header, request/response, enum, error code và quy tắc tương thích. Phạm vi sản phẩm/acceptance vẫn theo `Readme-Clinical.md`; invariant, state và ranh giới component theo `ARCHITECTURE.md`; `Diagram.md` chỉ minh họa. Khi đổi public contract, phải cập nhật file này trước hoặc trong cùng change, sau đó đồng bộ bảng API trong hai tài liệu còn lại, diagram nếu luồng đổi, OpenAPI/type sinh ra và contract tests.
+
+AI không được suy diễn trường bắt buộc từ ví dụ giao diện, tự thêm endpoint gần nghĩa, hoặc dùng tên rút gọn trong code. Base path là `/api/v1`, ngoại trừ `GET /health` được ghi rõ trong hợp đồng.
+
+### Dataset và fixture contract
+
+Contract tests và mock của cả ba thành viên phải lấy cùng ID/case từ `data/demo_mvp_v1/dataset_manifest.json@1.3.0` và `data/demo_mvp_v1/gold/`. Thành viên 1 ánh xạ FHIR/PDF/OCR sang schema HTTP và evidence packet; thành viên 2 không đọc file nguồn trực tiếp mà nhận `AgentRequest`; thành viên 3 không tự đặt response field mà sinh mock theo schema trong file này. `patient_id`, `document_id`, `claim/evidence ID`, lifecycle status và error code trong fixture phải khớp tuyệt đối giữa ba work package.
 
 Tài liệu này là điểm thống nhất để ba thành viên phát triển song song:
 
@@ -823,7 +833,7 @@ type AgentResult = {
 
 ## 7. Mock để ba người làm song song
 
-Thành viên 3 có thể dựng Mock Service Worker hoặc mock route từ các JSON mẫu trong tài liệu. Quy ước độ trễ giả lập:
+Thành viên 3 có thể dựng Mock Service Worker hoặc mock route từ schema trong tài liệu và ID/case của `data/demo_mvp_v1/`; không tạo một tập bệnh nhân song song. Quy ước độ trễ giả lập:
 
 | API | Độ trễ mock | Trường hợp cần mô phỏng |
 |---|---:|---|

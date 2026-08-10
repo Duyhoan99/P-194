@@ -1,0 +1,220 @@
+{
+  "algorithm": "sha256",
+  "files": [
+    {
+      "path": "DATASET_CARD.md",
+      "bytes": 2400,
+      "sha256": "33ab009a2b82feb7c24ffff11b2e1119b240d62a2f29de8fa39eb3b702ca1ba8"
+    },
+    {
+      "path": "dataset_manifest.json",
+      "bytes": 13980,
+      "sha256": "d95b6ed6390a3591e529646659b8e4d974a61023243d1d3455424e79b48af2fc"
+    },
+    {
+      "path": "documents/PAT-001_followup_note.pdf",
+      "bytes": 82054,
+      "sha256": "90be50880dfd6b05a1849b6615a58cf8d8799ae15f80f71b24106ee45581f170"
+    },
+    {
+      "path": "documents/PAT-001_lab_report.pdf",
+      "bytes": 83056,
+      "sha256": "c3f7217107ec68c79c37f0c2a2c0982d4b7fe71c02e1be30428ff48eba2d22d5"
+    },
+    {
+      "path": "documents/PAT-001_prescription.pdf",
+      "bytes": 82090,
+      "sha256": "a1c73484f81e5404dd85919cbdaee27e06132c2a3502e10105dc66e4c6532e6e"
+    },
+    {
+      "path": "documents/PAT-002_followup_note.pdf",
+      "bytes": 83032,
+      "sha256": "4d19b312922099211dc7a5d1e5679e3ed515d86b9210d78d1c93fdd82f0619e4"
+    },
+    {
+      "path": "documents/PAT-002_lab_report.pdf",
+      "bytes": 83257,
+      "sha256": "14fdbb4d5cee8b36e90511ca4176312dd7aaa351a3bd65db6adc9a96ece1966f"
+    },
+    {
+      "path": "documents/PAT-002_medication_reconciliation.pdf",
+      "bytes": 82486,
+      "sha256": "ad7e971f4291c4fed96e4c4003b93e55c2a17dc9ee967a4b098a82ba11bb1870"
+    },
+    {
+      "path": "documents/PAT-003_followup_note.pdf",
+      "bytes": 81925,
+      "sha256": "f16a85aa1ce137d2b5f83bf8565baeef2e3038f6651f1f8d5675159292864872"
+    },
+    {
+      "path": "documents/PAT-003_lab_report.pdf",
+      "bytes": 82871,
+      "sha256": "434a868e504c5226572cdc1c1a250530c8e1e52939ddb09195624c73ab748168"
+    },
+    {
+      "path": "documents/PAT-003_prescription_conflict.pdf",
+      "bytes": 82010,
+      "sha256": "a3db17359c3b2039946fcd1a2ad10887936de545e223a9c148e1435b0b2e7c54"
+    },
+    {
+      "path": "documents/PAT-004_followup_note.pdf",
+      "bytes": 82196,
+      "sha256": "34b7cdb421c49e8b4132deb36256fa3310592bd72cb063d23961d7da091d864b"
+    },
+    {
+      "path": "documents/PAT-004_incomplete_lab.pdf",
+      "bytes": 83300,
+      "sha256": "7c6cf074b18e275a79aa4c78d51f9777727f3f37110c5e32bdd37e082611da5f"
+    },
+    {
+      "path": "documents/PAT-004_prescription.pdf",
+      "bytes": 82120,
+      "sha256": "fc69072a76a8eb6740856783913fd39df78cd7916adb93d7c9586159552953ca"
+    },
+    {
+      "path": "documents/PAT-005_followup_note.pdf",
+      "bytes": 82216,
+      "sha256": "d049620fa5d8efe645c6e37d24f91efadde58b9dae67875b2abb8e9615d83e1e"
+    },
+    {
+      "path": "documents/PAT-005_lab_report.pdf",
+      "bytes": 82785,
+      "sha256": "ee83b10da5fe15a0a883c4efe9b17b67765ff47d19e2c24367ea2d087fe47365"
+    },
+    {
+      "path": "documents/PAT-005_medication_allergy.pdf",
+      "bytes": 82682,
+      "sha256": "2eb66df45a645cb0f2ca929e22b16e57425d83e4109ac8e039de72ed9dd113e6"
+    },
+    {
+      "path": "documents/PAT-006_followup_note.pdf",
+      "bytes": 82743,
+      "sha256": "5670c3d8ec3b63ddd3c07024b43bdcf2b64d2a324a4a6b673dd855b8bf704431"
+    },
+    {
+      "path": "documents/PAT-006_lab_mixed_units.pdf",
+      "bytes": 82539,
+      "sha256": "bca23829f4bb7a73b019f1f51f33fa3971401cd105d9cd5a4f9e769c9f3db644"
+    },
+    {
+      "path": "documents/PAT-006_prescription.pdf",
+      "bytes": 82456,
+      "sha256": "9f34514055ac15d0c64d893c4c20f9ba662580da261c270a2eebe69c01d5cb0a"
+    },
+    {
+      "path": "fhir/PAT-001.bundle.json",
+      "bytes": 48465,
+      "sha256": "ad7ded353152a77ff3ac892cae81906fd603e39769afd2077eda17fd2b839e16"
+    },
+    {
+      "path": "fhir/PAT-002.bundle.json",
+      "bytes": 38191,
+      "sha256": "bb4874dd571b957716994688f6054b8e941d78f1fe935e48e1e2eebf57601f28"
+    },
+    {
+      "path": "fhir/PAT-003.bundle.json",
+      "bytes": 36020,
+      "sha256": "a525913e85b54a1ec44364ece67af68fbc5635868f55ca0261f540cb3630c762"
+    },
+    {
+      "path": "fhir/PAT-004.bundle.json",
+      "bytes": 33989,
+      "sha256": "c44c3467516695b3fdeb1664364911004678b616cf439ce595c04a943126f0b8"
+    },
+    {
+      "path": "fhir/PAT-005.bundle.json",
+      "bytes": 37958,
+      "sha256": "81a6c5d63c92f165fe6b334f07ea02a40f5df574fe37fbd0c90c22dddc1598d2"
+    },
+    {
+      "path": "fhir/PAT-006.bundle.json",
+      "bytes": 36301,
+      "sha256": "97f647a20dc9d75419d7c81f99e3b40c626c28bcc2c431545dfc017e3d15c704"
+    },
+    {
+      "path": "gold/ask_chart.jsonl",
+      "bytes": 1737,
+      "sha256": "e6726980ee37558451702d7a7cfe02e6831580beb709bfc7a642c19fde955348"
+    },
+    {
+      "path": "gold/conditions.json",
+      "bytes": 2647,
+      "sha256": "5b8a947f0491620c2a03134555e4763033d93625cfd8ca6604b372f66ed23e35"
+    },
+    {
+      "path": "gold/conflicts.json",
+      "bytes": 411,
+      "sha256": "3a9f04c4bd2f6780768fbf42352394c78317a3ab361442c5680825bc1d1902db"
+    },
+    {
+      "path": "gold/data_gaps.json",
+      "bytes": 453,
+      "sha256": "cac8cf6388a4a53231c1f38b63d0d792edbe0a2f4fb45a2016df016ad2e1baf1"
+    },
+    {
+      "path": "gold/medication_changes.json",
+      "bytes": 391,
+      "sha256": "2c5e43bab429f93e111ded97457a97064d945371f979bebba1b106aac54dc5d6"
+    },
+    {
+      "path": "gold/noise_and_edge_cases.json",
+      "bytes": 3106,
+      "sha256": "ab3629905dd9668d4599ec09b6935ffaa11a0dc0e47c009e094501eef7dd52c1"
+    },
+    {
+      "path": "gold/ocr.json",
+      "bytes": 2379,
+      "sha256": "de5a15d7835c691e64b666fdb82cf7f2bb364d338ac315b094d31b872ecead63"
+    },
+    {
+      "path": "gold/review_lifecycle.json",
+      "bytes": 735,
+      "sha256": "bacaf378f9a56b41a58ec8c6a96f9f95d61c108670470db4fbb0ce059e780f71"
+    },
+    {
+      "path": "gold/timeline.json",
+      "bytes": 435,
+      "sha256": "55735ef64cfafab032459a2bfe94100dc82cc8b4d9080d549fded216ae67fcfb"
+    },
+    {
+      "path": "gold/trends.json",
+      "bytes": 1627,
+      "sha256": "8433f8721b449e1f92001eacc6c49ae8d811e2bd704b1881799e9f40130ec4dc"
+    },
+    {
+      "path": "ocr/PAT-001_lab_phone_photo.jpg",
+      "bytes": 159743,
+      "sha256": "0df54718bc26c687123794f4e5c166d125d33914efb955eb97c81b35ce881a63"
+    },
+    {
+      "path": "ocr/PAT-001_lab_scan_clean.pdf",
+      "bytes": 158320,
+      "sha256": "dfe2a703bfcdb68b3ad70b0f3ba954eefd7f9fcf8df7ed85bf2bc84a796241aa"
+    },
+    {
+      "path": "ocr/PAT-002_followup_rotated.png",
+      "bytes": 257411,
+      "sha256": "2c1c3a07dbeacb2cc9c5a2f4b975479ef1689730761c9a6987175fdadd9bc5c1"
+    },
+    {
+      "path": "ocr/PAT-003_prescription_blur.jpg",
+      "bytes": 21913,
+      "sha256": "8e01c8975924848c66b12437e390cb7cf5f33f6528d1a564c9d4aee0da5b961e"
+    },
+    {
+      "path": "ocr/PAT-004_lab_low_dpi.png",
+      "bytes": 61322,
+      "sha256": "c5656adbecd9ab280daa8225e8418376fa0626b8acfbd76db4c8bc6e62e43509"
+    },
+    {
+      "path": "ocr/PAT-005_allergy_shadow.jpg",
+      "bytes": 162507,
+      "sha256": "a9e11575cf4d7b14b31b86d2e49ff57b7f86b04d89c7a7576a9b3c0f523085ad"
+    },
+    {
+      "path": "ocr/PAT-006_lab_photocopy.jpg",
+      "bytes": 148283,
+      "sha256": "ec0d47d53dcac1fbda784ce6ed3b914dd8f6fb5b97ede4e2e5cd3c33c23f8389"
+    }
+  ]
+}

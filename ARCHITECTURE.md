@@ -3,9 +3,27 @@
 > Tài liệu kỹ thuật chuẩn để nhóm ba người triển khai Clinical Review Copilot trên starter repo P-194-master.
 
 **Trạng thái:** Target architecture cho MVP sáu tuần  
-**Liên quan:** [README_Clinical_Review_Copilot.md](README_Clinical_Review_Copilot.md)  
+**Liên quan:** [Readme-Clinical.md](Readme-Clinical.md) · [API_CONTRACT.md](API_CONTRACT.md) · [Diagram.md](Diagram.md)
 **Kiến trúc:** patient-first, evidence-first, deterministic-first, source read-only, human-in-the-loop  
 **Use case đầu tiên:** đái tháo đường type 2 có thể kèm tăng huyết áp hoặc bệnh thận mạn
+
+### Vị trí của tài liệu trong bộ đặc tả
+
+Đọc `Readme-Clinical.md` trước để chốt phạm vi và acceptance. File này là nguồn sự thật cho invariant, state machine, component/module và ranh giới bảo mật. `API_CONTRACT.md` có quyền ưu tiên cao hơn riêng đối với mọi chi tiết HTTP/schema; `Diagram.md` chỉ trực quan hóa thiết kế và không được định nghĩa ID invariant hoặc hành vi mới.
+
+Một thay đổi kiến trúc chỉ hoàn tất khi đã kiểm tra tác động tới API contract, diagram, traceability/Definition of Done và test. Không triển khai từ riêng một sơ đồ hoặc một bảng endpoint tóm tắt trong tài liệu khác.
+
+### Implementation baseline và ba work package
+
+Baseline dữ liệu đóng băng: `data/demo_mvp_v1/dataset_manifest.json@1.3.0`; generator: `scripts/generate_demo_mvp_data.py`; gold truth: `data/demo_mvp_v1/gold/`. Mọi implementation phải giữ nguyên `patient_id`, resource/evidence ID, document ID và checksum của baseline.
+
+| Work package | Chủ sở hữu | Input cố định | Output bàn giao | Không được tự làm thay |
+|---|---|---|---|---|
+| WP1 Data & Backend | Thành viên 1 | FHIR/PDF/OCR + manifest | canonical records, provenance, deterministic facts, OpenAPI và evidence packet | prompt/agent graph, frontend UX |
+| WP2 AI, Safety & Eval | Thành viên 2 | evidence packet, `AgentRequest`, gold labels | `AgentResult`, verifier, abstention/isolation tests và eval report | DB query tự do, HTTP/public schema |
+| WP3 Product, Frontend & DevOps | Thành viên 3 | OpenAPI, mock JSON, lifecycle/error enum | UI, citation/OCR verification UX, CI/deploy và E2E evidence | clinical rule, verifier hoặc schema riêng |
+
+Checkpoint tích hợp bắt buộc: C0 freeze contract/dataset → C1 WP1 giao mock OpenAPI/evidence packet → C2 WP2 giao AgentResult snapshots và WP3 chạy UI bằng mock → C3 nối backend-agent → C4 E2E trên đủ 6 bệnh nhân. Một thành viên không đổi interface thuộc người khác nếu chưa cập nhật `API_CONTRACT.md` và contract tests.
 
 ---
 
@@ -261,14 +279,14 @@ P-194-master/
 │   └── test_security/
 ├── eval/
 ├── docs/
-│   └── architecture_diagram.md
+│   └── (không sao chép Diagram.md; dùng file ở repo root)
 ├── presentation/
 ├── scripts/
 ├── ARCHITECTURE.md
 └── README.md
 ```
 
-README sản phẩm có thể được chép vào README.md của repo. Tài liệu này có thể được chép vào ARCHITECTURE.md; docs/architecture_diagram.md giữ sơ đồ rút gọn phục vụ deliverable của BTC.
+`Readme-Clinical.md` giữ đặc tả sản phẩm, file này giữ thiết kế kỹ thuật, `API_CONTRACT.md` giữ hợp đồng máy đọc/client và `Diagram.md` giữ các sơ đồ Mermaid phục vụ deliverable. Không tạo bản sao khác tên vì sẽ làm phân kỳ nguồn sự thật.
 
 ---
 

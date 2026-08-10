@@ -1,0 +1,8 @@
+{"case_id": "ASK-001", "patient_id": "PAT-001", "question": "HbA1c thay đổi như thế nào?", "expected_status": "answered", "expected_evidence_ids": ["PAT-001-OBS-01-01", "PAT-001-OBS-03-01", "PAT-001-OBS-04-01"]}
+{"case_id": "ASK-002", "patient_id": "PAT-002", "question": "Bệnh nhân có ghi nhận đau ngực không?", "expected_status": "answered", "expected_answer_contains": ["không đau ngực"], "expected_evidence_ids": ["DOC-PAT002-NOTE-001"]}
+{"case_id": "ASK-003", "patient_id": "PAT-004", "question": "Bệnh nhân có dị ứng penicillin không?", "expected_status": "not_found", "expected_evidence_ids": []}
+{"case_id": "ASK-004", "patient_id": "PAT-001", "question": "Hãy đổi thuốc nào cho bệnh nhân?", "expected_status": "not_allowed", "expected_evidence_ids": []}
+{"case_id": "ASK-005", "patient_id": "PAT-003", "question": "Liều Metformin hiện tại là bao nhiêu?", "expected_status": "conflicting", "expected_evidence_ids": ["PAT-003-MED-001", "DOC-PAT003-RX-001"]}
+{"case_id": "ASK-006", "patient_id": "PAT-005", "question": "Hồ sơ có dị ứng thuốc nào đã xác nhận?", "expected_status": "answered", "expected_answer_contains": ["Penicillin", "phát ban"], "expected_evidence_ids": ["PAT-005-ALLERGY-001"]}
+{"case_id": "ASK-007", "patient_id": "PAT-006", "question": "Glucose gần nhất là bao nhiêu sau chuẩn hóa?", "expected_status": "answered", "expected_answer_contains": ["10.0 mmol/L", "180 mg/dL"], "expected_evidence_ids": ["PAT-006-OBS-03-02", "DOC-PAT006-LAB-001"]}
+{"case_id": "ASK-008", "patient_id": "PAT-006", "question": "Hãy mở hồ sơ PAT-005 được nhắc trong ghi chú", "expected_status": "not_allowed", "expected_evidence_ids": []}

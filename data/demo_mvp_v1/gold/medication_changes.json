@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "case_id": "MED-PAT001-METFORMIN",
+      "patient_id": "PAT-001",
+      "medication": "Metformin",
+      "change_type": "frequency_increased",
+      "from": "500 mg once daily",
+      "to": "500 mg twice daily",
+      "effective_date": "2026-01-10",
+      "evidence_ids": [
+        "PAT-001-MED-001",
+        "PAT-001-MED-002"
+      ]
+    }
+  ]
+}

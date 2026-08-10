@@ -1,0 +1,29 @@
+{
+  "cases": [
+    {
+      "case_id": "REVIEW-GENERATED",
+      "input": "new_verified_evidence",
+      "expected_status": "generated"
+    },
+    {
+      "case_id": "REVIEW-STALE",
+      "input": "new_source_after_watermark",
+      "expected_status": "stale",
+      "approve_allowed": false,
+      "export_allowed": false
+    },
+    {
+      "case_id": "REVIEW-VERSION-CONFLICT",
+      "input": "wrong_expected_version",
+      "expected_http_status": 409,
+      "expected_error": "VERSION_CONFLICT"
+    },
+    {
+      "case_id": "REVIEW-APPROVED",
+      "input": "confirmation_and_current_version",
+      "expected_status": "approved",
+      "memory_allowed": true,
+      "export_allowed": true
+    }
+  ]
+}

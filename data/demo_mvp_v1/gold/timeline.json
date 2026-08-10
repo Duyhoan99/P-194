@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "case_id": "TIMELINE-PAT001",
+      "patient_id": "PAT-001",
+      "expected_event_dates": [
+        "2025-01-10",
+        "2025-06-10",
+        "2026-01-10",
+        "2026-06-10"
+      ]
+    },
+    {
+      "case_id": "TIMELINE-PAT002",
+      "patient_id": "PAT-002",
+      "expected_event_dates": [
+        "2025-02-12",
+        "2025-08-12",
+        "2026-04-15"
+      ]
+    }
+  ]
+}
