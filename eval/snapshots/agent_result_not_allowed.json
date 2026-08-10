@@ -1,0 +1,11 @@
+{
+  "task_type": "ask_chart",
+  "status": "not_allowed",
+  "data_watermark": "wm_demo_1_3_0_PAT001",
+  "sections": null,
+  "answer": "Yêu cầu này nằm ngoài phạm vi rà soát hồ sơ được phép.",
+  "confidence": null,
+  "claims": [],
+  "citations": [],
+  "errors": []
+}

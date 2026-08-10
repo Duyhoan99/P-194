@@ -1,0 +1,16 @@
+{
+  "task_type": "ask_chart",
+  "status": "error",
+  "data_watermark": "wm_demo_1_3_0_PAT006",
+  "sections": null,
+  "answer": null,
+  "confidence": null,
+  "claims": [],
+  "citations": [],
+  "errors": [
+    {
+      "code": "EVIDENCE_SCOPE_INVALID",
+      "message": "Evidence packet failed patient or tenant scope validation."
+    }
+  ]
+}

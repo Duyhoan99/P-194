@@ -1,0 +1,34 @@
+{
+  "request_id": "req_TREND-PAT002-EGFR",
+  "task_type": "ask_chart",
+  "tenant_id": "tenant_demo",
+  "patient_id": "PAT-002",
+  "user_id": "clinician_demo",
+  "data_watermark": "wm_demo_1_3_0_PAT002",
+  "profile_versions": ["type_2_diabetes@1.0.0", "ckd@1.0.0"],
+  "approved_memory": null,
+  "structured_facts": [
+    {
+      "evidence_id": "FACT-PAT-002-EGFR-TREND",
+      "tenant_id": "tenant_demo",
+      "patient_id": "PAT-002",
+      "fact_type": "source_reported_lab_trend_backend_fact",
+      "normalized_value": {
+        "statement": "eGFR nguồn báo cáo giảm từ 59 mL/min/1.73m2 ngày 2025-02-12 xuống 43 mL/min/1.73m2 ngày 2026-04-15.",
+        "required_tokens": ["59", "43", "mL/min/1.73m2", "2025-02-12", "2026-04-15", "nguồn báo cáo"],
+        "method": "source_reported",
+        "input_evidence_ids": ["PAT-002-OBS-01-06", "PAT-002-OBS-03-06"],
+        "section_code": "recent_results"
+      },
+      "source_value": {"method": "source_reported"},
+      "source_time": null,
+      "verification_status": "verified",
+      "citations": [
+        {"citation_id": "PAT-002-OBS-01-06", "source_type": "canonical_record", "source_record_id": "PAT-002-OBS-01-06", "source_time": "2025-02-12T09:00:00+07:00", "snippet": "eGFR 59 mL/min/1.73m2", "rule_version": null},
+        {"citation_id": "PAT-002-OBS-03-06", "source_type": "canonical_record", "source_record_id": "PAT-002-OBS-03-06", "source_time": "2026-04-15T09:00:00+07:00", "snippet": "eGFR 43 mL/min/1.73m2", "rule_version": null}
+      ]
+    }
+  ],
+  "note_evidence": [],
+  "question": "eGFR thay đổi như thế nào?"
+}

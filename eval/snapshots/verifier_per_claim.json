@@ -1,0 +1,34 @@
+[
+  {
+    "claim_id": "clm_410d9890-3071-5d4d-8017-088c81ddf9eb",
+    "status": "verified",
+    "evidence_ids": [
+      "PAT-001-COND-001"
+    ],
+    "checks": {
+      "evidence_exists": true,
+      "citations_exist": true,
+      "numeric_unit_date_exact": true,
+      "negation_preserved": true,
+      "entailed": true,
+      "prompt_injection_ignored": true
+    },
+    "reasons": []
+  },
+  {
+    "claim_id": "clm_c6f177bf-5540-58e7-aa69-5a9cd1b4927f",
+    "status": "verified",
+    "evidence_ids": [
+      "FACT-PAT-001-HBA1C-TREND"
+    ],
+    "checks": {
+      "evidence_exists": true,
+      "citations_exist": true,
+      "numeric_unit_date_exact": true,
+      "negation_preserved": true,
+      "entailed": true,
+      "prompt_injection_ignored": true
+    },
+    "reasons": []
+  }
+]

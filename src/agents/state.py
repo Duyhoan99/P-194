@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Literal, TypedDict
+
+from src.agents.contracts import AgentError, AgentRequest, AgentResult, VerifiedClaim
+from src.agents.evidence import ScopedEvidence
+from src.agents.generation import ProposedClaim
+from src.agents.policy import QuestionType
+from src.agents.verification import ClaimVerification
 
 
 class AgentState(TypedDict, total=False):
@@ -16,3 +22,32 @@ class AgentState(TypedDict, total=False):
     response: str
     error: str
     metadata: dict
+
+
+class RuntimeScope(TypedDict):
+    tenant_id: str
+    patient_id: str
+    request_id: str
+
+
+class ClinicalReviewState(TypedDict, total=False):
+    """Internal state from ARCHITECTURE.md 11.2; never returned directly."""
+
+    request: AgentRequest
+    runtime_scope: RuntimeScope
+    question_type: QuestionType
+    evidence_packet: list[ScopedEvidence]
+    retrieved_evidence: list[ScopedEvidence]
+    proposed_claims: list[ProposedClaim]
+    claims: list[VerifiedClaim]
+    verification_results: list[ClaimVerification]
+    status: Literal[
+        "running",
+        "answered",
+        "not_found",
+        "conflicting",
+        "not_allowed",
+        "error",
+    ]
+    errors: list[AgentError]
+    public_response: AgentResult

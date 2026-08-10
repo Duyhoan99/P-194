@@ -1,0 +1,70 @@
+{
+  "task_type": "ask_chart",
+  "status": "answered",
+  "data_watermark": "wm_demo_1_3_0_PAT001",
+  "sections": null,
+  "answer": "HbA1c tăng từ 7.1% ngày 2025-01-10 lên 8.2% ngày 2026-01-10, sau đó giảm còn 7.4% ngày 2026-06-10.",
+  "confidence": "high",
+  "claims": [
+    {
+      "claim_id": "clm_c6f177bf-5540-58e7-aa69-5a9cd1b4927f",
+      "text": "HbA1c tăng từ 7.1% ngày 2025-01-10 lên 8.2% ngày 2026-01-10, sau đó giảm còn 7.4% ngày 2026-06-10.",
+      "status": "verified",
+      "confidence": "high",
+      "citations": [
+        {
+          "citation_id": "PAT-001-OBS-01-01",
+          "source_type": "canonical_record",
+          "source_record_id": "PAT-001-OBS-01-01",
+          "source_time": "2025-01-10T09:00:00+07:00",
+          "snippet": "Hemoglobin A1c 7.1 %",
+          "rule_version": null
+        },
+        {
+          "citation_id": "PAT-001-OBS-03-01",
+          "source_type": "canonical_record",
+          "source_record_id": "PAT-001-OBS-03-01",
+          "source_time": "2026-01-10T09:00:00+07:00",
+          "snippet": "Hemoglobin A1c 8.2 %",
+          "rule_version": null
+        },
+        {
+          "citation_id": "PAT-001-OBS-04-01",
+          "source_type": "canonical_record",
+          "source_record_id": "PAT-001-OBS-04-01",
+          "source_time": "2026-06-10T09:00:00+07:00",
+          "snippet": "Hemoglobin A1c 7.4 %",
+          "rule_version": null
+        }
+      ],
+      "generator_version": "wp2-grounded@1.0.0"
+    }
+  ],
+  "citations": [
+    {
+      "citation_id": "PAT-001-OBS-01-01",
+      "source_type": "canonical_record",
+      "source_record_id": "PAT-001-OBS-01-01",
+      "source_time": "2025-01-10T09:00:00+07:00",
+      "snippet": "Hemoglobin A1c 7.1 %",
+      "rule_version": null
+    },
+    {
+      "citation_id": "PAT-001-OBS-03-01",
+      "source_type": "canonical_record",
+      "source_record_id": "PAT-001-OBS-03-01",
+      "source_time": "2026-01-10T09:00:00+07:00",
+      "snippet": "Hemoglobin A1c 8.2 %",
+      "rule_version": null
+    },
+    {
+      "citation_id": "PAT-001-OBS-04-01",
+      "source_type": "canonical_record",
+      "source_record_id": "PAT-001-OBS-04-01",
+      "source_time": "2026-06-10T09:00:00+07:00",
+      "snippet": "Hemoglobin A1c 7.4 %",
+      "rule_version": null
+    }
+  ],
+  "errors": []
+}
