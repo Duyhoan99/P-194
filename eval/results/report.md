@@ -2,7 +2,8 @@
 
 Run date: 2026-08-10
 
-Scope: fixture-driven C2 evaluation, before Member 1's C1 evidence-packet adapter.
+Scope: fixture-driven B3 evaluation plus the contract-tested C3 adapter from Member 1's
+`EvidencePacket` to Member 2's `AgentRequest`/`AgentResult` pipeline.
 
 Oracle: all 49 unique cases in `data/demo_mvp_v1/gold/`.
 
@@ -10,8 +11,8 @@ Oracle: all 49 unique cases in `data/demo_mvp_v1/gold/`.
 
 - All **49/49 gold cases** are loaded, uniquely identified and catalogued.
 - **16/49** have executable, API-contract-faithful `AgentRequest` fixtures and were run through B3.
-- **33/49** are explicitly `pending_c1_adapter`; they are not counted as passes. These cases require
-  backend-owned OCR extraction, canonical calculations, timeline/rule derivation, or review persistence.
+- **33/49** still need dedicated executable AgentRequest fixtures or source-to-oracle replay; they are
+  not counted as passes. The C3 adapter itself is now available and covered by integration tests.
 - The executable B3 fixture cases all produced the expected status and evidence recall.
 
 The complete per-case table is in `eval/gold_case_catalog.md`; the executable/pending decision is
@@ -21,12 +22,12 @@ machine-checked by `eval/run_wp2_eval.py`.
 
 | Baseline | Definition from Readme-Clinical.md | Status | Reason |
 |---|---|---|---|
-| B1 | Rule Only | Not run | C1 deterministic packet adapter is not available; no oracle replay is reported as a model result |
+| B1 | Rule Only | Not run | No separate B1 source-to-oracle runner is configured; the C3 packet adapter is available |
 | B2 | Vanilla LLM/RAG without specialist verifier | Not run | No approved, version-pinned model run is configured for reproducible offline evaluation |
-| B3 | Hybrid scoped retrieval + verifier + evidence | Executed on 16 fixture-backed gold cases | Uses the WP2 LangGraph and contract fixtures only |
+| B3 | Hybrid scoped retrieval + verifier + evidence | Executed on 16 fixture-backed gold cases; C3 HTTP path contract-tested | Uses the WP2 LangGraph, contract fixtures and the real C1 packet adapter |
 
-This is an initial C2 report, not a claim that B1/B2 or all source-to-result flows have passed. At C3,
-the same evaluator must run B1–B3 on all 49 cases after replacing only the adapter.
+This remains an initial evaluation report, not a claim that B1/B2 or all 49 source-to-result flows
+have passed. C3 integration is complete, while full 49-case oracle replay remains separate work.
 
 ## B3 measured metrics
 

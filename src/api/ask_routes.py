@@ -1,7 +1,13 @@
 """Ask the Chart REST endpoint adhering strictly to API_CONTRACT.md section 4.8."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from uuid import uuid4
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from src.agents.adapter import AgentRequestAdapter
+from src.agents.graph import run_agent
+from src.api.auth_routes import DEFAULT_CLINICIAN
 from src.api.dependencies import get_demo_repository
 from src.clinical.canonical import Citation
 from src.clinical.demo_repository import DemoRepository
@@ -11,7 +17,7 @@ router = APIRouter(tags=["ask"])
 
 class Lookback(BaseModel):
     value: int
-    unit: str  # month | year | day
+    unit: Literal["day", "month", "year"]
 
 
 class AskRequest(BaseModel):
@@ -20,9 +26,9 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
-    status: str  # answered | not_found | conflicting | not_allowed
+    status: Literal["answered", "not_found", "conflicting", "not_allowed"]
     answer: str
-    confidence: str | None = "high"
+    confidence: Literal["high", "medium", "low"] | None = "high"
     citations: list[Citation] = Field(default_factory=list)
     data_watermark: str
 
@@ -31,6 +37,8 @@ class AskResponse(BaseModel):
 def ask_patient_chart(
     patient_id: str,
     payload: AskRequest,
+    request: Request,
+    response: Response,
     repo: DemoRepository = Depends(get_demo_repository),
 ) -> AskResponse:
     if not repo.get_patient(patient_id):
@@ -39,22 +47,37 @@ def ask_patient_chart(
             detail={"code": "PATIENT_SCOPE_DENIED", "message": "Bệnh nhân không tồn tại hoặc không có quyền truy cập."},
         )
 
-    wm = repo.get_watermark(patient_id)
-    q = payload.question.lower()
-
-    if "hba1c" in q:
-        return AskResponse(
-            status="answered",
-            answer="HbA1c của bệnh nhân thay đổi từ 7.5% lên 8.7% trong các kết quả gần đây.",
-            confidence="high",
-            citations=[],
-            data_watermark=wm,
+    request_id = request.headers.get("X-Request-ID") or f"req_{uuid4().hex}"
+    packet = repo.build_evidence_packet(patient_id)
+    memory = repo.get_patient_memory(patient_id)
+    agent_request = AgentRequestAdapter().from_evidence_packet(
+        packet,
+        request_id=request_id,
+        task_type="ask_chart",
+        tenant_id=DEFAULT_CLINICIAN.tenant_id,
+        user_id=DEFAULT_CLINICIAN.user_id,
+        profile_versions=[],
+        approved_memory=memory.model_dump(mode="json") if memory else None,
+        question=payload.question,
+    )
+    agent_result = run_agent(
+        agent_request,
+        runtime_scope={
+            "tenant_id": agent_request.tenant_id,
+            "patient_id": patient_id,
+            "request_id": request_id,
+        },
+    )
+    if agent_result.status == "error" or agent_result.answer is None:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "AGENT_UNAVAILABLE", "message": "Không thể trả lời an toàn từ dữ liệu hiện tại."},
         )
-
+    response.headers["X-Request-ID"] = request_id
     return AskResponse(
-        status="not_found",
-        answer="Không tìm thấy bằng chứng trong hồ sơ bệnh án cho câu hỏi này.",
-        confidence="low",
-        citations=[],
-        data_watermark=wm,
+        status=agent_result.status,
+        answer=agent_result.answer,
+        confidence=agent_result.confidence,
+        citations=[citation.model_dump(mode="json") for citation in agent_result.citations],
+        data_watermark=agent_result.data_watermark,
     )

@@ -3,8 +3,9 @@
 import json
 from pathlib import Path
 import uuid
+from src.agents.adapter import AgentRequestAdapter
 from src.clinical.demo_repository import DemoRepository
-from src.clinical.evidence_packet import EvidencePacket, AgentRequest
+from src.clinical.evidence_packet import EvidencePacket
 
 
 def generate_fixtures():
@@ -37,14 +38,13 @@ def generate_fixtures():
             data_quality_flags=[],
         )
 
-        agent_req = AgentRequest(
+        agent_req = AgentRequestAdapter().from_evidence_packet(
+            packet,
             request_id=f"req_{pid}_{uuid.uuid4().hex[:6]}",
-            patient_id=pid,
-            requested_profile_versions=["type_2_diabetes@1.0.0"],
-            data_watermark=wm,
-            language="vi",
-            evidence_packet=packet,
-            memory_context=[],
+            task_type="review_generation",
+            tenant_id="ten_demo",
+            user_id="usr_doctor_demo",
+            profile_versions=["type_2_diabetes@1.0.0"],
         )
 
         # Save fixtures
@@ -54,7 +54,7 @@ def generate_fixtures():
 
         ar_file = gold_dir / f"agent_request_{pid}.json"
         with open(ar_file, "w", encoding="utf-8") as f:
-            json.dump(agent_req.to_dict(), f, indent=2, ensure_ascii=False)
+            json.dump(agent_req.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
 
         print(f"Generated fixtures for {pid}: {ep_file.name}, {ar_file.name}")
 

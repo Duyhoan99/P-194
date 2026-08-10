@@ -1,8 +1,9 @@
 import sqlite3
+from pathlib import Path
 
 from scripts.create_synthetic_demo import create_synthetic_demo_database
 from src.clinical.operations import operational_store
-from src.config import get_settings
+from src.config import Settings, get_settings
 
 
 def test_synthetic_demo_has_expected_domains_without_raw_mimic_files(tmp_path):
@@ -32,11 +33,17 @@ def test_development_defaults_use_mimic_database_and_subject_manifest(monkeypatc
     monkeypatch.delenv("SUMMARY_DATABASE_PATH", raising=False)
     get_settings.cache_clear()
 
-    settings = get_settings()
+    # Check declared defaults independently of a developer's ignored .env.
+    settings = Settings(_env_file=None)
     _, assigned_subjects = operational_store.session_identity("doctor-1")
 
     assert settings.clinical_database_path == "./data/mimic_demo.db"
     assert settings.summary_database_path == "./data/clinical_summaries.db"
-    assert assigned_subjects == {10000032, 10001217, 10001725}
+    if Path(settings.mimic_demo_subjects_file).exists():
+        assert assigned_subjects == {10000032, 10001217, 10001725}
+    else:
+        # Missing external demo data must fail closed instead of granting a
+        # fabricated assignment.
+        assert assigned_subjects == set()
 
     get_settings.cache_clear()

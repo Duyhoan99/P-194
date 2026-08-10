@@ -80,8 +80,13 @@ def load_gold() -> list[dict[str, Any]]:
     for path in sorted(GOLD_DIR.iterdir()):
         if path.suffix == ".jsonl":
             rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+        elif path.suffix == ".json":
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            # C1 EvidencePacket/AgentRequest fixtures are inputs rather than
+            # gold-label catalogs and therefore do not contain ``cases``.
+            rows = payload.get("cases", [])
         else:
-            rows = json.loads(path.read_text(encoding="utf-8"))["cases"]
+            continue
         cases.extend({"gold_file": path.name, **row} for row in rows)
     return cases
 
@@ -193,11 +198,17 @@ def evaluate() -> dict[str, Any]:
     }
     return {
         "dataset": "demo_mvp_v1@1.3.0",
+        "c3_adapter_status": "available_contract_tested",
         "gold_cases_loaded": len(gold),
         "gold_cases_executed_with_agent_fixtures": len(executed),
+        "gold_cases_pending_dedicated_agent_fixtures": len(gold) - len(executed),
+        # Backward-compatible report key retained for existing C2 consumers.
         "gold_cases_pending_c1_adapter": len(gold) - len(executed),
         "baselines": {
-            "B1_rule_only": {"status": "not_run", "reason": "C1 deterministic packet adapter unavailable"},
+            "B1_rule_only": {
+                "status": "not_run",
+                "reason": "No separate B1 baseline runner is configured; the C3 packet adapter is available",
+            },
             "B2_vanilla_llm_rag": {
                 "status": "not_run",
                 "reason": "No approved model run configured for reproducible offline evaluation",

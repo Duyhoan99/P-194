@@ -1,16 +1,7 @@
-"""EvidencePacket and AgentRequest assembler for Member 2 agent integration."""
+"""Backend EvidencePacket for the contract-faithful C3 agent adapter."""
 
 from dataclasses import dataclass, field
 from typing import Any
-from src.clinical.canonical import (
-    TimelineEvent,
-    TrendPoint,
-    ConflictFlag,
-    DrugInteractionFlag,
-    DataQualityFlag,
-    PatientMemory,
-    Citation,
-)
 
 
 @dataclass
@@ -42,26 +33,4 @@ class EvidencePacket:
             "conflicts": self.conflicts,
             "drug_interactions": self.drug_interactions,
             "data_quality_flags": self.data_quality_flags,
-        }
-
-
-@dataclass
-class AgentRequest:
-    request_id: str
-    patient_id: str
-    requested_profile_versions: list[str]
-    data_watermark: str
-    language: str = "vi"
-    evidence_packet: EvidencePacket = field(default_factory=lambda: EvidencePacket("", ""))
-    memory_context: list[dict[str, Any]] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "request_id": self.request_id,
-            "patient_id": self.patient_id,
-            "requested_profile_versions": self.requested_profile_versions,
-            "data_watermark": self.data_watermark,
-            "language": self.language,
-            "evidence_packet": self.evidence_packet.to_dict(),
-            "memory_context": self.memory_context,
         }

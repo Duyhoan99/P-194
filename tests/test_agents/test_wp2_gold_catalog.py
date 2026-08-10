@@ -10,8 +10,10 @@ def _gold_cases() -> list[tuple[str, dict]]:
     for path in sorted(GOLD.iterdir()):
         if path.suffix == ".jsonl":
             rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+        elif path.suffix == ".json":
+            rows = json.loads(path.read_text(encoding="utf-8")).get("cases", [])
         else:
-            rows = json.loads(path.read_text(encoding="utf-8"))["cases"]
+            continue
         cases.extend((path.name, row) for row in rows)
     return cases
 

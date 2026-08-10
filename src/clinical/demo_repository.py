@@ -5,6 +5,7 @@ from pathlib import Path
 import uuid
 from datetime import datetime
 from typing import Any
+from src.agents.contracts import AgentResult
 from src.clinical.canonical import (
     PatientSummary,
     TimelineEvent,
@@ -24,6 +25,7 @@ from src.clinical.canonical import (
     RecordCitation,
     Citation,
 )
+from src.clinical.evidence_packet import EvidencePacket
 from src.clinical.calculation import (
     convert_unit,
     format_display_value,
@@ -178,6 +180,8 @@ class DemoRepository:
         for entry in bundle.get("entry", []):
             res = entry.get("resource", {})
             r_type = res.get("resourceType")
+            if str(res.get("status", "")).casefold() == "entered-in-error":
+                continue
             r_id = res.get("id", "res_1")
             doc_id = f"DOC-{patient_id}-FHIR"
             cit = FhirCitation(
@@ -240,6 +244,8 @@ class DemoRepository:
         for entry in bundle.get("entry", []):
             res = entry.get("resource", {})
             if res.get("resourceType") == "Observation":
+                if str(res.get("status", "")).casefold() == "entered-in-error":
+                    continue
                 codings = res.get("code", {}).get("coding", [])
                 matched = any(c.get("code") == code for c in codings) or code.lower() in (res.get("code", {}).get("text") or "").lower()
                 if matched:
@@ -275,6 +281,28 @@ class DemoRepository:
         trend_points = [TrendPoint(**p) for p in points]
         return display_name, target_unit, trend_points
 
+    def build_evidence_packet(self, patient_id: str) -> EvidencePacket:
+        """Build the locked C1 packet consumed by the C3 agent adapter."""
+        if patient_id not in self._patients:
+            raise KeyError(f"Patient {patient_id} not found")
+        events = self.get_timeline(patient_id)
+        _, _, hba1c_points = self.get_trends(patient_id, "4548-4")
+        dates = sorted(event.occurred_at[:10] for event in events if event.occurred_at)
+        return EvidencePacket(
+            patient_id=patient_id,
+            data_watermark=self.get_watermark(patient_id),
+            coverage_start=dates[0] if dates else None,
+            coverage_end=dates[-1] if dates else None,
+            encounter_count=sum(event.event_type == "encounter" for event in events),
+            timeline=[event.model_dump(mode="json") for event in events],
+            lab_trends={"4548-4": [point.model_dump(mode="json") for point in hba1c_points]},
+            active_conditions=[{"condition": "Đái tháo đường Típ 2", "code": "44054006"}],
+            current_medications=[{"medication": "Metformin 1000mg", "status": "active"}],
+            conflicts=[],
+            drug_interactions=[],
+            data_quality_flags=[],
+        )
+
     # Reviews State Machine
     def get_review(self, patient_id: str, version: int | None = None, review_version_id: str | None = None) -> ReviewResponse | None:
         revs = self._reviews.get(patient_id, [])
@@ -295,60 +323,56 @@ class DemoRepository:
 
         return revs[-1]  # Latest version
 
-    def generate_review(self, patient_id: str, profile_versions: list[str]) -> ReviewResponse:
+    def generate_review(
+        self,
+        patient_id: str,
+        profile_versions: list[str],
+        agent_result: AgentResult,
+        evidence_packet: EvidencePacket,
+    ) -> ReviewResponse:
+        """Persist a contract-valid AgentResult without regenerating AI facts."""
         wm = self.get_watermark(patient_id)
+        if evidence_packet.patient_id != patient_id or evidence_packet.data_watermark != wm:
+            raise ValueError("Evidence packet is outside the locked patient/watermark scope.")
+        if agent_result.task_type != "review_generation" or agent_result.data_watermark != wm:
+            raise ValueError("AgentResult does not match the review generation watermark.")
+        if agent_result.status not in {"answered", "conflicting"} or agent_result.sections is None:
+            raise ValueError("AgentResult is not persistable as a generated review.")
+
         now_str = datetime.now().isoformat()
         rev_id = f"rev_{patient_id}"
         rv_id = f"rv_{uuid.uuid4().hex[:8]}"
-
-        doc_cit = FhirCitation(
-            citation_id=f"cit_gen_{patient_id}",
-            document_id=f"DOC-{patient_id}-FHIR",
-            resource_type="Bundle",
-            resource_id=patient_id,
-            snippet="Hồ sơ bệnh nhân tổng hợp từ dữ liệu nguồn.",
-            source_checksum="sha256:baseline",
-        )
-
-        claim1 = VerifiedClaim(
-            claim_id=f"clm_{uuid.uuid4().hex[:8]}",
-            text="Bệnh nhân đái tháo đường Típ 2 theo dõi định kỳ.",
-            status="verified",
-            citations=[doc_cit],
-        )
-
-        section1 = ReviewSection(
-            section_code="patient_overview",
-            title="Tổng quan bệnh nhân",
-            claims=[claim1],
-            clinician_text=None,
-        )
+        previous = self._reviews.get(patient_id, [])
+        version = previous[-1].version + 1 if previous else 1
+        sections = [ReviewSection.model_validate(section.model_dump(mode="json")) for section in agent_result.sections]
 
         review = ReviewResponse(
             review_id=rev_id,
             review_version_id=rv_id,
             patient_id=patient_id,
             status="generated",
-            version=1,
+            version=version,
             generated_at=now_str,
             updated_at=now_str,
             approved_at=None,
             data_watermark=wm,
             is_current_watermark=True,
             profile_versions=profile_versions,
-            coverage=Coverage(start_date="2025-01-01", end_date="2026-08-10", encounter_count=3),
-            sections=[section1],
-            conflicts=[],
-            drug_interactions=[],
-            data_quality_flags=[],
+            coverage=Coverage(
+                start_date=evidence_packet.coverage_start,
+                end_date=evidence_packet.coverage_end,
+                encounter_count=evidence_packet.encounter_count,
+            ),
+            sections=sections,
+            conflicts=[ConflictFlag.model_validate(item) for item in evidence_packet.conflicts],
+            drug_interactions=[DrugInteractionFlag.model_validate(item) for item in evidence_packet.drug_interactions],
+            data_quality_flags=[DataQualityFlag.model_validate(item) for item in evidence_packet.data_quality_flags],
             disclaimer="Tài liệu chỉ phục vụ rà soát lâm sàng. Bác sĩ chịu trách nhiệm cho mọi quyết định điều trị.",
             clinician_confirmation=None,
             memory_version_used=None,
         )
 
-        if patient_id not in self._reviews:
-            self._reviews[patient_id] = []
-        self._reviews[patient_id].append(review)
+        self._reviews.setdefault(patient_id, []).append(review)
         return review
 
     def patch_review(

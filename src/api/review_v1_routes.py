@@ -1,8 +1,13 @@
 """Clinical Review REST endpoints adhering strictly to API_CONTRACT.md sections 4.7, 4.10, 4.12."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 from pydantic import BaseModel, Field
+from src.agents.adapter import AgentRequestAdapter
+from src.agents.graph import run_agent
+from src.api.auth_routes import DEFAULT_CLINICIAN
 from src.api.dependencies import get_demo_repository
 from src.clinical.canonical import ReviewResponse
 from src.clinical.demo_repository import DemoRepository
@@ -44,6 +49,8 @@ class VersionListResponse(BaseModel):
 @router.post("/patients/{patient_id}/reviews/generate", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 def generate_review(
     patient_id: str,
+    request: Request,
+    response: Response,
     payload: GenerateReviewRequest | None = None,
     repo: DemoRepository = Depends(get_demo_repository),
 ) -> ReviewResponse:
@@ -54,7 +61,40 @@ def generate_review(
         )
 
     profiles = payload.profile_versions if payload else ["type_2_diabetes@1.0.0"]
-    return repo.generate_review(patient_id, profiles)
+    request_id = request.headers.get("X-Request-ID") or f"req_{uuid4().hex}"
+    packet = repo.build_evidence_packet(patient_id)
+    memory = repo.get_patient_memory(patient_id)
+    agent_request = AgentRequestAdapter().from_evidence_packet(
+        packet,
+        request_id=request_id,
+        task_type="review_generation",
+        tenant_id=DEFAULT_CLINICIAN.tenant_id,
+        user_id=DEFAULT_CLINICIAN.user_id,
+        profile_versions=profiles,
+        approved_memory=memory.model_dump(mode="json") if memory else None,
+    )
+    agent_result = run_agent(
+        agent_request,
+        runtime_scope={
+            "tenant_id": agent_request.tenant_id,
+            "patient_id": patient_id,
+            "request_id": request_id,
+        },
+    )
+    if agent_result.status not in {"answered", "conflicting"}:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "AGENT_UNAVAILABLE", "message": "Không thể tạo bản rà soát an toàn từ dữ liệu hiện tại."},
+        )
+    try:
+        review = repo.generate_review(patient_id, profiles, agent_result, packet)
+    except ValueError:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "AGENT_RESULT_INVALID", "message": "Kết quả AI không khớp phạm vi dữ liệu đã khóa."},
+        ) from None
+    response.headers["X-Request-ID"] = request_id
+    return review
 
 
 @router.get("/patients/{patient_id}/review", response_model=ReviewResponse)
