@@ -1,0 +1,31 @@
+{
+  "profile_id": "type_2_diabetes",
+  "version": "1.0.0",
+  "name": "Đái tháo đường Típ 2",
+  "target_analytes": [
+    {
+      "code": "4548-4",
+      "name": "HbA1c",
+      "canonical_unit": "%",
+      "target_range": { "low": null, "high": 7.0 },
+      "tolerance": 0.1,
+      "min_points": 3
+    },
+    {
+      "code": "2339-0",
+      "name": "Glucose",
+      "canonical_unit": "mmol/L",
+      "target_range": { "low": 4.4, "high": 7.2 },
+      "tolerance": 0.2,
+      "min_points": 3
+    },
+    {
+      "code": "2160-0",
+      "name": "Creatinine",
+      "canonical_unit": "µmol/L",
+      "target_range": { "low": 60, "high": 110 },
+      "tolerance": 5.0,
+      "min_points": 3
+    }
+  ]
+}

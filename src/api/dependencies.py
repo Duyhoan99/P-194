@@ -180,3 +180,16 @@ def get_access_context(request: Request) -> AccessContext:
     else:
         provider = ConfiguredAuthProvider()
     return provider.authenticate(request)
+
+
+from src.clinical.demo_repository import DemoRepository
+
+_demo_repo_instance: DemoRepository | None = None
+
+
+def get_demo_repository() -> DemoRepository:
+    global _demo_repo_instance
+    if _demo_repo_instance is None:
+        _demo_repo_instance = DemoRepository()
+    return _demo_repo_instance
+

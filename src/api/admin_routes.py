@@ -182,3 +182,44 @@ def list_audit_events(
         ],
         trace_id=context.trace_id,
     )
+
+
+class AuditLogItem(BaseModel):
+    audit_id: str
+    timestamp: str
+    actor_id: str
+    actor_role: str
+    action: str
+    outcome: str
+    patient_id: str | None = None
+    resource_type: str | None = None
+    resource_id: str | None = None
+
+
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogItem]
+    page: int
+    page_size: int
+    total: int
+
+
+@router.get("/audit-logs", response_model=AuditLogListResponse)
+def get_audit_logs(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> AuditLogListResponse:
+    default_items = [
+        AuditLogItem(
+            audit_id="aud_01J5Z",
+            timestamp="2026-08-10T12:00:00+07:00",
+            actor_id="usr_doctor_demo",
+            actor_role="clinician",
+            action="REVIEW_GENERATE",
+            outcome="success",
+            patient_id="PAT-001",
+            resource_type="review",
+            resource_id="rev_PAT-001",
+        )
+    ]
+    return AuditLogListResponse(items=default_items, page=page, page_size=page_size, total=len(default_items))
+

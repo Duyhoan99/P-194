@@ -1,0 +1,585 @@
+{
+  "request_id": "req_PAT-005_26ddaa",
+  "patient_id": "PAT-005",
+  "requested_profile_versions": [
+    "type_2_diabetes@1.0.0"
+  ],
+  "data_watermark": "wm_PAT-005_v1",
+  "language": "vi",
+  "evidence_packet": {
+    "patient_id": "PAT-005",
+    "data_watermark": "wm_PAT-005_v1",
+    "coverage_start": "2025-01-01",
+    "coverage_end": "2026-08-10",
+    "encounter_count": 25,
+    "timeline": [
+      {
+        "event_id": "evt_PAT-005-OBS-03-01",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Hemoglobin A1c",
+        "summary": "Kết quả: 7.9 %",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-03-01",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-03-01",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-03-01\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-03-02",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Glucose",
+        "summary": "Kết quả: 8.8 mmol/L",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-03-02",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-03-02",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-03-02\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-03-03",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Systolic blood pressure",
+        "summary": "Kết quả: 132 mm[Hg]",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-03-03",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-03-03",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-03-03\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-03-04",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Diastolic blood pressure",
+        "summary": "Kết quả: 80 mm[Hg]",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-03-04",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-03-04",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-03-04\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-03-05",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Creatinine",
+        "summary": "Kết quả: 89 µmol/L",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-03-05",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-03-05",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-03-05\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-03-06",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: eGFR",
+        "summary": "Kết quả: 68 mL/min/1.73m2",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-03-06",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-03-06",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-03-06\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-NOISE-PULSE",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T08:49:00+07:00",
+        "title": "Xét nghiệm: Heart rate",
+        "summary": "Kết quả: 81 /min",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-NOISE-PULSE",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-NOISE-PULSE",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-NOISE-PULSE\", \"status\": \"final\", \"code\": {\"coding\": [",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-NOISE-WEIGHT",
+        "event_type": "observation",
+        "occurred_at": "2026-04-18T08:47:00+07:00",
+        "title": "Xét nghiệm: Body weight",
+        "summary": "Kết quả: 78 kg",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-NOISE-WEIGHT",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-NOISE-WEIGHT",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-NOISE-WEIGHT\", \"status\": \"final\", \"code\": {\"coding\": ",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-ENC-003",
+        "event_type": "encounter",
+        "occurred_at": "2026-04-18T08:00:00+07:00",
+        "title": "Lượt khám Tái khám",
+        "summary": "Trạng thái: finished",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-ENC-003",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Encounter",
+            "resource_id": "PAT-005-ENC-003",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Encounter\", \"id\": \"PAT-005-ENC-003\", \"status\": \"finished\", \"class\": {\"system\": \"ht",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-02-01",
+        "event_type": "observation",
+        "occurred_at": "2025-10-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Hemoglobin A1c",
+        "summary": "Kết quả: 7.5 %",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-02-01",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-02-01",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-02-01\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-02-02",
+        "event_type": "observation",
+        "occurred_at": "2025-10-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Glucose",
+        "summary": "Kết quả: 8.2 mmol/L",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-02-02",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-02-02",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-02-02\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-02-03",
+        "event_type": "observation",
+        "occurred_at": "2025-10-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Systolic blood pressure",
+        "summary": "Kết quả: 128 mm[Hg]",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-02-03",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-02-03",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-02-03\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-02-04",
+        "event_type": "observation",
+        "occurred_at": "2025-10-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Diastolic blood pressure",
+        "summary": "Kết quả: 77 mm[Hg]",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-02-04",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-02-04",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-02-04\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-02-05",
+        "event_type": "observation",
+        "occurred_at": "2025-10-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Creatinine",
+        "summary": "Kết quả: 85 µmol/L",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-02-05",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-02-05",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-02-05\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-02-06",
+        "event_type": "observation",
+        "occurred_at": "2025-10-18T09:00:00+07:00",
+        "title": "Xét nghiệm: eGFR",
+        "summary": "Kết quả: 74 mL/min/1.73m2",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-02-06",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-02-06",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-02-06\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-ENC-002",
+        "event_type": "encounter",
+        "occurred_at": "2025-10-18T08:00:00+07:00",
+        "title": "Lượt khám Tái khám",
+        "summary": "Trạng thái: finished",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-ENC-002",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Encounter",
+            "resource_id": "PAT-005-ENC-002",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Encounter\", \"id\": \"PAT-005-ENC-002\", \"status\": \"finished\", \"class\": {\"system\": \"ht",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-MED-002",
+        "event_type": "medication",
+        "occurred_at": "2025-10-18",
+        "title": "Thuốc: Gabapentin 100 MG",
+        "summary": "Trạng thái: active",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-MED-002",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "MedicationRequest",
+            "resource_id": "PAT-005-MED-002",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"MedicationRequest\", \"id\": \"PAT-005-MED-002\", \"status\": \"active\", \"intent\": \"order\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-01-01",
+        "event_type": "observation",
+        "occurred_at": "2025-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Hemoglobin A1c",
+        "summary": "Kết quả: 7.0 %",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-01-01",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-01-01",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-01-01\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-01-02",
+        "event_type": "observation",
+        "occurred_at": "2025-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Glucose",
+        "summary": "Kết quả: 7.7 mmol/L",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-01-02",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-01-02",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-01-02\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-01-03",
+        "event_type": "observation",
+        "occurred_at": "2025-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Systolic blood pressure",
+        "summary": "Kết quả: 124 mm[Hg]",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-01-03",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-01-03",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-01-03\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-01-04",
+        "event_type": "observation",
+        "occurred_at": "2025-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Diastolic blood pressure",
+        "summary": "Kết quả: 75 mm[Hg]",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-01-04",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-01-04",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-01-04\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-01-05",
+        "event_type": "observation",
+        "occurred_at": "2025-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: Creatinine",
+        "summary": "Kết quả: 80 µmol/L",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-01-05",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-01-05",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-01-05\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-OBS-01-06",
+        "event_type": "observation",
+        "occurred_at": "2025-04-18T09:00:00+07:00",
+        "title": "Xét nghiệm: eGFR",
+        "summary": "Kết quả: 80 mL/min/1.73m2",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-OBS-01-06",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Observation",
+            "resource_id": "PAT-005-OBS-01-06",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Observation\", \"id\": \"PAT-005-OBS-01-06\", \"status\": \"final\", \"category\": [{\"coding\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-ENC-001",
+        "event_type": "encounter",
+        "occurred_at": "2025-04-18T08:00:00+07:00",
+        "title": "Lượt khám Tái khám",
+        "summary": "Trạng thái: finished",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-ENC-001",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "Encounter",
+            "resource_id": "PAT-005-ENC-001",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"Encounter\", \"id\": \"PAT-005-ENC-001\", \"status\": \"finished\", \"class\": {\"system\": \"ht",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      },
+      {
+        "event_id": "evt_PAT-005-MED-001",
+        "event_type": "medication",
+        "occurred_at": "2025-04-18",
+        "title": "Thuốc: Metformin 500 MG",
+        "summary": "Trạng thái: active",
+        "citations": [
+          {
+            "citation_id": "cit_PAT-005-MED-001",
+            "source_type": "fhir",
+            "document_id": "DOC-PAT-005-FHIR",
+            "resource_type": "MedicationRequest",
+            "resource_id": "PAT-005-MED-001",
+            "json_pointer": null,
+            "snippet": "{\"resourceType\": \"MedicationRequest\", \"id\": \"PAT-005-MED-001\", \"status\": \"active\", \"intent\": \"order\"",
+            "source_checksum": "sha256:baseline"
+          }
+        ]
+      }
+    ],
+    "lab_trends": {
+      "4548-4": [
+        {
+          "observed_at": "2025-04-18T09:00:00+07:00",
+          "value": 7.0,
+          "unit": "%",
+          "raw_value": 7.0,
+          "raw_unit": "%",
+          "calculation": null,
+          "reference_range": {
+            "low": null,
+            "high": 7.0
+          },
+          "citations": [
+            {
+              "citation_id": "cit_PAT-005-OBS-01-01",
+              "source_type": "fhir",
+              "document_id": "DOC-PAT-005-FHIR",
+              "resource_type": "Observation",
+              "resource_id": "PAT-005-OBS-01-01",
+              "json_pointer": null,
+              "snippet": "HbA1c: 7.0 %",
+              "source_checksum": "sha256:baseline"
+            }
+          ]
+        },
+        {
+          "observed_at": "2025-10-18T09:00:00+07:00",
+          "value": 7.5,
+          "unit": "%",
+          "raw_value": 7.5,
+          "raw_unit": "%",
+          "calculation": null,
+          "reference_range": {
+            "low": null,
+            "high": 7.0
+          },
+          "citations": [
+            {
+              "citation_id": "cit_PAT-005-OBS-02-01",
+              "source_type": "fhir",
+              "document_id": "DOC-PAT-005-FHIR",
+              "resource_type": "Observation",
+              "resource_id": "PAT-005-OBS-02-01",
+              "json_pointer": null,
+              "snippet": "HbA1c: 7.5 %",
+              "source_checksum": "sha256:baseline"
+            }
+          ]
+        },
+        {
+          "observed_at": "2026-04-18T09:00:00+07:00",
+          "value": 7.9,
+          "unit": "%",
+          "raw_value": 7.9,
+          "raw_unit": "%",
+          "calculation": null,
+          "reference_range": {
+            "low": null,
+            "high": 7.0
+          },
+          "citations": [
+            {
+              "citation_id": "cit_PAT-005-OBS-03-01",
+              "source_type": "fhir",
+              "document_id": "DOC-PAT-005-FHIR",
+              "resource_type": "Observation",
+              "resource_id": "PAT-005-OBS-03-01",
+              "json_pointer": null,
+              "snippet": "HbA1c: 7.9 %",
+              "source_checksum": "sha256:baseline"
+            }
+          ]
+        }
+      ]
+    },
+    "active_conditions": [
+      {
+        "condition": "Đái tháo đường Típ 2",
+        "code": "44054006"
+      }
+    ],
+    "current_medications": [
+      {
+        "medication": "Metformin 1000mg",
+        "status": "active"
+      }
+    ],
+    "conflicts": [],
+    "drug_interactions": [],
+    "data_quality_flags": []
+  },
+  "memory_context": []
+}
