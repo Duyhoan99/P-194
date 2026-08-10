@@ -1072,6 +1072,62 @@ Các hàm normalize nên pure và unit-test được.
 | prioritize_events | (events, disease_profile, specialty_view) -> list[ClinicalEvent] | Ưu tiên, không xóa provenance |
 | run_rule_engine | (patient_context, configs) -> DerivedClinicalResult | Orchestrator deterministic |
 
+#### 14.11.1. Calculation contract bắt buộc
+
+Phần này là nguồn có thẩm quyền cho các phép tính deterministic của MVP. AI không được tự chọn hệ số, ngưỡng, cách làm tròn hoặc công thức khác. Mọi kết quả suy diễn phải lưu `calculation_id`, `calculation_version`, input record IDs, raw value/unit, canonical value/unit và nguồn cấu hình. Dùng `Decimal` từ lúc parse đến lúc lưu; chỉ làm tròn ở lớp trình bày.
+
+**Delta và hướng thay đổi** — chỉ so sánh hai kết quả cùng `patient_id`, cùng normalized test code, cùng canonical unit và có trạng thái hợp lệ:
+
+```text
+absolute_delta = new_value - old_value
+relative_delta = absolute_delta / abs(old_value), nếu old_value != 0
+relative_percent = relative_delta * 100
+```
+
+- Nếu `old_value = 0`, `relative_delta` và `relative_percent` là `null`; không trả vô cực hoặc chia cho 0.
+- `tolerance` là số không âm lấy từ disease profile theo từng test, mặc định `0` cho MVP nếu profile không khai báo.
+- `direction = increased` khi `absolute_delta > tolerance`; `decreased` khi `absolute_delta < -tolerance`; còn lại là `stable`.
+- Giá trị lưu giữ precision của input canonical. API/UI làm tròn theo `display_scale` trong bảng conversion/profile bằng `ROUND_HALF_EVEN`; không dùng số đã làm tròn để tính tiếp.
+
+**Xu hướng liên tục** — sau khi loại `entered-in-error`, duplicate và giá trị chưa xác minh, sắp theo `(effective_time, source_priority, record_id)`:
+
+- Cần ít nhất `min_points = 3`, trừ khi profile có version quy định khác.
+- `increasing` khi mọi delta kề nhau `> tolerance`; `decreasing` khi mọi delta kề nhau `< -tolerance`; `stable` khi mọi `abs(delta) <= tolerance`; trường hợp còn lại là `mixed`.
+- Không nội suy điểm thiếu, không suy diễn ý nghĩa lâm sàng và không đổi `mixed` thành tăng/giảm theo riêng điểm đầu-cuối.
+- Mỗi delta giữ hai evidence IDs; trend giữ toàn bộ evidence IDs theo thứ tự thời gian.
+
+**Chuyển đổi đơn vị có trong baseline `demo_mvp_v1@1.3.0`:**
+
+| Analyte | Từ → đến | Công thức canonical | `display_scale` | Bằng chứng |
+|---|---|---|---:|---|
+| Glucose | mg/dL → mmol/L | `value * 0.0555` | 1 | NIDDK *Diabetes in America — Conversions* |
+| Glucose | mmol/L → mg/dL | `value / 0.0555` | 0 | Nghịch đảo của conversion trên |
+| Creatinine | µmol/L → mg/dL | `value / 88.4` | 2 | NIDDK *2021 CKD-EPI eGFR equation* |
+| Creatinine | mg/dL → µmol/L | `value * 88.4` | 0 | Nghịch đảo của conversion trên |
+
+Không dùng một hệ số chung cho các analyte khác nhau. Conversion table phải có `analyte_code`, `from_unit`, `to_unit`, factor/formula, version, source URL và ngày hiệu lực. Unit không có rule đúng analyte phải trả `needs_verification`, không đoán theo tên hiển thị.
+
+**eGFR:** MVP ưu tiên eGFR đã được nguồn xét nghiệm báo và lưu nó như Observation có provenance. Không được suy ngược hoặc tự tính lại chỉ từ creatinine. Nếu sau MVP bật calculation profile `ckd_epi_2021_creatinine@1.0.0` cho người từ 18 tuổi, phải có creatinine chuẩn hóa theo IDMS, tuổi tại thời điểm lấy mẫu và giới tính khi sinh; công thức race-free là:
+
+```text
+eGFR = 142 * min(SCr/k, 1)^alpha * max(SCr/k, 1)^(-1.200)
+             * 0.9938^Age * (1.012 if female else 1)
+
+SCr: mg/dL
+k: 0.7 nếu female, 0.9 nếu male
+alpha: -0.241 nếu female, -0.302 nếu male
+output: mL/min/1.73 m²
+```
+
+Thiếu một input, bệnh nhân dưới 18 tuổi, không rõ assay/đơn vị hoặc ngoài profile thì không tính và tạo data-quality flag. Giá trị tự tính phải có `method=calculated`, equation/version và input evidence IDs; không được ghi đè giá trị `method=source_reported`. Chẩn đoán CKD không được tạo từ một điểm eGFR đơn lẻ.
+
+Nguồn kiểm chứng của calculation contract:
+
+- NIDDK, *Diabetes in America — Conversions*: https://www.niddk.nih.gov/-/media/Files/Strategic-Plans/Diabetes-in-America-3rd-Edition/DIA_Conversions.pdf
+- NIDDK, *eGFR Equations for Adults*: https://www.niddk.nih.gov/research-funding/research-programs/kidney-clinical-research-epidemiology/laboratory/glomerular-filtration-rate-equations/adults
+
+Unit tests tối thiểu phải khóa các kết quả: glucose `180 mg/dL → 9.99 mmol/L → hiển thị 10.0 mmol/L`; creatinine `1.04 mg/dL → 91.936 µmol/L → hiển thị 92 µmol/L`; delta HbA1c `8.2 → 7.4 = -0.8` và relative delta `-0.8 / 8.2`; `old_value=0` trả relative `null`; chuỗi `7.1 → 8.2 → 7.4` là `mixed`, không phải sustained increase/decrease.
+
 ### 14.12. src/services/medication_safety.py
 
 | Hàm | Signature | Trách nhiệm |
