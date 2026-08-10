@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "effective_date": "2026-08-10",
+  "rules": [
+    {
+      "rule_id": "INT-MET-CONTRAST",
+      "pair": ["metformin", "iodinated_contrast"],
+      "severity": "high",
+      "description": "Metformin cùng với thuốc cản quang chứa Iod có nguy cơ gây nhiễm toan lactic hoặc suy thận cấp.",
+      "rule_source": "FDA Safety Alert / Clinical Drug Interaction Database",
+      "rule_version": "1.0.0"
+    },
+    {
+      "rule_id": "INT-ACE-ARB",
+      "pair": ["enalapril", "losartan"],
+      "severity": "high",
+      "description": "Kết hợp thuốc ức chế men chuyển (ACEi) và thuốc chẹn thụ thể Angiotensin (ARB) làm tăng nguy cơ hạ huyết áp, tăng kali máu và suy thận.",
+      "rule_source": "KDOQI / KDIGO Clinical Practice Guideline",
+      "rule_version": "1.0.0"
+    },
+    {
+      "rule_id": "INT-MET-INSULIN",
+      "pair": ["metformin", "insulin"],
+      "severity": "moderate",
+      "description": "Dùng đồng thời Metformin và Insulin cần theo dõi nguy cơ hạ đường huyết.",
+      "rule_source": "ADA Standards of Care",
+      "rule_version": "1.0.0"
+    }
+  ]
+}

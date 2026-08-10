@@ -13,6 +13,12 @@ from src.api.ops_routes import router as ops_router
 from src.api.review_routes import router as review_router
 from src.api.routes import router
 from src.api.summary_routes import router as summary_router
+from src.api.patient_routes import router as patient_router
+from src.api.ingestion_routes import router as ingestion_router
+from src.api.ocr_routes import router as ocr_router
+from src.api.review_v1_routes import router as review_v1_router
+from src.api.claim_routes import router as claim_router
+from src.api.ask_routes import router as ask_router
 from src.config import get_settings
 from src.logger import setup_logging
 
@@ -28,8 +34,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI20K Agent",
-    description="AI Agent built with LangGraph",
+    title="Clinical Review Copilot API",
+    description="Backend API for Clinical Review Copilot platform",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -45,12 +51,19 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(patient_router, prefix="/api/v1")
+app.include_router(ingestion_router, prefix="/api/v1")
+app.include_router(ocr_router, prefix="/api/v1")
+app.include_router(review_v1_router, prefix="/api/v1")
+app.include_router(claim_router, prefix="/api/v1")
+app.include_router(ask_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(ops_router, prefix="/api/v1")
 app.include_router(summary_router, prefix="/api/v1")
 app.include_router(review_router, prefix="/api/v1")
 app.include_router(clinical_router, prefix="/api/v1")
 register_clinical_error_handlers(app)
+
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

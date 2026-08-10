@@ -1,0 +1,46 @@
+{
+  "version": "1.0.0",
+  "effective_date": "2026-08-10",
+  "conversions": [
+    {
+      "analyte_code": "2339-0",
+      "analyte_display": "Glucose",
+      "from_unit": "mg/dL",
+      "to_unit": "mmol/L",
+      "factor": "0.0555",
+      "display_scale": 1,
+      "source_name": "NIDDK Diabetes in America - Conversions",
+      "source_url": "https://www.niddk.nih.gov/-/media/Files/Strategic-Plans/Diabetes-in-America-3rd-Edition/DIA_Conversions.pdf"
+    },
+    {
+      "analyte_code": "2339-0",
+      "analyte_display": "Glucose",
+      "from_unit": "mmol/L",
+      "to_unit": "mg/dL",
+      "factor": "18.018",
+      "display_scale": 0,
+      "source_name": "NIDDK Diabetes in America - Conversions",
+      "source_url": "https://www.niddk.nih.gov/-/media/Files/Strategic-Plans/Diabetes-in-America-3rd-Edition/DIA_Conversions.pdf"
+    },
+    {
+      "analyte_code": "2160-0",
+      "analyte_display": "Creatinine",
+      "from_unit": "mg/dL",
+      "to_unit": "µmol/L",
+      "factor": "88.4",
+      "display_scale": 0,
+      "source_name": "NIDDK 2021 CKD-EPI eGFR equation",
+      "source_url": "https://www.niddk.nih.gov/research-funding/research-programs/kidney-clinical-research-epidemiology/laboratory/glomerular-filtration-rate-equations/adults"
+    },
+    {
+      "analyte_code": "2160-0",
+      "analyte_display": "Creatinine",
+      "from_unit": "µmol/L",
+      "to_unit": "mg/dL",
+      "factor": "0.011312",
+      "display_scale": 2,
+      "source_name": "NIDDK 2021 CKD-EPI eGFR equation",
+      "source_url": "https://www.niddk.nih.gov/research-funding/research-programs/kidney-clinical-research-epidemiology/laboratory/glomerular-filtration-rate-equations/adults"
+    }
+  ]
+}
