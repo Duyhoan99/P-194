@@ -63,7 +63,38 @@ def retrieve_evidence_node(state: ClinicalReviewState) -> dict:
 
 
 def generate_grounded_node(state: ClinicalReviewState) -> dict:
-    return {"proposed_claims": compose_atomic_claims(state.get("retrieved_evidence", []))}
+    """Route to OpenAI or deterministic generation based on backend setting.
+
+    Treatment/prescription questions must be classified as not_allowed BEFORE
+    this node runs (handled by classify_question_node + policy). This node
+    only generates claims for allowed requests.
+
+    OpenAI path:
+    - Sends ONLY bounded retrieved evidence (not full patient record).
+    - Falls back to deterministic if key missing / error / bad schema.
+    - All output runs through the existing verifier.
+    """
+    import os  # noqa: PLC0415
+    from src.agents.generation import compose_atomic_claims_openai  # noqa: PLC0415
+    from src.agents.openai_client import build_openai_client  # noqa: PLC0415
+
+    retrieved = state.get("retrieved_evidence", [])
+    request = state["request"]
+
+    backend = os.environ.get("AGENT_GENERATION_BACKEND", "deterministic").lower()
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+
+    if backend == "openai" and api_key:
+        openai_client = build_openai_client(api_key=api_key, model_name=os.environ.get("MODEL_NAME", "gpt-4o-mini"))
+        proposed = compose_atomic_claims_openai(
+            retrieved,
+            openai_client,
+            question=request.question if request.task_type == "ask_chart" else None,
+        )
+    else:
+        proposed = compose_atomic_claims(retrieved)
+
+    return {"proposed_claims": proposed}
 
 
 def verify_claims_node(state: ClinicalReviewState) -> dict:

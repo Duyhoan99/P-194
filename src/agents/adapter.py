@@ -62,7 +62,7 @@ class AgentRequestAdapter:
             "profile_versions": profile_versions,
             "approved_memory": approved_memory,
             "structured_facts": _structured_facts(raw_packet, tenant_id=tenant_id),
-            "note_evidence": [],
+            "note_evidence": _pdf_note_evidence(raw_packet, tenant_id=tenant_id),
             "question": question,
         }
         runtime_scope: RuntimeScope = {
@@ -252,8 +252,75 @@ def _flag_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
 def _structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
     # Backend flags and canonical series are deliberately ranked before raw
     # timeline events so the bounded review retrieval cannot crowd them out.
+    # Verified PDF facts are added after FHIR timeline facts.
     return [
         *_flag_facts(packet, tenant_id),
         *_trend_facts(packet, tenant_id),
         *_timeline_facts(packet, tenant_id),
+        *_pdf_structured_facts(packet, tenant_id),
     ]
+
+
+def _pdf_structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
+    """Extract verified PDF evidence items from the packet for structured_facts.
+
+    Only items with verification_status == 'verified' go here.
+    needs_verification items are handled by _pdf_note_evidence.
+    """
+    patient_id = str(packet.get("patient_id", ""))
+    facts: list[dict[str, Any]] = []
+    for raw_item in packet.get("pdf_evidence", []):
+        item = _mapping(raw_item)
+        if item.get("verification_status") != "verified":
+            continue
+        item_patient = str(item.get("patient_id", patient_id))
+        if item_patient != patient_id:
+            # Cross-patient isolation: skip
+            continue
+        citations = _citations(item.get("citations", []))
+        if not citations:
+            continue
+        facts.append({
+            "evidence_id": item.get("evidence_id", ""),
+            "tenant_id": tenant_id,
+            "patient_id": patient_id,
+            "fact_type": item.get("fact_type", "pdf_text_block"),
+            "normalized_value": item.get("normalized_value", {}),
+            "source_value": item.get("source_value", {}),
+            "source_time": item.get("source_time"),
+            "verification_status": "verified",
+            "citations": citations,
+            "record_status": item.get("record_status"),
+        })
+    return facts
+
+
+def _pdf_note_evidence(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
+    """Extract needs_verification PDF evidence items for note_evidence.
+
+    Low-confidence OCR items go here instead of structured_facts so that
+    the agent knows to surface them with a needs_verification flag.
+    Per API_CONTRACT.md: low-confidence OCR must NOT be treated as verified fact.
+    """
+    patient_id = str(packet.get("patient_id", ""))
+    items: list[dict[str, Any]] = []
+    for raw_item in packet.get("pdf_evidence", []):
+        item = _mapping(raw_item)
+        if item.get("verification_status") != "needs_verification":
+            continue
+        item_patient = str(item.get("patient_id", patient_id))
+        if item_patient != patient_id:
+            continue
+        citations = _citations(item.get("citations", []))
+        if not citations:
+            continue
+        items.append({
+            "evidence_id": item.get("evidence_id", ""),
+            "fact_type": item.get("fact_type", "pdf_text_block"),
+            "normalized_value": item.get("normalized_value", {}),
+            "source_value": item.get("source_value", {}),
+            "source_time": item.get("source_time"),
+            "verification_status": "needs_verification",
+            "citations": citations,
+        })
+    return items

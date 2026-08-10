@@ -50,6 +50,10 @@ class DemoRepository:
         self._memories: dict[str, list[PatientMemory]] = {}   # patient_id -> list of memory versions
         self._audit_logs: list[dict[str, Any]] = []
         self._watermarks: dict[str, str] = {}
+        # PDF evidence: patient_id -> list of canonical evidence item dicts with DocumentCitation
+        self._pdf_evidence: dict[str, list[dict[str, Any]]] = {}
+        # PDF verification items from low-confidence OCR
+        self._pdf_verification_items: dict[str, list[dict[str, Any]]] = {}
         self.med_safety = MedicationSafetyService()
 
         self._load_baseline()
@@ -281,6 +285,59 @@ class DemoRepository:
         trend_points = [TrendPoint(**p) for p in points]
         return display_name, target_unit, trend_points
 
+    def add_pdf_evidence(
+        self,
+        patient_id: str,
+        document_id: str,
+        evidence_items: list[dict[str, Any]],
+        verification_items: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Add canonicalized PDF evidence for a specific patient.
+
+        Patient isolation: each evidence item must belong to patient_id.
+        Cross-patient evidence is silently rejected (fail-closed).
+        Reviews that are not yet approved are marked stale automatically.
+        """
+        if patient_id not in self._patients:
+            raise KeyError(f"Patient {patient_id} not found")
+
+        safe_items: list[dict[str, Any]] = []
+        for item in evidence_items:
+            item_patient = str(item.get("patient_id", patient_id))
+            # Reject cross-patient evidence — fail closed
+            if item_patient != patient_id:
+                continue
+            safe_items.append(item)
+
+        if safe_items:
+            self._pdf_evidence.setdefault(patient_id, []).extend(safe_items)
+
+        if verification_items:
+            self._pdf_verification_items.setdefault(patient_id, []).extend(verification_items)
+            for v in verification_items:
+                v_id = v["verification_item_id"]
+                self._verification_items[v_id] = VerificationItem(
+                    verification_item_id=v_id,
+                    document_id=v.get("document_id", document_id),
+                    page_number=v.get("page_number", 1),
+                    block_id=v.get("block_id"),
+                    bbox=v.get("bbox"),
+                    extracted_text=v.get("extracted_text", ""),
+                    corrected_text=v.get("corrected_text"),
+                    confidence=v.get("confidence", 0.5),
+                    status=v.get("status", "pending"),
+                )
+
+    def mark_reviews_stale(self, patient_id: str) -> int:
+        """Mark all non-approved reviews for a patient as stale. Returns count marked."""
+        revs = self._reviews.get(patient_id, [])
+        count = 0
+        for rev in revs:
+            if rev.status not in {"approved", "stale"}:
+                rev.status = "stale"  # type: ignore[assignment]
+                count += 1
+        return count
+
     def build_evidence_packet(self, patient_id: str) -> EvidencePacket:
         """Build the locked C1 packet consumed by the C3 agent adapter."""
         if patient_id not in self._patients:
@@ -288,6 +345,12 @@ class DemoRepository:
         events = self.get_timeline(patient_id)
         _, _, hba1c_points = self.get_trends(patient_id, "4548-4")
         dates = sorted(event.occurred_at[:10] for event in events if event.occurred_at)
+        pdf_evs = list(self._pdf_evidence.get(patient_id, []))
+        pdf_doc_ids = list({
+            str(item.get("normalized_value", {}).get("document_id", ""))
+            for item in pdf_evs
+            if item.get("normalized_value", {}).get("document_id")
+        })
         return EvidencePacket(
             patient_id=patient_id,
             data_watermark=self.get_watermark(patient_id),
@@ -301,6 +364,8 @@ class DemoRepository:
             conflicts=[],
             drug_interactions=[],
             data_quality_flags=[],
+            pdf_evidence=pdf_evs,
+            pdf_document_ids=pdf_doc_ids,
         )
 
     # Reviews State Machine

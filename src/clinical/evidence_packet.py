@@ -1,4 +1,8 @@
-"""Backend EvidencePacket for the contract-faithful C3 agent adapter."""
+"""Backend EvidencePacket for the contract-faithful C3 agent adapter.
+
+The packet is the ONLY interface between Member 1 (data/ingestion) and
+Member 2 (agent). Agents never open source files or query the database.
+"""
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -18,6 +22,11 @@ class EvidencePacket:
     conflicts: list[dict[str, Any]] = field(default_factory=list)
     drug_interactions: list[dict[str, Any]] = field(default_factory=list)
     data_quality_flags: list[dict[str, Any]] = field(default_factory=list)
+    # PDF evidence items: list of canonical EvidenceItem dicts with DocumentCitation
+    # These are added after successful PDF ingestion and canonicalization.
+    pdf_evidence: list[dict[str, Any]] = field(default_factory=list)
+    # Track which document_ids have been ingested into this packet
+    pdf_document_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -33,4 +42,6 @@ class EvidencePacket:
             "conflicts": self.conflicts,
             "drug_interactions": self.drug_interactions,
             "data_quality_flags": self.data_quality_flags,
+            "pdf_evidence": self.pdf_evidence,
+            "pdf_document_ids": self.pdf_document_ids,
         }

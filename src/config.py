@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     summary_database_path: str = "./data/clinical_summaries.db"
     summary_backend: Literal["sqlite", "postgresql"] = "sqlite"
     summary_agent_backend: Literal["deterministic", "langgraph"] = "deterministic"
+    agent_generation_backend: Literal["deterministic", "openai"] = "deterministic"
     summary_postgres_dsn: str = ""
     clinical_database_path: str = "./data/mimic_demo.db"
     clinical_backend: Literal["sqlite", "postgresql"] = "sqlite"
