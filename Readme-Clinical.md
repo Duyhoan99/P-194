@@ -7,7 +7,34 @@
 **Kiến trúc:** Patient-first, hybrid rule + NLP/RAG, evidence-first, source read-only + HITL  
 **Use case MVP:** Bác sĩ Nội tiết/Nội tổng hợp rà soát bệnh nhân đái tháo đường type 2 có thể kèm tăng huyết áp hoặc bệnh thận mạn
 
-**Tài liệu kỹ thuật chi tiết:** [`ARCHITECTURE_Clinical_Review_Copilot.md`](ARCHITECTURE_Clinical_Review_Copilot.md)
+**Bộ tài liệu triển khai:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`API_CONTRACT.md`](API_CONTRACT.md) · [`Diagram.md`](Diagram.md)
+
+### Cách dùng bộ tài liệu để giao việc cho AI
+
+Đây là bộ đặc tả liên kết, không phải bốn mô tả độc lập. AI phải đọc theo thứ tự sau trước khi sửa mã:
+
+1. `Readme-Clinical.md` — nguồn sự thật về bài toán, phạm vi, hành vi lâm sàng, tiêu chí nghiệm thu và non-goals.
+2. `ARCHITECTURE.md` — nguồn sự thật về invariant, ranh giới component, data flow, state machine, module và Definition of Done.
+3. `API_CONTRACT.md` — nguồn sự thật cuối cùng về endpoint, request/response, enum, lỗi và compatibility.
+4. `Diagram.md` — hình chiếu trực quan của ba tài liệu trên; dùng để kiểm tra luồng, không dùng để tự tạo yêu cầu mới.
+
+Nếu có mâu thuẫn: API theo `API_CONTRACT.md`; invariant/security/state theo `ARCHITECTURE.md`; phạm vi và acceptance theo file này. `Diagram.md` phải được sửa để phản ánh ba nguồn trên. AI không được tự chọn một biến thể hoặc âm thầm mở rộng P0/P1.
+
+Mỗi lệnh triển khai phải nêu: phạm vi P0/P1, requirement/acceptance liên quan, endpoint/schema bị tác động, invariant phải giữ, file dự kiến sửa và test cần chạy. Nếu thiếu một dữ kiện làm thay đổi public contract hoặc an toàn lâm sàng, AI phải dừng và hỏi; các chi tiết nội bộ không ảnh hưởng contract có thể chọn theo pattern trong `ARCHITECTURE.md`.
+
+Prompt khởi động khuyến nghị (thay `<vertical slice>` bằng một lát cắt trong `ARCHITECTURE.md` mục 23.1):
+
+```text
+Đọc đầy đủ Readme-Clinical.md, ARCHITECTURE.md, API_CONTRACT.md và Diagram.md theo quyền ưu tiên được ghi trong tài liệu. Triển khai <vertical slice> end-to-end trong phạm vi P0/P1 đã chốt. Trước khi sửa, nêu requirement/acceptance, endpoint/schema, invariant và test liên quan; kiểm tra code hiện tại để chỉ sửa phần còn thiếu. Không đổi public contract hoặc mở rộng phạm vi nếu chưa cập nhật đặc tả. Sau khi sửa, chạy test phù hợp, đối chiếu Definition of Done và báo rõ phần đã xong, phần chưa xong, giả định và rủi ro còn lại. Tiếp tục từng vertical slice theo thứ tự mục 23.1; không tuyên bố hoàn tất toàn MVP khi chưa đạt toàn bộ gate mục 24.
+```
+
+Không nên yêu cầu “làm hết hệ thống” trong một lượt không có checkpoint. Bộ tài liệu đủ để AI triển khai tuần tự, nhưng mỗi vertical slice vẫn phải được test và đối chiếu contract trước khi chuyển sang slice kế tiếp.
+
+### Dataset chuẩn để triển khai và demo
+
+Nguồn dữ liệu chuẩn của MVP là [`data/demo_mvp_v1/dataset_manifest.json`](data/demo_mvp_v1/dataset_manifest.json), phiên bản `1.3.0`: 6 FHIR R4 Bundle, 18 PDF, 7 biến thể OCR và 49 gold assertions. Đọc [`data/demo_mvp_v1/DATASET_CARD.md`](data/demo_mvp_v1/DATASET_CARD.md) trước khi dùng; kiểm tra checksum bằng `data/demo_mvp_v1/checksums.json`. Tái tạo có xác định bằng `python scripts/generate_demo_mvp_data.py`.
+
+AI không được tự sinh một dataset thay thế, đổi evidence ID hoặc sửa trực tiếp artifact đã đóng băng. Thay đổi kịch bản phải sửa generator, tăng version manifest, sinh lại checksum và cập nhật gold labels trong cùng change. Hai file SQLite cũ `data/synthetic_demo.db` và `data/clinical_summaries.db` chỉ phục vụ implementation cũ, không phải nguồn sự thật của target MVP; chỉ loại bỏ sau khi migration và regression test hoàn tất.
 
 ---
 
@@ -105,7 +132,7 @@ Một bệnh nhân mạn tính có thể có nhiều năm dữ liệu và hàng 
 - Đăng nhập bằng tài khoản bác sĩ/quản trị viên và phân quyền theo vai trò.
 - Tìm kiếm, chọn hoặc nhập một hồ sơ bệnh nhân mô phỏng.
 - Nhập **PDF có text** là luồng chính; nhập FHIR R4 JSON Bundle là luồng chuẩn có cấu trúc.
-- Hỗ trợ PDF scan/ảnh qua OCR có kiểm soát trong P1 bắt buộc; CSV chỉ dùng seed/import hàng loạt dữ liệu synthetic.
+- Hỗ trợ PDF scan/ảnh qua OCR có kiểm soát trong P1 bắt buộc.
 - Giữ bản dữ liệu gốc bất biến để đối chiếu.
 - Chuẩn hóa bệnh nhân, lượt khám, xét nghiệm, thuốc, chẩn đoán, dấu hiệu sinh tồn và ghi chú.
 - Xây dựng timeline dọc theo bệnh nhân.
@@ -203,7 +230,7 @@ Luồng demo MVP bắt buộc có cả hai pha: `đăng nhập → chọn/nhập
 | Tổng lượt khám | Khoảng 1.000–1.500 |
 | Hồ sơ công khai để kiểm tra ETL | MIMIC-IV Demo |
 | Pilot bệnh viện tương lai | 20–50 hồ sơ đã ẩn danh |
-| Dữ liệu nhập | PDF có text và FHIR R4 JSON Bundle; PDF scan/OCR P1 bắt buộc; CSV synthetic phụ trợ |
+| Dữ liệu nhập | PDF có text và FHIR R4 JSON Bundle; PDF scan/ảnh qua OCR là P1 bắt buộc |
 | Dữ liệu xử lý | Xét nghiệm, thuốc, chẩn đoán, vital signs, ghi chú |
 
 ---
@@ -290,14 +317,13 @@ flowchart TD
 
 ## 7.1. Hợp đồng đầu vào MVP
 
-PDF là định dạng **tài liệu phổ biến để người dùng đưa vào hệ thống**, còn FHIR là định dạng **trao đổi dữ liệu có cấu trúc giữa các hệ thống**. Chúng được chuẩn hóa về cùng Canonical Patient Model; không đưa nguyên file cho LLM và không quảng bá CSV là chuẩn hồ sơ y tế.
+PDF/ảnh là định dạng **tài liệu phổ biến để người dùng đưa vào hệ thống**, còn FHIR là định dạng **trao đổi dữ liệu có cấu trúc giữa các hệ thống**. Chúng được chuẩn hóa về cùng Canonical Patient Model; không đưa nguyên file cho LLM.
 
 | Input | Mức | Mục đích | Kỹ thuật triển khai khả thi |
 |---|---|---|---|
 | PDF có text | **P0 bắt buộc** | Đơn thuốc, phiếu xét nghiệm, giấy ra viện, ghi chú khám | PyMuPDF/pdfplumber trích text theo từng trang và block tọa độ; giữ bảng; section-aware chunking; citation `file · page · block/table` |
 | FHIR R4 JSON Bundle | **P0 bắt buộc** | Chứng minh khả năng tích hợp chuẩn y tế | Validate JSON/schema; adapter cho `Patient`, `Encounter`, `Observation`, `Condition`, `MedicationRequest`, `AllergyIntolerance`, `DiagnosticReport`, `DocumentReference` |
 | PDF scan hoặc ảnh | **P1 bắt buộc** | Hỗ trợ tài liệu không có text layer | Phát hiện text layer rỗng → render trang 300 dpi → PaddleOCR/VietOCR/Tesseract; lưu confidence, bounding box và bắt buộc người dùng sửa/xác nhận khi dùng dữ kiện OCR |
-| CSV | Phụ trợ | Seed, fixture, bulk synthetic import/evaluation | CSV contract tách bảng; parser có schema validation; không hiển thị như input y tế chuẩn trong pitch |
 
 ### Hợp đồng citation cho tài liệu
 
@@ -318,7 +344,7 @@ OCR không phải điều kiện để checkpoint P0 pass, nhưng là điều ki
 
 | Nguồn | Vai trò trong dự án | Ưu điểm | Hạn chế |
 |---|---|---|---|
-| [Synthea](https://synthetichealth.github.io/synthea/) | Sinh hồ sơ bệnh nhân giả theo thời gian | Không chứa bệnh nhân thật; hỗ trợ FHIR, C-CDA và CSV | Dữ liệu khá sạch và theo bối cảnh Mỹ |
+| [Synthea](https://synthetichealth.github.io/synthea/) | Sinh hồ sơ bệnh nhân giả theo thời gian | Không chứa bệnh nhân thật; dự án chỉ sử dụng đầu ra FHIR | Dữ liệu khá sạch và theo bối cảnh Mỹ |
 | Bộ dữ liệu giả tiếng Việt có gold label | Kiểm thử đúng các kịch bản sản phẩm cần phát hiện | Biết chính xác đáp án đúng | Phải thiết kế kịch bản có kiểm soát |
 | [MIMIC-IV Demo](https://physionet.org/content/mimic-iv-demo/) | Kiểm tra ETL trên dữ liệu bệnh viện đã ẩn danh | Dữ liệu thực tế hơn; demo mở gồm 100 bệnh nhân | Chủ yếu nội trú/critical care; không có clinical notes tự do |
 | Dữ liệu bệnh viện đã ẩn danh | Pilot cuối cùng | Phản ánh bối cảnh Việt Nam | Cần phê duyệt đạo đức, pháp lý và quản trị dữ liệu |
@@ -335,7 +361,7 @@ Không nên dùng bệnh án lấy từ Internet hoặc Kaggle nếu không xác
 
 | Lớp | Nội dung | Quy tắc |
 |---|---|---|
-| Raw zone | PDF/FHIR Bundle/CSV nhận được | Bất biến; có checksum; không ghi đè |
+| Raw zone | PDF/ảnh/FHIR Bundle nhận được | Bất biến; có checksum; không ghi đè |
 | Staging zone | Dữ liệu đã parse và gắn lỗi validation | Có thể tái tạo từ raw |
 | Canonical clinical store | Dữ liệu đã chuẩn hóa theo schema nội bộ | Mọi record giữ liên kết về nguồn |
 | Derived event store | Thay đổi, xu hướng, cảnh báo dữ liệu thiếu | Có version của rule/profile |
@@ -437,7 +463,7 @@ flowchart TD
     A["Sinh hồ sơ nền bằng Synthea"] --> B["Chèn kịch bản có gold label"]
     B --> C["Sinh ghi chú tiếng Việt từ sự kiện"]
     C --> D["Tạo clean / realistic / challenge"]
-    D --> E["Xuất PDF text, FHIR Bundle và CSV seed"]
+    D --> E["Xuất PDF text, PDF scan và FHIR Bundle"]
     E --> F["Chạy hệ thống và chấm theo gold"]
 ```
 
@@ -523,7 +549,7 @@ flowchart TD
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Source adapters | Đọc PDF text/scan theo trang/block, FHIR R4 JSON Bundle và CSV synthetic; ánh xạ về schema nội bộ |
+| Source adapters | Đọc PDF text/scan/ảnh theo trang/block và FHIR R4 JSON Bundle; ánh xạ về schema nội bộ |
 | Document extraction | Phát hiện text layer, trích xuất layout/bảng, tạo page/block citation; OCR P1 bắt buộc cho tài liệu scan, có confidence và xác minh |
 | Raw store | Lưu dữ liệu gốc bất biến để tái xử lý/đối chiếu |
 | Validator | Kiểm tra schema, kiểu dữ liệu, trùng, conflict và chất lượng |
@@ -566,7 +592,7 @@ LLM không được dùng làm máy tính cho những phần đã có thể xác
 
 ### Bước 2 — Ingestion
 
-- Adapter nhận PDF text, FHIR R4 JSON Bundle hoặc CSV synthetic.
+- Adapter nhận PDF text, PDF scan/ảnh hoặc FHIR R4 JSON Bundle.
 - Mỗi batch có `ingestion_batch_id`.
 - Lưu raw payload trước khi biến đổi.
 - Tính checksum để phát hiện file/bản ghi lặp.
@@ -1123,7 +1149,6 @@ Không được sửa trực tiếp một version đã duyệt. Mọi chỉnh s�
 | `POST` | `/api/v1/auth/logout` | Kết thúc session hiện tại |
 | `GET` | `/api/v1/auth/me` | Lấy người dùng, role và permission scope |
 | `GET` | `/api/v1/patients` | Danh sách/tìm kiếm bệnh nhân trong phạm vi quyền |
-| `POST` | `/api/v1/synthetic-records/import` | Nhập hồ sơ mô phỏng và tạo ingestion batch |
 | `POST` | `/api/v1/ingestions` | Tạo một batch nhập dữ liệu |
 | `GET` | `/api/v1/ingestions/{id}` | Xem trạng thái và lỗi batch |
 | `POST` | `/api/v1/patients/{patient_id}/process` | Yêu cầu xử lý/cập nhật bệnh nhân |
@@ -1252,7 +1277,7 @@ P-194-master/
 │   ├── models/
 │   │   └── schemas.py                        🔄 Request/response/evidence schemas
 │   ├── services/                             🔄 Business logic xác định
-│   │   ├── ingestion.py                      ➕ PDF/FHIR/CSV adapters + ingestion orchestration
+│   │   ├── ingestion.py                      ➕ PDF/ảnh/FHIR adapters + ingestion orchestration
 │   │   ├── document_extraction.py            ➕ PDF page/block/table extraction + OCR gate
 │   │   ├── normalization.py                  ➕ Chuẩn hóa dữ liệu
 │   │   ├── timeline.py                       ➕ Xây hồ sơ dọc
@@ -1296,7 +1321,7 @@ P-194-master/
 │   ├── scripts/                              ➕ B0–B3 runners/metrics
 │   └── results/report.md                     🔄 Kết quả thực nghiệm
 ├── docs/
-│   ├── architecture_diagram.md               🔄 Mermaid kiến trúc thật
+│   ├── (không sao chép Diagram.md)            ℹ️ dùng Diagram.md ở repo root
 │   └── guide/                                ✅ Technical Guidebook của BTC
 ├── presentation/                             🔄 Pitch deck + video link
 ├── scripts/                                  ✅ AI logging hooks của BTC
@@ -1334,7 +1359,7 @@ Không cần tạo cấu trúc `apps/` và `packages/` mới. Trong phạm vi s�
 | API | `src/api/routes.py`, `src/models/schemas.py` | `tests/test_api/` |
 | Patient Review UI | `frontend/` | Login, patient selection, citation, HITL, PDF và audit demo |
 | Benchmark B0–B3 | `eval/datasets/`, `eval/scripts/` | `eval/results/report.md` |
-| Kiến trúc và quyết định | `docs/architecture_diagram.md`, `ARCHITECTURE_Clinical_Review_Copilot.md` | Mermaid render được trên GitHub; khi tích hợp repo có thể dùng nội dung này thay `ARCHITECTURE.md` mẫu |
+| Kiến trúc và quyết định | `Diagram.md`, `ARCHITECTURE.md` | Mermaid render được trên GitHub; hai file phải được cập nhật cùng thay đổi kiến trúc |
 
 ## 18.5. Quick Start theo repo hiện tại
 
@@ -1686,7 +1711,7 @@ Nhóm chỉ có ba thành viên nên mỗi người sở hữu một trục chí
 |---:|---|---|---|
 | 1 | Source Code | `src/`, `frontend/` | Code chạy được; có auth, patient selection/import, agent, HITL, memory, PDF, audit; tách agent, API, schema và business logic rõ ràng |
 | 2 | Product README | `README.md` | Problem → Solution → Target User → Tech Stack → Setup → Team; dùng README này làm nội dung chính |
-| 3 | Architecture Diagram | `docs/architecture_diagram.md`, `ARCHITECTURE.md` | Mermaid mô tả auth/RBAC, hybrid rule + RAG + verifier, HITL, memory, PDF, audit và deployment; không giữ sơ đồ agent mẫu |
+| 3 | Architecture Diagram | `Diagram.md`, `ARCHITECTURE.md` | Mermaid mô tả auth/RBAC, hybrid rule + RAG + verifier, HITL, memory, PDF, audit và deployment; không giữ sơ đồ agent mẫu |
 | 4 | AI Logs | LangSmith + AI hooks | Cài hooks; log interaction AI theo yêu cầu; tuyệt đối chỉ dùng dữ liệu synthetic/ẩn danh được phép |
 | 5 | Live URL | URL backend/frontend | Sản phẩm truy cập được trên Internet trong ngày chấm |
 | 6 | Video Demo | Link trong `presentation/` hoặc README | Video tối đa 5 phút, tập trung vào luồng review hồ sơ và mở bằng chứng |
@@ -1719,7 +1744,7 @@ Mục tiêu nội bộ là đạt ít nhất **35/50**, nhưng không hy sinh sa
 ### 24.4. Checklist trước Demo Day
 
 - [ ] `README.md` là README sản phẩm, không còn chỉ là hướng dẫn starter template.
-- [ ] `docs/architecture_diagram.md` phản ánh code đang chạy.
+- [ ] `Diagram.md` phản ánh `ARCHITECTURE.md`, `API_CONTRACT.md` và code đang chạy.
 - [ ] `ruff check src/ tests/` pass.
 - [ ] `ruff format --check src/ tests/` pass.
 - [ ] `pytest tests/ -v` pass và có patient-isolation test.
@@ -1739,7 +1764,7 @@ Mục tiêu nội bộ là đạt ít nhất **35/50**, nhưng không hy sinh sa
 
 MVP được coi là hoàn thành khi có thể trình diễn toàn bộ luồng sau:
 
-1. Nạp được ít nhất một **PDF có text**, một **PDF scan/ảnh qua OCR** và một **FHIR R4 JSON Bundle** về cùng canonical timeline; CSV chỉ là fixture/seed.
+1. Nạp được ít nhất một **PDF có text**, một **PDF scan/ảnh qua OCR** và một **FHIR R4 JSON Bundle** về cùng canonical timeline.
 2. Giữ PDF/FHIR raw bất biến, checksum và provenance đến đúng file/trang/block hoặc resource.
 3. Chuẩn hóa về cùng patient timeline.
 4. Phát hiện chính xác ít nhất:

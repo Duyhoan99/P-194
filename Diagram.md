@@ -2,6 +2,12 @@
 
 Ba sơ đồ dưới đây mô tả kiến trúc MVP gồm cả P0 và P1. Các nguyên tắc xuyên suốt là `patient-first`, `evidence-first`, `deterministic-first`, dữ liệu nguồn bất biến và `human-in-the-loop`.
 
+**Nguồn đối chiếu:** [`Readme-Clinical.md`](Readme-Clinical.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`API_CONTRACT.md`](API_CONTRACT.md)
+
+Sơ đồ là hình chiếu để kiểm tra luồng, không phải nguồn yêu cầu độc lập. Tên invariant bên dưới dùng đúng ID và đúng nghĩa từ `ARCHITECTURE.md`; endpoint và payload luôn theo `API_CONTRACT.md`. Khi sơ đồ mâu thuẫn với hai file đó, phải sửa sơ đồ thay vì suy diễn hành vi mới.
+
+**Baseline demo:** `data/demo_mvp_v1/dataset_manifest.json@1.3.0` → WP1 Data/Backend tạo canonical + evidence packet → WP2 AI/Safety trả kết quả đã kiểm chứng → WP3 Product/Frontend hiển thị và triển khai. Cả ba dùng chung ID, gold labels và API contract; không tạo fixture riêng lệch baseline.
+
 ## 1. System Overview Diagram
 
 Sơ đồ này thể hiện luồng tổng thể từ nhập hồ sơ đến tạo bằng chứng, sinh bản nháp, bác sĩ duyệt và chỉ sau đó mới tạo patient memory hoặc PDF bàn giao.
@@ -19,7 +25,6 @@ flowchart TD
         PdfText["PDF có text"]
         PdfScan["PDF scan / ảnh"]
         Fhir["FHIR R4 JSON Bundle"]
-        Csv["CSV synthetic: seed, fixture, evaluation"]
     end
 
     subgraph Frontend["Frontend — Next.js"]
@@ -38,7 +43,6 @@ flowchart TD
         FormatRouter{"Source Adapter Router"}
         PdfAdapter["PDF Adapter: PyMuPDF/pdfplumber, layout, bảng và local OCR"]
         FhirAdapter["FHIR Adapter: validate Bundle và map resource"]
-        CsvAdapter["CSV Adapter: chỉ fixture/seed synthetic"]
         Canonical["Canonical Patient Model: normalize ngày, đơn vị, thuốc và nguồn"]
         Rules["Deterministic Engine: timeline, trend, conflict, data gap và drug interaction"]
         ReviewService["Review Service: version, lifecycle, watermark và optimistic locking"]
@@ -75,21 +79,18 @@ flowchart TD
     PdfText -->|"(4) chọn file"| Upload
     PdfScan -->|"(4) chọn file"| Upload
     Fhir -->|"(4) chọn file"| Upload
-    Csv -->|"(4) seed/evaluation"| Upload
     Upload -->|"(5) upload kèm patient_id"| Api
     Api -->|"(6) import đã authorize"| Ingestion
     Ingestion -->|"(7) lưu nguyên bản trước khi xử lý"| Raw
     Ingestion -->|"(8) phát hiện định dạng"| FormatRouter
     FormatRouter -->|"(9a) PDF text/scan"| PdfAdapter
     FormatRouter -->|"(9b) FHIR R4"| FhirAdapter
-    FormatRouter -->|"(9c) CSV synthetic"| CsvAdapter
 
     PdfAdapter -->|"(10a) extraction đủ tin cậy + provenance"| Canonical
     PdfAdapter -->|"(10b) OCR/table low-confidence → needs_verification"| OcrReview
     OcrReview -->|"(11) clinician sửa/xác nhận"| Api
     Api -->|"(12) dữ liệu extraction đã xác minh"| Canonical
     FhirAdapter -->|"(10) resource hợp lệ"| Canonical
-    CsvAdapter -->|"(10) fixture hợp lệ"| Canonical
     Canonical -->|"(13) records có provenance"| Pg
     Canonical -->|"(14) note/PDF chunks đã khóa patient scope"| Vector
     Pg -->|"(15) dữ liệu cấu trúc"| Rules
@@ -296,15 +297,18 @@ flowchart TD
 
 | ID | Invariant |
 |---|---|
-| INV-01 | Mọi truy cập lâm sàng đều qua Auth/RBAC và tenant/patient scope trước khi xử lý. |
-| INV-02 | Raw PDF/FHIR/CSV được lưu bất biến cùng checksum trước khi parse/normalize. |
-| INV-03 | PDF, FHIR và CSV đi qua adapter riêng; CSV chỉ dùng synthetic fixture/seed. |
-| INV-04 | OCR/table low-confidence mang `needs_verification` và không trở thành verified fact trước khi clinician xác nhận. |
-| INV-05 | Timeline, trend, conflict, data gap và drug interaction chạy bằng deterministic code/rule trước LLM. |
-| INV-06 | Retrieval lọc tenant/patient trước rerank; citation quay lại đúng file/trang/block hoặc FHIR resource. |
-| INV-07 | Ask the Chart trả answer/citation/abstain và audit, không đi vào quy trình approve. |
-| INV-08 | Review phải qua lifecycle, evidence gate, clinician confirmation, version check và current watermark. |
-| INV-09 | Review `stale`, version conflict hoặc unsupported claim bị chặn approve/export. |
-| INV-10 | Patient memory và PDF chỉ được tạo từ đúng approved review version. |
-| INV-11 | Chỉ reverse proxy public; OCR và kho dữ liệu bệnh nhân ở private network. |
-| INV-12 | PHI access, evidence view, ask, edit, approve/reject, memory và export đều được audit. |
+| INV-01 | Mọi truy vấn clinical có `tenant_id` và `patient_id` lấy từ server-side scope. |
+| INV-02 | `patient_id` trong prompt/body không cấp quyền truy cập. |
+| INV-03 | Structured values lấy từ canonical store; timeline/trend/rule không do LLM tự tính. |
+| INV-04 | Mỗi claim hiển thị như fact có ít nhất một evidence link hợp lệ. |
+| INV-05 | Claim unsupported hoặc OCR `needs_verification` chưa xác nhận không đi vào approved review. |
+| INV-06 | Review AI sinh luôn bắt đầu ở trạng thái `generated`. |
+| INV-07 | Approve yêu cầu `clinician_confirmation=true`. |
+| INV-08 | Review `stale` hoặc version conflict không được approve/export. |
+| INV-09 | Patient memory chỉ tạo từ approved review hoặc deterministic fact có nguồn. |
+| INV-10 | PDF chỉ render server-side từ `approved_review_version_id`. |
+| INV-11 | Source clinical record read-only; mọi ghi chỉ vào application store. |
+| INV-12 | PHI access, evidence view, ask, edit, approve, memory và export đều được audit. |
+| INV-13 | Admin role không tự động có quyền đọc nội dung clinical. |
+| INV-14 | Agent output public không chứa scratchpad, system prompt hoặc tool trace nội bộ. |
+| INV-15 | Audit log và AI usage log độc lập; AI usage log không chứa PHI. |

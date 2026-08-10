@@ -1,0 +1,70 @@
+{
+  "cases": [
+    {
+      "case_id": "TREND-PAT001-HBA1C-RISE",
+      "patient_id": "PAT-001",
+      "code": "4548-4",
+      "from": 7.1,
+      "to": 8.2,
+      "unit": "%",
+      "direction": "increased",
+      "evidence_ids": [
+        "PAT-001-OBS-01-01",
+        "PAT-001-OBS-03-01"
+      ]
+    },
+    {
+      "case_id": "TREND-PAT001-HBA1C-FALL",
+      "patient_id": "PAT-001",
+      "code": "4548-4",
+      "from": 8.2,
+      "to": 7.4,
+      "unit": "%",
+      "direction": "decreased",
+      "evidence_ids": [
+        "PAT-001-OBS-03-01",
+        "PAT-001-OBS-04-01"
+      ]
+    },
+    {
+      "case_id": "TREND-PAT002-EGFR",
+      "patient_id": "PAT-002",
+      "code": "33914-3",
+      "from": 59,
+      "to": 43,
+      "unit": "mL/min/1.73m2",
+      "direction": "decreased",
+      "evidence_ids": [
+        "PAT-002-OBS-01-06",
+        "PAT-002-OBS-03-06"
+      ]
+    },
+    {
+      "case_id": "TREND-PAT005-HBA1C",
+      "patient_id": "PAT-005",
+      "code": "4548-4",
+      "from": 7.0,
+      "to": 7.9,
+      "unit": "%",
+      "direction": "increased",
+      "evidence_ids": [
+        "PAT-005-OBS-01-01",
+        "PAT-005-OBS-03-01"
+      ]
+    },
+    {
+      "case_id": "NORMALIZE-PAT006-GLUCOSE",
+      "patient_id": "PAT-006",
+      "code": "2339-0",
+      "source_value": 180,
+      "source_unit": "mg/dL",
+      "canonical_value": 10.0,
+      "canonical_unit": "mmol/L",
+      "expected_action": "normalize_and_preserve_original",
+      "evidence_ids": [
+        "PAT-006-OBS-03-02",
+        "DOC-PAT006-LAB-001"
+      ]
+    }
+  ]
+}

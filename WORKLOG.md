@@ -57,6 +57,17 @@ Các mục dưới đây ghi lại công việc đã thực hiện trong reposit
 
 **Tổng kết ngày:** Hoàn tất rà soát toàn bộ thiết kế kiến trúc y tế, sơ đồ hệ thống Mermaid và cấu hình luồng logging an toàn, chuẩn bị sẵn sàng cho giai đoạn lập trình.
 
+## 2026-08-08
+
+| Member | Task | Status | Output | Time |
+|---|---|---|---|---|
+| Pham Duy Hoan | Đọc và giải thích ba sơ đồ System Overview, Agent Flow và Deployment; Việt hóa các thuật ngữ kỹ thuật chính | ✅ Done | `Diagram.md` được rà soát và thống nhất cách hiểu giữa các thành viên | Chưa ghi nhận |
+| Pham Duy Hoan | Tổng hợp `Readme-Clinical.md`, `ARCHITECTURE.md` và `Diagram.md` thành hợp đồng API để ba thành viên phát triển song song | ✅ Done | `API_CONTRACT.md`: endpoint, schema, mã lỗi, phân quyền, phiên bản, watermark, mock và ma trận phụ trách | Chưa ghi nhận |
+| Pham Duy Hoan | Chốt lại phạm vi dữ liệu đầu vào của sản phẩm | ✅ Done | Chỉ sử dụng PDF có chữ, PDF scan/ảnh và FHIR R4 JSON Bundle | Chưa ghi nhận |
+| Pham Duy Hoan | Loại CSV khỏi thiết kế đầu vào và hợp đồng API của Clinical Review Copilot | ✅ Done | Cập nhật `Readme-Clinical.md`, `ARCHITECTURE.md`, `Diagram.md`, `API_CONTRACT.md`; bỏ endpoint và adapter CSV | Chưa ghi nhận |
+
+**Tổng kết ngày:** Hoàn thành hợp đồng API và thống nhất ba loại dữ liệu đầu vào cho Clinical Review Copilot. Ba thành viên đã có ranh giới tích hợp để phát triển song song.
+
 ## Open items
 
 | Item | Owner | Status |

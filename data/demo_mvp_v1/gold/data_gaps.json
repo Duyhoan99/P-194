@@ -1,0 +1,19 @@
+{
+  "cases": [
+    {
+      "case_id": "GAP-PAT004-HBA1C",
+      "patient_id": "PAT-004",
+      "type": "missing_followup_measurement",
+      "measurement": "HbA1c",
+      "expected_status": "open"
+    },
+    {
+      "case_id": "GAP-PAT004-UNIT",
+      "patient_id": "PAT-004",
+      "type": "missing_unit",
+      "document_id": "DOC-PAT004-LAB-001",
+      "field": "Glucose",
+      "expected_status": "needs_verification"
+    }
+  ]
+}

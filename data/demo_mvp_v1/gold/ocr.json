@@ -1,0 +1,103 @@
+{
+  "cases": [
+    {
+      "case_id": "OCR-PAT001-CLEAN",
+      "file": "PAT-001_lab_scan_clean.pdf",
+      "expected_fields": [
+        {
+          "field": "hba1c",
+          "value": 8.2,
+          "unit": "%"
+        },
+        {
+          "field": "glucose",
+          "value": 9.1,
+          "unit": "mmol/L"
+        },
+        {
+          "field": "document_date",
+          "value": "2026-01-10"
+        }
+      ],
+      "expected_policy": "auto_extract"
+    },
+    {
+      "case_id": "OCR-PAT001-PHOTO",
+      "file": "PAT-001_lab_phone_photo.jpg",
+      "expected_fields": [
+        {
+          "field": "hba1c",
+          "value": 8.2,
+          "unit": "%"
+        }
+      ],
+      "expected_policy": "confidence_gate"
+    },
+    {
+      "case_id": "OCR-PAT002-ROTATED",
+      "file": "PAT-002_followup_rotated.png",
+      "expected_text_contains": [
+        "không đau ngực",
+        "không khó thở",
+        "phù chân nhẹ"
+      ],
+      "expected_policy": "confidence_gate"
+    },
+    {
+      "case_id": "OCR-PAT003-BLUR",
+      "file": "PAT-003_prescription_blur.jpg",
+      "expected_fields": [
+        {
+          "field": "metformin_dose",
+          "value": 850,
+          "unit": "mg"
+        }
+      ],
+      "expected_policy": "needs_verification"
+    },
+    {
+      "case_id": "OCR-PAT004-LOWDPI",
+      "file": "PAT-004_lab_low_dpi.png",
+      "expected_fields": [
+        {
+          "field": "glucose",
+          "value": 9.0,
+          "unit": null
+        }
+      ],
+      "expected_policy": "needs_verification"
+    },
+    {
+      "case_id": "OCR-PAT005-SHADOW",
+      "file": "PAT-005_allergy_shadow.jpg",
+      "expected_fields": [
+        {
+          "field": "allergy",
+          "value": "Penicillin"
+        },
+        {
+          "field": "reaction",
+          "value": "Phát ban"
+        }
+      ],
+      "expected_policy": "confidence_gate"
+    },
+    {
+      "case_id": "OCR-PAT006-PHOTOCOPY",
+      "file": "PAT-006_lab_photocopy.jpg",
+      "expected_fields": [
+        {
+          "field": "glucose",
+          "value": 180,
+          "unit": "mg/dL"
+        },
+        {
+          "field": "hba1c",
+          "value": 8.0,
+          "unit": "%"
+        }
+      ],
+      "expected_policy": "confidence_gate"
+    }
+  ]
+}

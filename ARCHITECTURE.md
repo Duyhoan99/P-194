@@ -3,9 +3,27 @@
 > Tài liệu kỹ thuật chuẩn để nhóm ba người triển khai Clinical Review Copilot trên starter repo P-194-master.
 
 **Trạng thái:** Target architecture cho MVP sáu tuần  
-**Liên quan:** [README_Clinical_Review_Copilot.md](README_Clinical_Review_Copilot.md)  
+**Liên quan:** [Readme-Clinical.md](Readme-Clinical.md) · [API_CONTRACT.md](API_CONTRACT.md) · [Diagram.md](Diagram.md)
 **Kiến trúc:** patient-first, evidence-first, deterministic-first, source read-only, human-in-the-loop  
 **Use case đầu tiên:** đái tháo đường type 2 có thể kèm tăng huyết áp hoặc bệnh thận mạn
+
+### Vị trí của tài liệu trong bộ đặc tả
+
+Đọc `Readme-Clinical.md` trước để chốt phạm vi và acceptance. File này là nguồn sự thật cho invariant, state machine, component/module và ranh giới bảo mật. `API_CONTRACT.md` có quyền ưu tiên cao hơn riêng đối với mọi chi tiết HTTP/schema; `Diagram.md` chỉ trực quan hóa thiết kế và không được định nghĩa ID invariant hoặc hành vi mới.
+
+Một thay đổi kiến trúc chỉ hoàn tất khi đã kiểm tra tác động tới API contract, diagram, traceability/Definition of Done và test. Không triển khai từ riêng một sơ đồ hoặc một bảng endpoint tóm tắt trong tài liệu khác.
+
+### Implementation baseline và ba work package
+
+Baseline dữ liệu đóng băng: `data/demo_mvp_v1/dataset_manifest.json@1.3.0`; generator: `scripts/generate_demo_mvp_data.py`; gold truth: `data/demo_mvp_v1/gold/`. Mọi implementation phải giữ nguyên `patient_id`, resource/evidence ID, document ID và checksum của baseline.
+
+| Work package | Chủ sở hữu | Input cố định | Output bàn giao | Không được tự làm thay |
+|---|---|---|---|---|
+| WP1 Data & Backend | Thành viên 1 | FHIR/PDF/OCR + manifest | canonical records, provenance, deterministic facts, OpenAPI và evidence packet | prompt/agent graph, frontend UX |
+| WP2 AI, Safety & Eval | Thành viên 2 | evidence packet, `AgentRequest`, gold labels | `AgentResult`, verifier, abstention/isolation tests và eval report | DB query tự do, HTTP/public schema |
+| WP3 Product, Frontend & DevOps | Thành viên 3 | OpenAPI, mock JSON, lifecycle/error enum | UI, citation/OCR verification UX, CI/deploy và E2E evidence | clinical rule, verifier hoặc schema riêng |
+
+Checkpoint tích hợp bắt buộc: C0 freeze contract/dataset → C1 WP1 giao mock OpenAPI/evidence packet → C2 WP2 giao AgentResult snapshots và WP3 chạy UI bằng mock → C3 nối backend-agent → C4 E2E trên đủ 6 bệnh nhân. Một thành viên không đổi interface thuộc người khác nếu chưa cập nhật `API_CONTRACT.md` và contract tests.
 
 ---
 
@@ -261,14 +279,14 @@ P-194-master/
 │   └── test_security/
 ├── eval/
 ├── docs/
-│   └── architecture_diagram.md
+│   └── (không sao chép Diagram.md; dùng file ở repo root)
 ├── presentation/
 ├── scripts/
 ├── ARCHITECTURE.md
 └── README.md
 ```
 
-README sản phẩm có thể được chép vào README.md của repo. Tài liệu này có thể được chép vào ARCHITECTURE.md; docs/architecture_diagram.md giữ sơ đồ rút gọn phục vụ deliverable của BTC.
+`Readme-Clinical.md` giữ đặc tả sản phẩm, file này giữ thiết kế kỹ thuật, `API_CONTRACT.md` giữ hợp đồng máy đọc/client và `Diagram.md` giữ các sơ đồ Mermaid phục vụ deliverable. Không tạo bản sao khác tên vì sẽ làm phân kỳ nguồn sự thật.
 
 ---
 
@@ -341,7 +359,7 @@ Quy tắc kiểm tra:
 
 | Zone | Nội dung | Tính chất |
 |---|---|---|
-| Raw | PDF/FHIR/CSV file ban đầu + checksum | immutable |
+| Raw | PDF/ảnh/FHIR file ban đầu + checksum | immutable |
 | Staging | parsed record + validation issue | tái tạo được |
 | Canonical | patient, encounter, observation, medication, condition, note | normalized + provenance |
 | Derived | timeline event, trend, conflict, interaction flag | rule/profile versioned |
@@ -531,9 +549,9 @@ Yêu cầu:
 
 ### 10.2. Import và xử lý PDF/FHIR/synthetic record
 
-1. API kiểm tra quyền import, magic bytes/MIME, số trang/kích thước và allowlist: PDF text, FHIR R4 JSON, CSV synthetic.
+1. API kiểm tra quyền import, magic bytes/MIME, số trang/kích thước và allowlist: PDF text, PDF scan/ảnh và FHIR R4 JSON.
 2. Lưu raw bytes/payload, checksum và batch metadata.
-3. Detect adapter; PDF text đi qua page → block/table → section/chunk, FHIR đi qua Bundle/resource adapter; CSV chỉ dùng fixture/seed.
+3. Detect adapter; PDF/ảnh đi qua page → OCR nếu cần → block/table → section/chunk, FHIR đi qua Bundle/resource adapter.
 4. Validate schema/identity/time/unit.
 5. Với PDF, lưu `document_id`, page/block/table reference, bbox/char range và extraction version; scan không text layer được gắn `ocr_pending`.
 6. Quarantine record lỗi hoặc table/OCR low-confidence; không xóa raw và không tự đưa thành verified fact.
@@ -739,8 +757,7 @@ Prefix: /api/v1. Tất cả response lỗi theo ErrorResponse ở mục 17.
 | Method | Path | Request | Response | Permission |
 |---|---|---|---|---|
 | GET | /patients | search, page, page_size | PatientListResponse | patient.list |
-| POST | /documents/import | multipart PDF/FHIR/CSV + format? | IngestionBatchResponse | clinical.import (demo synthetic/de-identified only) |
-| POST | /synthetic-records/import | multipart CSV/FHIR fixture + format? | IngestionBatchResponse | synthetic.import |
+| POST | /ingestions | multipart PDF/ảnh/FHIR + format? | IngestionBatchResponse | clinical.import (demo synthetic/de-identified only) |
 | GET | /documents/{document_id}/pages/{page_number} | none | safe PDF page/image + blocks | clinical.read |
 | GET | /ingestions/{batch_id} | none | IngestionBatchResponse | ingestion.read |
 | POST | /patients/{patient_id}/process | profile/version | ProcessResponse | patient.process |
@@ -997,7 +1014,6 @@ Route signature rút gọn; tất cả route clinical dùng dependency auth/scop
 | detect_text_layer | (pdf) -> TextLayerStatus | Chuyển scan sang OCR queue/policy, không OCR im lặng |
 | parse_pdf_table | (page, block) -> TableParseResult | Parse bảng đơn giản; fail thì giữ text + quality flag |
 | create_document_citation | (block, snippet) -> DocumentCitation | File/page/block/table reference, checksum |
-| parse_csv | (stream) -> Iterator[RawRecord] | CSV adapter |
 | parse_json | (stream) -> Iterator[RawRecord] | Internal JSON adapter |
 | parse_fhir_bundle | (payload) -> Iterator[RawRecord] | FHIR R4 demo subset |
 | parse_xml | (stream) -> Iterator[RawRecord] | XML demo schema; disable external entities |
@@ -1055,6 +1071,62 @@ Các hàm normalize nên pure và unit-test được.
 | detect_conflicts | (records, conflict_rules) -> list[ConflictFlag] | Hiển thị cả sources |
 | prioritize_events | (events, disease_profile, specialty_view) -> list[ClinicalEvent] | Ưu tiên, không xóa provenance |
 | run_rule_engine | (patient_context, configs) -> DerivedClinicalResult | Orchestrator deterministic |
+
+#### 14.11.1. Calculation contract bắt buộc
+
+Phần này là nguồn có thẩm quyền cho các phép tính deterministic của MVP. AI không được tự chọn hệ số, ngưỡng, cách làm tròn hoặc công thức khác. Mọi kết quả suy diễn phải lưu `calculation_id`, `calculation_version`, input record IDs, raw value/unit, canonical value/unit và nguồn cấu hình. Dùng `Decimal` từ lúc parse đến lúc lưu; chỉ làm tròn ở lớp trình bày.
+
+**Delta và hướng thay đổi** — chỉ so sánh hai kết quả cùng `patient_id`, cùng normalized test code, cùng canonical unit và có trạng thái hợp lệ:
+
+```text
+absolute_delta = new_value - old_value
+relative_delta = absolute_delta / abs(old_value), nếu old_value != 0
+relative_percent = relative_delta * 100
+```
+
+- Nếu `old_value = 0`, `relative_delta` và `relative_percent` là `null`; không trả vô cực hoặc chia cho 0.
+- `tolerance` là số không âm lấy từ disease profile theo từng test, mặc định `0` cho MVP nếu profile không khai báo.
+- `direction = increased` khi `absolute_delta > tolerance`; `decreased` khi `absolute_delta < -tolerance`; còn lại là `stable`.
+- Giá trị lưu giữ precision của input canonical. API/UI làm tròn theo `display_scale` trong bảng conversion/profile bằng `ROUND_HALF_EVEN`; không dùng số đã làm tròn để tính tiếp.
+
+**Xu hướng liên tục** — sau khi loại `entered-in-error`, duplicate và giá trị chưa xác minh, sắp theo `(effective_time, source_priority, record_id)`:
+
+- Cần ít nhất `min_points = 3`, trừ khi profile có version quy định khác.
+- `increasing` khi mọi delta kề nhau `> tolerance`; `decreasing` khi mọi delta kề nhau `< -tolerance`; `stable` khi mọi `abs(delta) <= tolerance`; trường hợp còn lại là `mixed`.
+- Không nội suy điểm thiếu, không suy diễn ý nghĩa lâm sàng và không đổi `mixed` thành tăng/giảm theo riêng điểm đầu-cuối.
+- Mỗi delta giữ hai evidence IDs; trend giữ toàn bộ evidence IDs theo thứ tự thời gian.
+
+**Chuyển đổi đơn vị có trong baseline `demo_mvp_v1@1.3.0`:**
+
+| Analyte | Từ → đến | Công thức canonical | `display_scale` | Bằng chứng |
+|---|---|---|---:|---|
+| Glucose | mg/dL → mmol/L | `value * 0.0555` | 1 | NIDDK *Diabetes in America — Conversions* |
+| Glucose | mmol/L → mg/dL | `value / 0.0555` | 0 | Nghịch đảo của conversion trên |
+| Creatinine | µmol/L → mg/dL | `value / 88.4` | 2 | NIDDK *2021 CKD-EPI eGFR equation* |
+| Creatinine | mg/dL → µmol/L | `value * 88.4` | 0 | Nghịch đảo của conversion trên |
+
+Không dùng một hệ số chung cho các analyte khác nhau. Conversion table phải có `analyte_code`, `from_unit`, `to_unit`, factor/formula, version, source URL và ngày hiệu lực. Unit không có rule đúng analyte phải trả `needs_verification`, không đoán theo tên hiển thị.
+
+**eGFR:** MVP ưu tiên eGFR đã được nguồn xét nghiệm báo và lưu nó như Observation có provenance. Không được suy ngược hoặc tự tính lại chỉ từ creatinine. Nếu sau MVP bật calculation profile `ckd_epi_2021_creatinine@1.0.0` cho người từ 18 tuổi, phải có creatinine chuẩn hóa theo IDMS, tuổi tại thời điểm lấy mẫu và giới tính khi sinh; công thức race-free là:
+
+```text
+eGFR = 142 * min(SCr/k, 1)^alpha * max(SCr/k, 1)^(-1.200)
+             * 0.9938^Age * (1.012 if female else 1)
+
+SCr: mg/dL
+k: 0.7 nếu female, 0.9 nếu male
+alpha: -0.241 nếu female, -0.302 nếu male
+output: mL/min/1.73 m²
+```
+
+Thiếu một input, bệnh nhân dưới 18 tuổi, không rõ assay/đơn vị hoặc ngoài profile thì không tính và tạo data-quality flag. Giá trị tự tính phải có `method=calculated`, equation/version và input evidence IDs; không được ghi đè giá trị `method=source_reported`. Chẩn đoán CKD không được tạo từ một điểm eGFR đơn lẻ.
+
+Nguồn kiểm chứng của calculation contract:
+
+- NIDDK, *Diabetes in America — Conversions*: https://www.niddk.nih.gov/-/media/Files/Strategic-Plans/Diabetes-in-America-3rd-Edition/DIA_Conversions.pdf
+- NIDDK, *eGFR Equations for Adults*: https://www.niddk.nih.gov/research-funding/research-programs/kidney-clinical-research-epidemiology/laboratory/glomerular-filtration-rate-equations/adults
+
+Unit tests tối thiểu phải khóa các kết quả: glucose `180 mg/dL → 9.99 mmol/L → hiển thị 10.0 mmol/L`; creatinine `1.04 mg/dL → 91.936 µmol/L → hiển thị 92 µmol/L`; delta HbA1c `8.2 → 7.4 = -0.8` và relative delta `-0.8 / 8.2`; `old_value=0` trả relative `null`; chuỗi `7.1 → 8.2 → 7.4` là `mixed`, không phải sustained increase/decrease.
 
 ### 14.12. src/services/medication_safety.py
 
@@ -1363,7 +1435,7 @@ Không expose patient_id như tham số tự do cho model khi graph đã khóa p
 | logout | () -> Promise<void> | POST /auth/logout |
 | getMe | () -> Promise<UserMe> | GET /auth/me |
 | listPatients | (filters) -> Promise<PatientPage> | GET /patients |
-| importSynthetic | (file, format?) -> Promise<Batch> | POST /synthetic-records/import |
+| createIngestion | (file, patientId?, format?) -> Promise<Batch> | POST /ingestions |
 | generateReview | (patientId, request) -> Promise<Review> | POST reviews/generate |
 | getReview | (patientId, version?) -> Promise<Review> | GET patient review |
 | getTimeline | (patientId, filters) -> Promise<Timeline> | GET timeline |

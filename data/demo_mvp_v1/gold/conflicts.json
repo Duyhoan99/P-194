@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "case_id": "CONFLICT-PAT003-METFORMIN",
+      "patient_id": "PAT-003",
+      "type": "medication_dose_conflict",
+      "status": "unresolved",
+      "values": [
+        {
+          "value": "500 mg",
+          "source_id": "PAT-003-MED-001"
+        },
+        {
+          "value": "850 mg",
+          "source_id": "DOC-PAT003-RX-001"
+        }
+      ]
+    }
+  ]
+}
