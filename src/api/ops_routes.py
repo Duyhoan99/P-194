@@ -60,7 +60,7 @@ def clinical_status(
         loaded_modules=["overview", "timeline", "diagnoses-procedures", "laboratory", "microbiology", "icu-events"],
         source_profile=settings.clinical_source_profile,
         ingestion={"checksum_status": "NOT_RECORDED", "schema_status": "NOT_VALIDATED"},
-        llm_gateway={"status": "CONFIGURED" if settings.openai_api_key else "UNAVAILABLE"},
+        llm_gateway={"status": "CONFIGURED" if settings.llm_api_key else "UNAVAILABLE"},
         clinical_tools={"status": "AVAILABLE", "count": 6},
         latency={"query_timeout_ms": int(settings.clinical_query_timeout_seconds * 1000)},
         trace_id=context.trace_id,

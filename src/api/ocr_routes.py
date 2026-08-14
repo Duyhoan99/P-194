@@ -1,12 +1,18 @@
 """OCR verification REST endpoints adhering strictly to API_CONTRACT.md section 4.5."""
 
+import pathlib
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from src.api.dependencies import get_demo_repository
 from src.clinical.canonical import VerificationItem
 from src.clinical.demo_repository import DemoRepository
+from src.clinical.ingestion import IngestionService
 
 router = APIRouter(tags=["ocr"])
+
+# Reference to the same IngestionService used by ingestion_routes
+# (imported lazily to avoid circular imports)
+_DEMO_DOCS_DIR = pathlib.Path(__file__).resolve().parents[2] / "data" / "demo_mvp_v1" / "documents"
 
 
 class VerificationListResponse(BaseModel):
@@ -88,3 +94,70 @@ def get_document_page(
         b"\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02\x00\x01H\xafA4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
     return Response(content=transparent_png, media_type="image/png")
+
+
+@router.get("/documents/{document_id}/raw", response_model=None)
+def get_document_raw(document_id: str) -> Response:
+    """Serve the raw PDF file for in-browser viewing.
+    
+    First checks the in-memory IngestionService DocumentStore.
+    Falls back to demo files on disk matching the document_id pattern.
+    """
+    # 1. Try in-memory DocumentStore (for uploaded documents)
+    from src.api.ingestion_routes import _ingestion_service
+    stored = _ingestion_service.document_store.get(document_id)
+    if stored and stored.content:
+        name_lower = stored.document_name.lower()
+        media_type = "application/pdf"
+        if name_lower.endswith(".png"):
+            media_type = "image/png"
+        elif name_lower.endswith(".jpg") or name_lower.endswith(".jpeg"):
+            media_type = "image/jpeg"
+        elif name_lower.endswith(".json"):
+            media_type = "application/json"
+            
+        return Response(
+            content=stored.content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{stored.document_name}"',
+                "Cache-Control": "public, max-age=3600",
+            },
+        )
+
+    # 2. Fallback: try to find a matching demo PDF on disk
+    # document_id patterns: "DOC-PAT-001-lab_report", "DOC-PAT-001-FHIR", etc.
+    # Demo file patterns: "PAT-001_lab_report.pdf", "PAT-001_followup_note.pdf"
+    if _DEMO_DOCS_DIR.is_dir():
+        # Extract patient ID from document_id
+        # e.g. "DOC-PAT-001-lab_report" -> try "PAT-001_lab_report.pdf"
+        cleaned = document_id.replace("DOC-", "").replace("-", "_")
+        for pdf_file in _DEMO_DOCS_DIR.glob("*.pdf"):
+            # Try exact match first
+            if pdf_file.stem == cleaned:
+                return Response(
+                    content=pdf_file.read_bytes(),
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'inline; filename="{pdf_file.name}"',
+                        "Cache-Control": "public, max-age=3600",
+                    },
+                )
+        # Try partial match: find any PDF whose name contains the patient ID
+        parts = document_id.split("-")
+        if len(parts) >= 3:
+            patient_id_part = f"{parts[1]}-{parts[2]}"  # e.g. "PAT-001"
+            for pdf_file in _DEMO_DOCS_DIR.glob(f"{patient_id_part}*.pdf"):
+                return Response(
+                    content=pdf_file.read_bytes(),
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'inline; filename="{pdf_file.name}"',
+                        "Cache-Control": "public, max-age=3600",
+                    },
+                )
+
+    raise HTTPException(
+        status_code=404,
+        detail={"code": "RESOURCE_NOT_FOUND", "message": f"Không tìm thấy tài liệu {document_id}."},
+    )

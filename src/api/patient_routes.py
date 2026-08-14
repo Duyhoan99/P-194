@@ -12,6 +12,14 @@ from src.clinical.canonical import (
 )
 from src.clinical.demo_repository import DemoRepository
 
+import zlib
+from uuid import uuid4
+from datetime import datetime
+from src.clinical.audit import AuditEvent
+from src.clinical.operations import operational_store
+from src.agents.retrieval.vector import clear_patient_evidence
+from src.api.ingestion_routes import _ingestion_service
+
 router = APIRouter(tags=["patients"])
 
 
@@ -142,3 +150,43 @@ def get_patient_memory(
             detail={"code": "RESOURCE_NOT_FOUND", "message": "Chưa có bộ nhớ bệnh nhân được duyệt."},
         )
     return memory
+
+@router.delete("/patients/{patient_id}", status_code=204)
+def delete_patient(
+    patient_id: str,
+    repo: DemoRepository = Depends(get_demo_repository),
+) -> None:
+    if not repo.get_patient(patient_id):
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "PATIENT_SCOPE_DENIED", "message": "Bệnh nhân không tồn tại hoặc không có quyền truy cập."},
+        )
+
+    # 1. Delete from repository
+    repo.delete_patient(patient_id)
+
+    # 2. Delete from ingestion service and document store
+    _ingestion_service.delete_for_patient(patient_id)
+
+    # 3. Delete from vector store
+    clear_patient_evidence(tenant_id="ten_demo", patient_id=patient_id)
+
+    # 4. Audit
+    try:
+        from loguru import logger
+        subject_id_hash = zlib.crc32(patient_id.encode('utf-8'))
+        with logger.contextualize(patient_id=patient_id):
+            operational_store.record(
+                AuditEvent(
+                    user_id="system_delete",
+                    action="DELETE_PATIENT",
+                    subject_id=subject_id_hash,
+                    hadm_id=None,
+                    stay_id=None,
+                    result="SUCCESS",
+                    trace_id=str(uuid4()),
+                    timestamp=datetime.now(),
+                )
+            )
+    except Exception:
+        pass
