@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     # LLM
-    openai_api_key: str = ""
-    model_name: str = "gpt-4o-mini"
+    llm_api_key: str = ""
+    llm_model_name: str = "gpt-4o-mini"
+    llm_base_url: str = ""
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
     # Database
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
     summary_database_path: str = "./data/clinical_summaries.db"
     summary_backend: Literal["sqlite", "postgresql"] = "sqlite"
     summary_agent_backend: Literal["deterministic", "langgraph"] = "deterministic"
-    agent_generation_backend: Literal["deterministic", "openai"] = "deterministic"
+    agent_generation_backend: Literal["deterministic", "openai", "llm"] = "deterministic"
     summary_postgres_dsn: str = ""
     clinical_database_path: str = "./data/mimic_demo.db"
     clinical_backend: Literal["sqlite", "postgresql"] = "sqlite"

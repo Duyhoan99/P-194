@@ -23,6 +23,7 @@ from src.clinical.pdf_extractor import (
 )
 from src.main import app
 from src.api.dependencies import get_demo_repository
+from unittest import mock
 
 
 # ---------------------------------------------------------------------------
@@ -630,8 +631,8 @@ def test_openai_mock_valid_claims_answered():
     """When OpenAI mock returns valid claims with real evidence_ids, they pass verifier."""
     from src.agents.adapter import AgentRequestAdapter
     from src.agents.evidence import build_scoped_evidence, retrieve_evidence
-    from src.agents.generation import compose_atomic_claims_openai
-    from src.agents.openai_client import MockOpenAIClinicalClient
+    from src.agents.generation import compose_atomic_claims_llm as compose_atomic_claims_llm
+    from src.agents.llm_client import MockLLMClinicalClient
     from src.agents.verification import verify_claims
 
     repo = DemoRepository()
@@ -664,12 +665,12 @@ def test_openai_mock_valid_claims_answered():
         pytest.skip("No statement text available")
 
     # Mock returns a claim using a real evidence_id
-    mock_client = MockOpenAIClinicalClient(mock_claims=[{
+    mock_client = MockLLMClinicalClient(mock_claims=[{
         "text": real_text,
         "evidence_ids": [real_ev_id],
         "section_code": "recent_results",
     }])
-    proposed = compose_atomic_claims_openai(retrieved, mock_client)
+    proposed = compose_atomic_claims_llm(retrieved, mock_client)["claims"]
     assert len(proposed) > 0
     claims, verifications = verify_claims(proposed, retrieved)
     # The claim should be verified (same text as evidence)
@@ -684,8 +685,8 @@ def test_openai_mock_unsupported_claim_rejected():
     """When OpenAI mock returns claims with non-existent evidence_ids, they are rejected."""
     from src.agents.adapter import AgentRequestAdapter
     from src.agents.evidence import build_scoped_evidence, retrieve_evidence
-    from src.agents.generation import compose_atomic_claims_openai
-    from src.agents.openai_client import MockOpenAIClinicalClient
+    from src.agents.generation import compose_atomic_claims_llm as compose_atomic_claims_llm
+    from src.agents.llm_client import MockLLMClinicalClient
 
     repo = DemoRepository()
     packet = repo.build_evidence_packet("PAT-001")
@@ -701,12 +702,12 @@ def test_openai_mock_unsupported_claim_rejected():
     retrieved = retrieve_evidence(scoped, route="hybrid", question=None)
 
     # Return claims with FAKE evidence_ids not in packet
-    mock_client = MockOpenAIClinicalClient(mock_claims=[{
+    mock_client = MockLLMClinicalClient(mock_claims=[{
         "text": "Invented claim not in evidence",
         "evidence_ids": ["ev_FAKE_999999", "ev_DOES_NOT_EXIST"],
         "section_code": "recent_results",
     }])
-    proposed = compose_atomic_claims_openai(retrieved, mock_client)
+    proposed = compose_atomic_claims_llm(retrieved, mock_client)["claims"]
     # Should fall back to deterministic (mock returned invalid ev_ids)
     # Or return empty; either way, no fake claim should pass
     for claim in proposed:
@@ -721,8 +722,8 @@ def test_openai_error_deterministic_fallback():
     """When OpenAI client raises an exception, deterministic generation is used."""
     from src.agents.adapter import AgentRequestAdapter
     from src.agents.evidence import build_scoped_evidence, retrieve_evidence
-    from src.agents.generation import compose_atomic_claims, compose_atomic_claims_openai
-    from src.agents.openai_client import MockOpenAIClinicalClient
+    from src.agents.generation import compose_atomic_claims, compose_atomic_claims_llm as compose_atomic_claims_llm
+    from src.agents.llm_client import MockLLMClinicalClient
 
     repo = DemoRepository()
     packet = repo.build_evidence_packet("PAT-001")
@@ -737,8 +738,8 @@ def test_openai_error_deterministic_fallback():
     scoped = build_scoped_evidence(request)
     retrieved = retrieve_evidence(scoped, route="hybrid", question=None)
 
-    error_client = MockOpenAIClinicalClient(raise_error=True)
-    proposed_openai = compose_atomic_claims_openai(retrieved, error_client)
+    error_client = MockLLMClinicalClient(raise_error=True)
+    proposed_openai = compose_atomic_claims_llm(retrieved, error_client)["claims"]
     proposed_deterministic = compose_atomic_claims(retrieved)
 
     # Both should produce the same result (fallback)
@@ -753,8 +754,8 @@ def test_openai_error_deterministic_fallback():
 
 def test_no_api_key_deterministic_fallback():
     """When OPENAI_API_KEY is absent, NullClient returns None → deterministic fallback."""
-    from src.agents.generation import compose_atomic_claims, compose_atomic_claims_openai
-    from src.agents.openai_client import NullOpenAIClinicalClient
+    from src.agents.generation import compose_atomic_claims, compose_atomic_claims_llm as compose_atomic_claims_llm
+    from src.agents.llm_client import NullLLMClinicalClient
     from src.agents.adapter import AgentRequestAdapter
     from src.agents.evidence import build_scoped_evidence, retrieve_evidence
 
@@ -771,8 +772,8 @@ def test_no_api_key_deterministic_fallback():
     scoped = build_scoped_evidence(request)
     retrieved = retrieve_evidence(scoped, route="hybrid", question=None)
 
-    null_client = NullOpenAIClinicalClient()
-    proposed_null = compose_atomic_claims_openai(retrieved, null_client)
+    null_client = NullLLMClinicalClient()
+    proposed_null = compose_atomic_claims_llm(retrieved, null_client)["claims"]
     proposed_det = compose_atomic_claims(retrieved)
     assert {c.claim_id for c in proposed_null} == {c.claim_id for c in proposed_det}
 
@@ -823,7 +824,8 @@ def test_no_evidence_returns_not_found():
 # Test 25: Full E2E via HTTP: upload → process → ask → review → citation → watermark → isolation
 # ---------------------------------------------------------------------------
 
-def test_e2e_upload_pdf_ask_review_citation_watermark_isolation():
+@mock.patch("src.agents.retrieval.vector.index_evidence")
+def test_e2e_upload_pdf_ask_review_citation_watermark_isolation(mock_index_evidence):
     """
     Full E2E test:
     1. Upload PDF for PAT-001.
@@ -901,7 +903,8 @@ def test_e2e_upload_pdf_ask_review_citation_watermark_isolation():
 # Test: Ingestion pipeline via real demo PDFs
 # ---------------------------------------------------------------------------
 
-def test_ingestion_with_real_demo_pdf():
+@mock.patch("src.agents.retrieval.vector.index_evidence")
+def test_ingestion_with_real_demo_pdf(mock_index_evidence):
     """Upload the actual PAT-001_lab_report.pdf from demo_mvp_v1 dataset."""
     import os
     from pathlib import Path
@@ -926,6 +929,7 @@ def test_ingestion_with_real_demo_pdf():
 
     assert response.status_code == 202
     body = response.json()
+    print("DEBUG INGESTION RESPONSE:", body)
     assert body["status"] in {"completed", "completed_with_warnings"}
     assert body["source_checksum"].startswith("sha256:")
 

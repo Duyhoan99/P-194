@@ -6,6 +6,8 @@
   "answer": null,
   "confidence": null,
   "claims": [],
+  "unsupported_claims": [],
+  "conflicts": [],
   "citations": [],
   "errors": [
     {

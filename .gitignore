@@ -58,6 +58,21 @@ out/
 
 # Build
 *.pyc
+htmlcov/
+.coverage
+coverage.xml
+
+# Docker
+docker-compose.override.yml
+
+# Node (frontend)
+node_modules/
+.next/
+out/
+.nuxt/
+
+# Build
+*.pyc
 *.pyo
 
 # AI logs — tracked structure, ignored content
@@ -66,3 +81,6 @@ out/
 
 # Local subagent worktrees
 .worktrees/
+
+# Local agent customizations
+.agents/
