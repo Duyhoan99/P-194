@@ -248,3 +248,128 @@ def detect_has_text_layer(content: bytes) -> bool:
         return False
     except Exception:
         return False
+
+
+class GeminiOcrExtractor(PdfExtractorBase):
+    """Real OCR extractor using Gemini API."""
+    
+    OCR_ENGINE = "gemini-ocr"
+    OCR_ENGINE_VERSION = "gemini-3.5-flash"
+    
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+        
+    def extract(self, content: bytes, document_id: str) -> DocumentExtraction:
+        import json
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        checksum = _sha256(content)
+        
+        if not self._api_key:
+            logger.warning("No API key for Gemini OCR; falling back to empty extraction")
+            return DocumentExtraction(
+                document_id=document_id,
+                page_count=1,
+                pages=[],
+                source_checksum=checksum,
+                extraction_version=EXTRACTION_VERSION,
+                has_text_layer=False,
+            )
+            
+        try:
+            from google import genai
+            from google.genai import types
+            
+            client = genai.Client(api_key=self._api_key)
+            
+            # Detect mime type based on magic bytes
+            mime_type = "application/pdf"
+            if content.startswith(b"\x89PNG"):
+                mime_type = "image/png"
+            elif content.startswith(b"\xff\xd8"):
+                mime_type = "image/jpeg"
+                
+            prompt = (
+                "Extract all clinical text from this document. "
+                "Return ONLY a structured JSON array with one object per meaningful text block. "
+                "Each object must have exactly two keys: 'text' (the extracted string) and 'confidence' (a float between 0 and 1 estimating OCR accuracy)."
+            )
+            
+            response = client.models.generate_content(
+                model=self.OCR_ENGINE_VERSION,
+                contents=[
+                    types.Content(role="user", parts=[
+                        types.Part.from_bytes(data=content, mime_type=mime_type),
+                        types.Part.from_text(text=prompt)
+                    ])
+                ],
+                config=types.GenerateContentConfig(
+                    temperature=0.0,
+                    response_mime_type="application/json",
+                )
+            )
+            
+            raw_text = response.text or "[]"
+            
+            # Strip markdown json block if present
+            if raw_text.startswith("```json"):
+                raw_text = raw_text.strip("`").replace("json\n", "", 1)
+            elif raw_text.startswith("```"):
+                raw_text = raw_text.strip("`")
+                
+            parsed = json.loads(raw_text)
+            if not isinstance(parsed, list):
+                if isinstance(parsed, dict) and "blocks" in parsed:
+                    parsed = parsed["blocks"]
+                else:
+                    parsed = [parsed]
+            
+            blocks = []
+            full_text_parts = []
+            for idx, item in enumerate(parsed):
+                if not isinstance(item, dict):
+                    continue
+                text = str(item.get("text", "")).strip()
+                if not text:
+                    continue
+                confidence = float(item.get("confidence", 1.0))
+                
+                block = BlockExtraction(
+                    page_number=1, # Gemini doesn't easily map back to pages for PDFs in simple API, assume 1
+                    block_id=f"blk_{document_id}_ocr_{idx}",
+                    text=text,
+                    source_type="ocr",
+                    ocr_confidence=confidence,
+                    ocr_engine=self.OCR_ENGINE,
+                    ocr_engine_version=self.OCR_ENGINE_VERSION,
+                )
+                blocks.append(block)
+                full_text_parts.append(text)
+                
+            page = PageExtraction(
+                page_number=1,
+                full_text="\n".join(full_text_parts),
+                blocks=blocks,
+                has_text_layer=False,
+            )
+            
+            return DocumentExtraction(
+                document_id=document_id,
+                page_count=1,
+                pages=[page] if blocks else [],
+                source_checksum=checksum,
+                extraction_version=EXTRACTION_VERSION,
+                has_text_layer=False,
+            )
+            
+        except Exception as exc:
+            logger.warning("Gemini OCR failed: %s", exc)
+            return DocumentExtraction(
+                document_id=document_id,
+                page_count=1,
+                pages=[],
+                source_checksum=checksum,
+                extraction_version=EXTRACTION_VERSION,
+                has_text_layer=False,
+            )

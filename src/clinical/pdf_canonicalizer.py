@@ -14,6 +14,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from src.clinical.structured_fact import StructuredFact
+
 from src.clinical.pdf_extractor import (
     OCR_CONFIDENCE_THRESHOLD,
     BlockExtraction,
@@ -97,27 +99,42 @@ def canonicalize_extraction(
             )
             snippet = _make_snippet(block.text)
 
-            evidence_item: dict[str, Any] = {
-                "evidence_id": ev_id,
-                "patient_id": patient_id,
-                "tenant_id": tenant_id,
-                "fact_type": "pdf_text_block",
-                "normalized_value": {
-                    "statement": snippet,
-                    "section_code": "changes_to_review",  # clinician reviews PDF content
-                    "page_number": block.page_number,
-                    "document_id": extraction.document_id,
-                    "document_name": document_name,
-                },
-                "source_value": {
+            # 1. Validate through StructuredFact
+            fact = StructuredFact(
+                fact_id=ev_id,
+                patient_id=patient_id,
+                # Extraction yields unstructured document text, not a parsed
+                # diagnosis/lab/medication fact. Keep it on narrative routes.
+                fact_type="clinical_note",
+                value={
                     "raw_text": block.text,
                     "page_number": block.page_number,
                     "source_type": block.source_type,
                 },
+                source_document_id=extraction.document_id,
+                page=block.page_number,
+                evidence_text=snippet,
+                confidence=block.ocr_confidence,
+                verification_status=verification_status,
+            )
+
+            # 2. Convert to backward-compatible EvidenceItem dict with injected scope
+            evidence_item: dict[str, Any] = {
+                "evidence_id": fact.fact_id,
+                "patient_id": patient_id,
+                "tenant_id": tenant_id,
+                "fact_type": fact.fact_type,
+                "normalized_value": {
+                    "statement": snippet,
+                    "section_code": "changes_to_review",
+                    "page_number": block.page_number,
+                    "document_id": extraction.document_id,
+                    "document_name": document_name,
+                },
+                "source_value": fact.value,
                 "source_time": None,
-                "verification_status": verification_status,
+                "verification_status": fact.verification_status,
                 "citations": [citation],
-                # Record status: no entered-in-error here (screened before calling)
                 "record_status": None,
             }
             evidence_items.append(evidence_item)
