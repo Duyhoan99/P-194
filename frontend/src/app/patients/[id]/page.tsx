@@ -1,504 +1,227 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
-import {
-  clinical,
-  summaries,
-  type ClinicalResponse,
-  type ClinicalRecord,
-  type SummaryVersion,
-} from '@/lib/api';
-import Sidebar from '@/components/Sidebar';
-import Header from '@/components/Header';
-import StatusBadge from '@/components/StatusBadge';
+import { useRouter, useParams } from 'next/navigation';
+import { auth, patients } from '@/lib/api';
+import { useAppStore } from '@/lib/store';
+import StructuredReview from '@/components/StructuredReview';
+import ChatPanel from '@/components/ChatPanel';
+import EvidencePanel from '@/components/EvidencePanel';
+import PatientMetricsChart from '@/components/PatientMetricsChart';
+import PatientAlerts from '@/components/PatientAlerts';
+import Timeline from '@/components/Timeline';
+import { Activity, Clock, ShieldAlert, Brain, X, AlertTriangle, Pill } from 'lucide-react';
 
-type TabKey = 'overview' | 'timeline' | 'diagnoses' | 'labs' | 'medications' | 'icu' | 'summary';
-
-const TABS: { key: TabKey; label: string; icon: string }[] = [
-  { key: 'overview', label: 'Tổng quan', icon: '📋' },
-  { key: 'timeline', label: 'Timeline', icon: '📅' },
-  { key: 'diagnoses', label: 'Chẩn đoán', icon: '🩻' },
-  { key: 'labs', label: 'Xét nghiệm', icon: '🧪' },
-  { key: 'medications', label: 'Thuốc', icon: '💊' },
-  { key: 'icu', label: 'ICU', icon: '🏥' },
-  { key: 'summary', label: 'Tóm tắt AI', icon: '🤖' },
-];
-
-export default function PatientDetailPage() {
-  const { user, loading: authLoading } = useAuth();
+export default function PatientWorkspace() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
-  const subjectId = Number(params.id);
-  const initialTab = (searchParams.get('tab') as TabKey) || 'overview';
+  const patientId = params.id as string;
+  const { selectedPatient, clearPatientState } = useAppStore();
+  const [authChecking, setAuthChecking] = useState(true);
+  const [patientData, setPatientData] = useState<any>(null);
 
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [tabData, setTabData] = useState<Record<string, ClinicalResponse | null>>({});
-  const [tabLoading, setTabLoading] = useState<Record<string, boolean>>({});
-  const [summaryData, setSummaryData] = useState<SummaryVersion | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryError, setSummaryError] = useState('');
-  const [generating, setGenerating] = useState(false);
+  // Patient Memory modal
+  const [showMemory, setShowMemory] = useState(false);
+  const [memory, setMemory] = useState<any>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryError, setMemoryError] = useState('');
 
-  // Checklist state for approval
-  const [checklist, setChecklist] = useState({
-    reviewed_summary: false,
-    checked_critical_evidence: false,
-    understands_ai_limitations: false,
-    confirms_edits: false,
-  });
-  const [rejectReason, setRejectReason] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
-
+  // Authentication check
   useEffect(() => {
-    if (!authLoading && !user) router.replace('/login');
-  }, [user, authLoading, router]);
+    auth.me().then(() => {
+      setAuthChecking(false);
+    }).catch(() => {
+      router.push('/login');
+    });
+  }, [router]);
 
-  const loadTabData = useCallback(async (tab: TabKey) => {
-    if (tab === 'summary') return;
-    if (tabData[tab] || tabLoading[tab]) return;
-
-    setTabLoading(prev => ({ ...prev, [tab]: true }));
+  // Load patient overview
+  const loadPatientOverview = useCallback(async () => {
     try {
-      let resp: ClinicalResponse;
-      switch (tab) {
-        case 'overview':
-          resp = await clinical.getPatientOverview(subjectId);
-          break;
-        case 'timeline':
-          resp = await clinical.getTimeline(subjectId);
-          break;
-        case 'diagnoses':
-          resp = await clinical.getDiagnosesProcedures(subjectId);
-          break;
-        case 'labs':
-          resp = await clinical.getLabs(subjectId);
-          break;
-        case 'medications':
-          resp = await clinical.getMedications(subjectId);
-          break;
-        case 'icu':
-          resp = await clinical.getIcuEvents(subjectId);
-          break;
-        default:
-          return;
+      const list = await patients.list({ search: patientId });
+      const pt = list.items?.find((p: any) => p.patient_id === patientId);
+      if (pt) {
+        setPatientData(pt);
       }
-      setTabData(prev => ({ ...prev, [tab]: resp }));
     } catch {
-      setTabData(prev => ({ ...prev, [tab]: { status: 'ERROR', records: [], warnings: ['Không thể tải dữ liệu'], limitations: [], trace_id: '', page: { has_more: false } } }));
-    } finally {
-      setTabLoading(prev => ({ ...prev, [tab]: false }));
+      // silently handle
     }
-  }, [subjectId, tabData, tabLoading]);
-
-  const loadSummary = useCallback(async () => {
-    setSummaryLoading(true);
-    setSummaryError('');
-    try {
-      const resp = await summaries.getCurrent(subjectId);
-      setSummaryData(resp);
-    } catch {
-      setSummaryData(null);
-    } finally {
-      setSummaryLoading(false);
-    }
-  }, [subjectId]);
+  }, [patientId]);
 
   useEffect(() => {
-    if (!user) return;
-    loadTabData(activeTab);
-    if (activeTab === 'summary') loadSummary();
-  }, [activeTab, user, loadTabData, loadSummary]);
+    loadPatientOverview();
+    return () => {
+      clearPatientState();
+    };
+  }, [patientId, loadPatientOverview, clearPatientState]);
 
-  const handleGenerate = async () => {
-    setGenerating(true);
-    setSummaryError('');
+  // Load patient memory
+  const handleOpenMemory = async () => {
+    setShowMemory(true);
+    setMemoryLoading(true);
+    setMemoryError('');
     try {
-      const resp = await summaries.generate(subjectId);
-      setSummaryData(resp);
-    } catch (err: unknown) {
-      setSummaryError(err instanceof Error ? err.message : 'Không thể tạo tóm tắt');
+      const mem = await patients.getMemory(patientId);
+      setMemory(mem);
+    } catch (err: any) {
+      setMemoryError(err.detail || 'No approved memory available for this patient.');
+      setMemory(null);
     } finally {
-      setGenerating(false);
+      setMemoryLoading(false);
     }
   };
 
-  const handleApprove = async () => {
-    if (!summaryData) return;
-    setActionLoading(true);
-    try {
-      const resp = await summaries.approve(summaryData.summary_id, checklist);
-      setSummaryData(resp);
-    } catch (err: unknown) {
-      setSummaryError(err instanceof Error ? err.message : 'Không thể phê duyệt');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!summaryData || !rejectReason.trim()) return;
-    setActionLoading(true);
-    try {
-      const resp = await summaries.reject(summaryData.summary_id, rejectReason);
-      setSummaryData(resp);
-      setRejectReason('');
-    } catch (err: unknown) {
-      setSummaryError(err instanceof Error ? err.message : 'Không thể từ chối');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleExport = async () => {
-    if (!summaryData) return;
-    try {
-      const blob = await summaries.exportPdf(summaryData.summary_id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `clinical-summary-${summaryData.summary_id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      setSummaryError(err instanceof Error ? err.message : 'Không thể xuất PDF');
-    }
-  };
-
-  if (authLoading || !user) {
-    return <div className="loading-page" style={{ minHeight: '100vh' }}><div className="spinner" /></div>;
-  }
-
-  const currentData = tabData[activeTab];
-  const isLoading = tabLoading[activeTab];
-
-  return (
-    <div className="app-layout">
-      <Sidebar />
-      <div className="main-content">
-        <Header
-          title={`Bệnh nhân #${subjectId}`}
-          breadcrumbs={[
-            { label: 'Bảng điều khiển', href: '/dashboard' },
-            { label: `Subject #${subjectId}` },
-          ]}
-          actions={
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => router.push('/dashboard')}>
-                ← Quay lại
-              </button>
-            </div>
-          }
-        />
-
-        <div className="page-content">
-          {/* Tabs */}
-          <div className="tabs">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={`tab ${activeTab === tab.key ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                {tab.icon} {tab.label}
-                {tabData[tab.key] && (
-                  <span className="tab-count">{tabData[tab.key]!.records.length}</span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab Content */}
-          {activeTab === 'summary' ? (
-            /* ========== SUMMARY TAB ========== */
-            <div className="animate-fade-in">
-              {summaryLoading ? (
-                <div className="loading-page"><div className="spinner" /><span>Đang tải tóm tắt...</span></div>
-              ) : summaryData ? (
-                <div>
-                  {/* Summary Header */}
-                  <div className="card" style={{ marginBottom: 20 }}>
-                    <div className="card-header">
-                      <div>
-                        <h2>📄 Tóm tắt lâm sàng</h2>
-                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                          Phiên bản {summaryData.version_number} · {new Date(summaryData.created_at).toLocaleString('vi-VN')}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <StatusBadge status={summaryData.status} />
-                        {(summaryData.status === 'APPROVED' || summaryData.status === 'EXPORTED') && (
-                          <button className="btn btn-secondary btn-sm" onClick={handleExport}>
-                            📥 Xuất PDF
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Summary Sections */}
-                  {summaryData.draft.sections && Object.entries(summaryData.draft.sections).map(([section, claims]) => (
-                    <div key={section} className="summary-section animate-slide-in">
-                      <div className="summary-section-title">
-                        📌 {section}
-                        <span className="tab-count">{claims.length}</span>
-                      </div>
-                      {claims.map((claim) => (
-                        <div key={claim.claim_id} className="summary-claim">
-                          <span>{claim.text}</span>
-                          {claim.citation_ids.length > 0 && (
-                            <span style={{ marginLeft: 8 }}>
-                              {claim.citation_ids.map((cid) => (
-                                <span key={cid} className="citation-ref" title={`Citation: ${cid}`}>
-                                  [{cid}]
-                                </span>
-                              ))}
-                            </span>
-                          )}
-                          <StatusBadge status={claim.status} size="sm" />
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-
-                  {/* Conflicts */}
-                  {summaryData.draft.conflicts && summaryData.draft.conflicts.length > 0 && (
-                    <div style={{ marginTop: 20 }}>
-                      <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#92400e' }}>⚠️ Mâu thuẫn dữ liệu</h3>
-                      {summaryData.draft.conflicts.map((c) => (
-                        <div key={c.conflict_id} className="conflict-box">
-                          <div className="conflict-box-title">
-                            {c.topic}
-                            <StatusBadge status={c.status} size="sm" />
-                          </div>
-                          {c.resolution_note && <p>{c.resolution_note}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Limitations */}
-                  {summaryData.draft.limitations && summaryData.draft.limitations.length > 0 && (
-                    <div style={{ marginTop: 20 }}>
-                      <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1e40af' }}>ℹ️ Giới hạn</h3>
-                      {summaryData.draft.limitations.map((lim, i) => (
-                        <div key={i} className="limitation-box"><p>{lim}</p></div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Review Actions */}
-                  {summaryData.status === 'DRAFT' && (
-                    <div className="card" style={{ marginTop: 24 }}>
-                      <div className="card-header"><h2>✅ Rà soát & Phê duyệt</h2></div>
-                      <div className="card-body">
-                        <div className="checklist">
-                          {[
-                            { key: 'reviewed_summary' as const, label: 'Tôi đã đọc toàn bộ bản tóm tắt' },
-                            { key: 'checked_critical_evidence' as const, label: 'Tôi đã kiểm tra các bằng chứng quan trọng' },
-                            { key: 'understands_ai_limitations' as const, label: 'Tôi hiểu giới hạn của AI và bản tóm tắt này' },
-                            { key: 'confirms_edits' as const, label: 'Tôi xác nhận các chỉnh sửa (nếu có) là chính xác' },
-                          ].map(item => (
-                            <div
-                              key={item.key}
-                              className={`checklist-item ${checklist[item.key] ? 'checked' : ''}`}
-                              onClick={() => setChecklist(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
-                            >
-                              <div className="checklist-checkbox">
-                                {checklist[item.key] && '✓'}
-                              </div>
-                              <span className="checklist-text">{item.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-                          <button
-                            className="btn btn-success"
-                            disabled={!Object.values(checklist).every(Boolean) || actionLoading}
-                            onClick={handleApprove}
-                          >
-                            {actionLoading ? <div className="spinner" style={{ width: 16, height: 16 }} /> : '✅ Phê duyệt'}
-                          </button>
-                          <div style={{ flex: 1, display: 'flex', gap: 8 }}>
-                            <input
-                              className="input-field"
-                              placeholder="Lý do từ chối..."
-                              value={rejectReason}
-                              onChange={(e) => setRejectReason(e.target.value)}
-                              style={{ flex: 1 }}
-                            />
-                            <button
-                              className="btn btn-danger"
-                              disabled={!rejectReason.trim() || actionLoading}
-                              onClick={handleReject}
-                            >
-                              ❌ Từ chối
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {summaryError && (
-                    <div className="login-error" style={{ marginTop: 16 }}>⚠️ {summaryError}</div>
-                  )}
-                </div>
-              ) : (
-                /* No summary yet */
-                <div className="card">
-                  <div className="card-body">
-                    <div className="empty-state">
-                      <div className="empty-state-icon">🤖</div>
-                      <h3>Chưa có bản tóm tắt</h3>
-                      <p>Nhấn nút bên dưới để AI tự động tạo bản tóm tắt lâm sàng cho bệnh nhân này.</p>
-                      <button
-                        className="btn btn-primary btn-lg"
-                        style={{ marginTop: 20 }}
-                        onClick={handleGenerate}
-                        disabled={generating}
-                      >
-                        {generating ? (
-                          <>
-                            <div className="spinner" style={{ width: 18, height: 18, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} />
-                            Đang tạo tóm tắt...
-                          </>
-                        ) : (
-                          '🤖 Tạo tóm tắt lâm sàng'
-                        )}
-                      </button>
-                      {summaryError && (
-                        <div className="login-error" style={{ marginTop: 16, textAlign: 'left' }}>⚠️ {summaryError}</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            /* ========== CLINICAL DATA TABS ========== */
-            <div className="card animate-fade-in">
-              <div className="card-header">
-                <h2>{TABS.find(t => t.key === activeTab)?.icon} {TABS.find(t => t.key === activeTab)?.label}</h2>
-                {currentData && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <StatusBadge status={currentData.status} />
-                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                      {currentData.records.length} bản ghi
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="card-body" style={{ padding: 0 }}>
-                {isLoading ? (
-                  <div className="loading-page"><div className="spinner" /><span>Đang tải dữ liệu...</span></div>
-                ) : !currentData || currentData.records.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-state-icon">📭</div>
-                    <h3>Không có dữ liệu</h3>
-                  </div>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: 60 }}>#</th>
-                          <th>Loại</th>
-                          {getDataColumns(currentData.records).map(col => (
-                            <th key={col}>{formatColumnName(col)}</th>
-                          ))}
-                          <th>Nguồn</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentData.records.map((record, idx) => {
-                          const cols = getDataColumns(currentData.records);
-                          return (
-                            <tr key={idx}>
-                              <td style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>{idx + 1}</td>
-                              <td>
-                                <span className="badge badge-teal" style={{ fontSize: 11 }}>
-                                  {formatRecordType(record.record_type)}
-                                </span>
-                              </td>
-                              {cols.map(col => (
-                                <td key={col} style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {formatCellValue(record.data[col])}
-                                </td>
-                              ))}
-                              <td style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                                {record.lineage.table}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-              {/* Warnings & Limitations */}
-              {currentData && (currentData.warnings.length > 0 || currentData.limitations.length > 0) && (
-                <div className="card-footer">
-                  {currentData.warnings.map((w, i) => (
-                    <div key={`w-${i}`} style={{ fontSize: 13, color: '#92400e', marginBottom: 4 }}>⚠️ {w}</div>
-                  ))}
-                  {currentData.limitations.map((l, i) => (
-                    <div key={`l-${i}`} style={{ fontSize: 13, color: '#1e40af', marginBottom: 4 }}>ℹ️ {l}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-cyan-500">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+          Loading workspace...
         </div>
       </div>
+    );
+  }
+
+  const pData = patientData || selectedPatient;
+
+  return (
+    <div className="flex h-full overflow-hidden bg-transparent">
+      
+      {/* Center Workspace */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Patient Header */}
+        <header className="px-6 py-5 border-b border-white/5 bg-slate-900/30 backdrop-blur-2xl sticky top-0 z-10 shadow-lg shadow-black/20">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
+                  {pData?.pseudonym || patientId}
+                </h2>
+                {pData?.age && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700">
+                    {pData.age}y • {pData.sex === 'male' ? '♂ Nam' : pData.sex === 'female' ? '♀ Nữ' : pData.sex}
+                  </span>
+                )}
+                <span className="px-2 py-0.5 rounded-full bg-cyan-900/30 text-cyan-400 text-xs font-medium border border-cyan-800/50 flex items-center gap-1 shadow-sm shadow-cyan-900/20">
+                  <ShieldAlert className="w-3 h-3" /> {patientId}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                {pData?.primary_condition && (
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/15 text-rose-400">
+                    <Activity className="w-3.5 h-3.5"/> {pData.primary_condition}
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-slate-500"/>
+                  Last updated: {new Date(pData?.last_encounter_at || Date.now()).toLocaleDateString('vi-VN')}
+                </span>
+                {pData?.latest_data_watermark && (
+                  <span className="font-mono bg-slate-800/50 px-1.5 rounded text-[10px] text-slate-500">
+                    WM: {pData.latest_data_watermark}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              <button 
+                onClick={handleOpenMemory}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg border border-slate-700 transition-colors shadow-sm flex items-center gap-2"
+              >
+                <Brain className="w-4 h-4 text-purple-400" />
+                Patient Memory
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6 scroll-smooth bg-transparent">
+          <div className="max-w-7xl mx-auto flex flex-col gap-6 min-h-[800px]">
+            
+            <PatientAlerts />
+            <PatientMetricsChart patientId={patientId} />
+            <Timeline patientId={patientId} />
+
+            <div className="flex-1 flex flex-col xl:flex-row gap-6 pb-12">
+              <div className="flex-1 flex flex-col min-w-0">
+                <StructuredReview patientId={patientId} />
+              </div>
+              <div className="flex-1 flex flex-col min-w-0">
+                <ChatPanel patientId={patientId} />
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* Right Evidence Panel */}
+      <EvidencePanel />
+
+      {/* Patient Memory Modal */}
+      {showMemory && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                  <Brain className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-100">Patient Memory</h3>
+                  <p className="text-xs text-slate-400">Approved clinical knowledge base</p>
+                </div>
+              </div>
+              <button onClick={() => setShowMemory(false)} className="p-1 text-slate-400 hover:text-white rounded">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {memoryLoading ? (
+                <div className="text-center py-8 text-slate-500 text-sm">Loading memory...</div>
+              ) : memoryError ? (
+                <div className="text-center py-8">
+                  <AlertTriangle className="w-8 h-8 text-amber-500/50 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">{memoryError}</p>
+                </div>
+              ) : memory ? (
+                <>
+                  <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
+                    <span>Version {memory.version}</span>
+                    <span>•</span>
+                    <span>Approved by {memory.approved_by}</span>
+                    <span>•</span>
+                    <span>{new Date(memory.approved_at).toLocaleString()}</span>
+                  </div>
+                  {memory.items?.map((item: any) => (
+                    <div key={item.item_id} className="p-3 bg-slate-800/30 border border-slate-700/50 rounded-lg">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-purple-400/70 mb-1">
+                        {item.category}
+                      </div>
+                      <div className="text-sm text-slate-300">{item.text}</div>
+                      {item.citations && item.citations.length > 0 && (
+                        <div className="flex gap-1 mt-2">
+                          {item.citations.map((c: any) => (
+                            <span key={c.citation_id} className="text-[10px] font-mono text-cyan-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                              {c.citation_id?.split('-').pop()?.substring(0, 4)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="text-center py-8 text-slate-500 text-sm">No memory data.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-/* ========== Helper Functions ========== */
-
-function getDataColumns(records: ClinicalRecord[]): string[] {
-  const colCounts: Record<string, number> = {};
-  records.forEach(r => {
-    Object.keys(r.data).forEach(k => {
-      colCounts[k] = (colCounts[k] || 0) + 1;
-    });
-  });
-  // Return top columns by frequency, max 6
-  return Object.entries(colCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([k]) => k);
-}
-
-function formatColumnName(col: string): string {
-  return col
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase())
-    .replace(/Id$/i, 'ID')
-    .replace(/Hadm/i, 'HADM')
-    .replace(/Icd/i, 'ICD');
-}
-
-function formatRecordType(type: string): string {
-  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function formatCellValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? '✅' : '❌';
-  if (typeof value === 'object') return JSON.stringify(value).slice(0, 80);
-  const str = String(value);
-  // Try to format datetime
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-    try {
-      return new Date(str).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
-    } catch {
-      return str;
-    }
-  }
-  return str;
 }
