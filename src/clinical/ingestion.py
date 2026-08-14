@@ -19,8 +19,8 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 # Supported MIME types and file extensions for PDF uploads
-_ALLOWED_MIME_TYPES = frozenset({"application/pdf", "application/x-pdf"})
-_ALLOWED_EXTENSIONS = frozenset({".pdf"})
+_ALLOWED_MIME_TYPES = frozenset({"application/pdf", "application/x-pdf", "application/json", "image/png", "image/jpeg", "image/jpg"})
+_ALLOWED_EXTENSIONS = frozenset({".pdf", ".json", ".png", ".jpg", ".jpeg"})
 # PDF magic bytes signature
 _PDF_MAGIC = b"%PDF-"
 # Maximum file size: 50 MB
@@ -44,6 +44,7 @@ class IngestionBatch(BaseModel):
     status: str  # received, validating, processing, completed, completed_with_warnings, failed
     format: str  # pdf, fhir_r4, auto
     source_document_id: str
+    patient_id: str | None = None
     source_checksum: str
     received_at: str
     completed_at: str | None = None
@@ -128,6 +129,14 @@ class DocumentStore:
         ids = self._patient_docs.get(patient_id, [])
         return [self._docs[d] for d in ids if d in self._docs]
 
+    def delete_for_patient(self, patient_id: str) -> None:
+        doc_ids = self._patient_docs.pop(patient_id, [])
+        for doc_id in doc_ids:
+            self._docs.pop(doc_id, None)
+            keys_to_remove = [k for k, v in self._idempotency.items() if v == doc_id]
+            for k in keys_to_remove:
+                self._idempotency.pop(k, None)
+
     def mark_extracted(self, document_id: str, extraction_data: dict[str, Any]) -> None:
         doc = self._docs.get(document_id)
         if doc:
@@ -177,7 +186,7 @@ class IngestionService:
         if content_type and content_type.split(";")[0].strip().lower() not in _ALLOWED_MIME_TYPES:
             raise ValidationError(
                 "UNSUPPORTED_FORMAT",
-                f"Kiểu MIME không được hỗ trợ: {content_type}. Chỉ chấp nhận PDF.",
+                f"Kiểu MIME không được hỗ trợ: {content_type}. Chỉ chấp nhận PDF và JSON.",
             )
 
         # 3. Extension check — only from the portion after last dot, case-insensitive
@@ -188,15 +197,38 @@ class IngestionService:
             if ext not in _ALLOWED_EXTENSIONS:
                 raise ValidationError(
                     "UNSUPPORTED_FORMAT",
-                    f"Phần mở rộng file không được hỗ trợ: '{ext}'. Chỉ chấp nhận .pdf.",
+                    f"Phần mở rộng file không được hỗ trợ: '{ext}'. Chỉ chấp nhận .pdf và .json.",
                 )
 
-        # 4. PDF magic bytes signature check
-        if not content.startswith(_PDF_MAGIC):
-            raise ValidationError(
-                "UNSUPPORTED_FORMAT",
-                "File không có chữ ký PDF hợp lệ. Chỉ chấp nhận tài liệu PDF thực.",
-            )
+        # 4. Content signature check
+        is_pdf_by_ext = client_filename and client_filename.lower().endswith(".pdf")
+        is_pdf_by_mime = content_type and "pdf" in content_type.lower()
+        is_img_by_ext = client_filename and client_filename.lower().endswith((".png", ".jpg", ".jpeg"))
+        is_img_by_mime = content_type and "image" in content_type.lower()
+        
+        if is_pdf_by_ext or is_pdf_by_mime:
+            if not content.startswith(_PDF_MAGIC):
+                raise ValidationError(
+                    "UNSUPPORTED_FORMAT",
+                    "File không có chữ ký PDF hợp lệ. Chỉ chấp nhận tài liệu PDF thực.",
+                )
+        elif is_img_by_ext or is_img_by_mime:
+            # For images, we can do basic magic byte checks
+            if not (content.startswith(b"\x89PNG") or content.startswith(b"\xff\xd8")):
+                raise ValidationError(
+                    "UNSUPPORTED_FORMAT",
+                    "File ảnh không hợp lệ (chỉ hỗ trợ PNG, JPEG).",
+                )
+        else:
+            # Basic JSON validation check
+            try:
+                import json
+                json.loads(content)
+            except json.JSONDecodeError:
+                raise ValidationError(
+                    "UNSUPPORTED_FORMAT",
+                    "File JSON không hợp lệ.",
+                )
 
         # 5. Idempotency: same key + different content = conflict
         if idempotency_key:
@@ -267,6 +299,7 @@ class IngestionService:
             status="received",
             format=detected_format,
             source_document_id=doc_id,
+            patient_id=target_pid,
             source_checksum=checksum,
             received_at=now_str,
             counts=IngestionCounts(accepted=0, quarantined=0, needs_verification=0),
@@ -274,6 +307,10 @@ class IngestionService:
         )
         self._batches[batch_id] = batch
         return batch, stored_doc
+
+    def list_recent_batches(self, limit: int = 10) -> list[IngestionBatch]:
+        """Return the most recent ingestion batches."""
+        return sorted(self._batches.values(), key=lambda b: b.received_at, reverse=True)[:limit]
 
     def get_batch(self, batch_id: str) -> IngestionBatch | None:
         return self._batches.get(batch_id)
@@ -325,3 +362,16 @@ class IngestionService:
         if errors:
             batch.errors.extend(errors)
         return batch
+
+    def get_storage_stats(self) -> dict[str, Any]:
+        total_bytes = sum(len(doc.content) for doc in self.document_store._docs.values())
+        return {
+            "used_bytes": total_bytes,
+            "total_bytes": 100 * 1024 * 1024 * 1024, # 100GB limit as hardcoded in UI
+        }
+
+    def delete_for_patient(self, patient_id: str) -> None:
+        self.document_store.delete_for_patient(patient_id)
+        batch_ids = [b_id for b_id, b in self._batches.items() if b.patient_id == patient_id]
+        for b_id in batch_ids:
+            self._batches.pop(b_id, None)
