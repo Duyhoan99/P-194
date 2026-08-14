@@ -5,11 +5,11 @@ import os
 
 import pytest
 
-from src.agents.generation import compose_atomic_claims, compose_atomic_claims_openai
-from src.agents.openai_client import (
-    MockOpenAIClinicalClient,
-    NullOpenAIClinicalClient,
-    build_openai_client,
+from src.agents.generation import compose_atomic_claims, compose_atomic_claims_llm as compose_atomic_claims_llm
+from src.agents.llm_client import (
+    MockLLMClinicalClient,
+    NullLLMClinicalClient,
+    build_llm_client,
 )
 from src.agents.adapter import AgentRequestAdapter
 from src.agents.evidence import build_scoped_evidence, retrieve_evidence
@@ -44,24 +44,24 @@ def test_mock_client_valid_claim_uses_real_evidence_id():
     if not text:
         pytest.skip("No statement text")
 
-    mock = MockOpenAIClinicalClient(mock_claims=[{
+    mock = MockLLMClinicalClient(mock_claims=[{
         "text": text,
         "evidence_ids": [ev_id],
         "section_code": "recent_results",
     }])
-    proposed = compose_atomic_claims_openai(retrieved, mock)
+    proposed = compose_atomic_claims_llm(retrieved, mock)["claims"]
     assert any(ev_id in c.evidence_ids for c in proposed)
 
 
 def test_mock_client_invalid_ev_id_falls_back_to_deterministic():
     """Mock client returns fake evidence_id → falls back to deterministic."""
     retrieved = _get_retrieved()
-    mock = MockOpenAIClinicalClient(mock_claims=[{
+    mock = MockLLMClinicalClient(mock_claims=[{
         "text": "Fake claim",
         "evidence_ids": ["ev_NONEXISTENT_9999"],
         "section_code": "recent_results",
     }])
-    proposed_openai = compose_atomic_claims_openai(retrieved, mock)
+    proposed_openai = compose_atomic_claims_llm(retrieved, mock)["claims"]
     proposed_det = compose_atomic_claims(retrieved)
     # Should fallback to deterministic since no valid ev_ids
     assert {c.claim_id for c in proposed_openai} == {c.claim_id for c in proposed_det}
@@ -70,8 +70,8 @@ def test_mock_client_invalid_ev_id_falls_back_to_deterministic():
 def test_mock_client_returns_none_falls_back():
     """Mock client returns None → deterministic fallback."""
     retrieved = _get_retrieved()
-    mock = MockOpenAIClinicalClient(mock_claims=None)
-    proposed_openai = compose_atomic_claims_openai(retrieved, mock)
+    mock = MockLLMClinicalClient(mock_claims=None)
+    proposed_openai = compose_atomic_claims_llm(retrieved, mock)["claims"]
     proposed_det = compose_atomic_claims(retrieved)
     assert {c.claim_id for c in proposed_openai} == {c.claim_id for c in proposed_det}
 
@@ -79,8 +79,8 @@ def test_mock_client_returns_none_falls_back():
 def test_mock_client_raises_error_falls_back():
     """Mock client raises exception → deterministic fallback."""
     retrieved = _get_retrieved()
-    error_mock = MockOpenAIClinicalClient(raise_error=True)
-    proposed_openai = compose_atomic_claims_openai(retrieved, error_mock)
+    error_mock = MockLLMClinicalClient(raise_error=True)
+    proposed_openai = compose_atomic_claims_llm(retrieved, error_mock)["claims"]
     proposed_det = compose_atomic_claims(retrieved)
     assert {c.claim_id for c in proposed_openai} == {c.claim_id for c in proposed_det}
 
@@ -88,23 +88,25 @@ def test_mock_client_raises_error_falls_back():
 def test_null_client_always_falls_back():
     """NullClient always returns None → deterministic fallback."""
     retrieved = _get_retrieved()
-    null_client = NullOpenAIClinicalClient()
-    proposed_openai = compose_atomic_claims_openai(retrieved, null_client)
+    null_client = NullLLMClinicalClient()
+    proposed_openai = compose_atomic_claims_llm(retrieved, null_client)["claims"]
     proposed_det = compose_atomic_claims(retrieved)
     assert {c.claim_id for c in proposed_openai} == {c.claim_id for c in proposed_det}
 
 
-def test_build_openai_client_no_key_returns_null():
-    """build_openai_client with empty key returns NullClient."""
-    client = build_openai_client(api_key="", model_name="gpt-4o-mini")
-    assert isinstance(client, NullOpenAIClinicalClient)
+def test_build_llm_client_no_key_returns_null():
+    """build_llm_client with empty key returns NullClient."""
+    client = build_llm_client(api_key="", model_name="gpt-4o-mini")
+    assert isinstance(client, NullLLMClinicalClient)
 
 
-def test_build_openai_client_with_key_returns_real():
-    """build_openai_client with a key returns RealOpenAIClinicalClient."""
-    from src.agents.openai_client import RealOpenAIClinicalClient
-    client = build_openai_client(api_key="sk-test-fake-key", model_name="gpt-4o-mini")
-    assert isinstance(client, RealOpenAIClinicalClient)
+def test_build_llm_client_with_key_returns_real():
+    """build_llm_client with a key returns UniversalOpenAIClient."""
+    from src.agents.llm_client import UniversalOpenAIClient
+    from src.agents.llm_client import build_llm_client
+    
+    client = build_llm_client("sk-test-key-123", "gpt-4")
+    assert isinstance(client, UniversalOpenAIClient)
 
 
 def test_openai_mode_env_var_deterministic_fallback(monkeypatch):
@@ -118,9 +120,9 @@ def test_openai_mode_env_var_deterministic_fallback(monkeypatch):
     api_key = os.environ.get("OPENAI_API_KEY", "")
 
     if backend == "openai" and api_key:
-        from src.agents.openai_client import build_openai_client as boc
+        from src.agents.llm_client import build_llm_client as boc
         client = boc(api_key=api_key, model_name="gpt-4o-mini")
-        proposed = compose_atomic_claims_openai(retrieved, client)
+        proposed = compose_atomic_claims_llm(retrieved, client)["claims"]
     else:
         proposed = compose_atomic_claims(retrieved)
 

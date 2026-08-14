@@ -3,9 +3,11 @@
   "status": "not_found",
   "data_watermark": "wm_demo_1_3_0_PAT004",
   "sections": null,
-  "answer": "Không tìm thấy thông tin này trong dữ liệu được cung cấp.",
+  "answer": "Kh\u00f4ng t\u00ecm th\u1ea5y th\u00f4ng tin n\u00e0y trong d\u1eef li\u1ec7u \u0111\u01b0\u1ee3c cung c\u1ea5p.",
   "confidence": null,
   "claims": [],
+  "unsupported_claims": [],
+  "conflicts": [],
   "citations": [],
   "errors": []
 }

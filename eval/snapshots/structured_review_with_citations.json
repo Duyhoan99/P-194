@@ -5,11 +5,11 @@
   "sections": [
     {
       "section_code": "active_conditions",
-      "title": "Tình trạng đang theo dõi",
+      "title": "T\u00ecnh tr\u1ea1ng \u0111ang theo d\u00f5i",
       "claims": [
         {
           "claim_id": "clm_410d9890-3071-5d4d-8017-088c81ddf9eb",
-          "text": "Hồ sơ ghi nhận đái tháo đường type 2 (SNOMED CT 44054006).",
+          "text": "H\u1ed3 s\u01a1 ghi nh\u1eadn \u0111\u00e1i th\u00e1o \u0111\u01b0\u1eddng type 2 (SNOMED CT 44054006).",
           "status": "verified",
           "confidence": "high",
           "citations": [
@@ -18,7 +18,7 @@
               "source_type": "canonical_record",
               "source_record_id": "PAT-001-COND-001",
               "source_time": "2024-01-10",
-              "snippet": "Đái tháo đường type 2; 44054006",
+              "snippet": "\u0110\u00e1i th\u00e1o \u0111\u01b0\u1eddng type 2; 44054006",
               "rule_version": null
             }
           ],
@@ -29,11 +29,11 @@
     },
     {
       "section_code": "recent_results",
-      "title": "Kết quả gần đây",
+      "title": "K\u1ebft qu\u1ea3 g\u1ea7n \u0111\u00e2y",
       "claims": [
         {
           "claim_id": "clm_c6f177bf-5540-58e7-aa69-5a9cd1b4927f",
-          "text": "HbA1c tăng từ 7.1% ngày 2025-01-10 lên 8.2% ngày 2026-01-10, sau đó giảm còn 7.4% ngày 2026-06-10.",
+          "text": "HbA1c t\u0103ng t\u1eeb 7.1% ng\u00e0y 2025-01-10 l\u00ean 8.2% ng\u00e0y 2026-01-10, sau \u0111\u00f3 gi\u1ea3m c\u00f2n 7.4% ng\u00e0y 2026-06-10.",
           "status": "verified",
           "confidence": "high",
           "citations": [
@@ -73,7 +73,7 @@
   "claims": [
     {
       "claim_id": "clm_410d9890-3071-5d4d-8017-088c81ddf9eb",
-      "text": "Hồ sơ ghi nhận đái tháo đường type 2 (SNOMED CT 44054006).",
+      "text": "H\u1ed3 s\u01a1 ghi nh\u1eadn \u0111\u00e1i th\u00e1o \u0111\u01b0\u1eddng type 2 (SNOMED CT 44054006).",
       "status": "verified",
       "confidence": "high",
       "citations": [
@@ -82,7 +82,7 @@
           "source_type": "canonical_record",
           "source_record_id": "PAT-001-COND-001",
           "source_time": "2024-01-10",
-          "snippet": "Đái tháo đường type 2; 44054006",
+          "snippet": "\u0110\u00e1i th\u00e1o \u0111\u01b0\u1eddng type 2; 44054006",
           "rule_version": null
         }
       ],
@@ -90,7 +90,7 @@
     },
     {
       "claim_id": "clm_c6f177bf-5540-58e7-aa69-5a9cd1b4927f",
-      "text": "HbA1c tăng từ 7.1% ngày 2025-01-10 lên 8.2% ngày 2026-01-10, sau đó giảm còn 7.4% ngày 2026-06-10.",
+      "text": "HbA1c t\u0103ng t\u1eeb 7.1% ng\u00e0y 2025-01-10 l\u00ean 8.2% ng\u00e0y 2026-01-10, sau \u0111\u00f3 gi\u1ea3m c\u00f2n 7.4% ng\u00e0y 2026-06-10.",
       "status": "verified",
       "confidence": "high",
       "citations": [
@@ -122,13 +122,15 @@
       "generator_version": "wp2-grounded@1.0.0"
     }
   ],
+  "unsupported_claims": [],
+  "conflicts": [],
   "citations": [
     {
       "citation_id": "PAT-001-COND-001",
       "source_type": "canonical_record",
       "source_record_id": "PAT-001-COND-001",
       "source_time": "2024-01-10",
-      "snippet": "Đái tháo đường type 2; 44054006",
+      "snippet": "\u0110\u00e1i th\u00e1o \u0111\u01b0\u1eddng type 2; 44054006",
       "rule_version": null
     },
     {
