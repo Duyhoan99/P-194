@@ -6,8 +6,9 @@ import re
 from typing import Literal
 
 from src.agents.contracts import AgentRequest
+from src.agents.retrieval.router import QueryPlanner
 
-QuestionType = Literal["structured", "notes", "hybrid", "not_allowed"]
+QuestionType = Literal["structured", "notes", "hybrid", "not_allowed", "narrative", "temporal", "mixed"]
 
 _TREATMENT_REQUESTS = (
     "đổi thuốc",
@@ -43,6 +44,12 @@ _STRUCTURED_TERMS = (
     "bao nhiêu",
 )
 _PATIENT_TOKEN = re.compile(r"PAT-?\d{3}", re.IGNORECASE)
+_PROMPT_OVERRIDE = re.compile(
+    r"\b(ignore|disregard|forget|override)\b.{0,48}"
+    r"\b(previous|prior|system|developer)\b.{0,32}"
+    r"\b(instruction|prompt|message)s?\b",
+    re.IGNORECASE,
+)
 
 
 def _normalize_patient_token(token: str) -> str:
@@ -50,22 +57,29 @@ def _normalize_patient_token(token: str) -> str:
     return f"PAT-{digits}"
 
 
-def classify_request(request: AgentRequest) -> QuestionType:
+def classify_request(request: AgentRequest) -> QuestionType | dict:
     """Classify without allowing model/user text to change the locked scope."""
     if request.task_type == "review_generation":
-        return "hybrid"
+        # Return a generic summary plan
+        planner = QueryPlanner()
+        plan = planner.plan("tóm tắt cho tôi")
+        return plan.model_dump()
+        
     question = (request.question or "").strip().casefold()
     mentioned_patients = {_normalize_patient_token(token) for token in _PATIENT_TOKEN.findall(question)}
     if mentioned_patients - {request.patient_id.upper()}:
         return "not_allowed"
+    if _PROMPT_OVERRIDE.search(question):
+        return "not_allowed"
     if any(term in question for term in _TREATMENT_REQUESTS):
         return "not_allowed"
-    has_notes = any(term in question for term in _NOTE_TERMS)
-    has_structured = any(term in question for term in _STRUCTURED_TERMS)
-    if has_notes and has_structured:
-        return "hybrid"
-    if has_notes:
-        return "notes"
-    if has_structured:
-        return "structured"
-    return "hybrid"
+        
+    # Use QueryPlanner to get the validated RetrievalPlan
+    planner = QueryPlanner()
+    plan = planner.plan(request.question or "")
+    
+    # If the plan is out of scope, return not_allowed
+    if plan.task_type == "out_of_scope":
+        return "not_allowed"
+        
+    return plan.model_dump()

@@ -193,7 +193,7 @@ def _trend_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]
                     "method": "source_reported_series",
                 },
                 "source_value": {"backend_fact": True, "canonical_points": usable},
-                "source_time": None,
+                "source_time": usable[-1].get("observed_at") if usable else None,
                 "verification_status": "verified",
                 "citations": citations,
             }
@@ -249,16 +249,102 @@ def _flag_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
     return facts
 
 
+def _condition_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    patient_id = str(packet["patient_id"])
+    for raw_cond in packet.get("active_conditions", []):
+        cond = _mapping(raw_cond)
+        condition_name = str(cond.get("condition") or cond.get("name") or "Chẩn đoán")
+        source_time = cond.get("source_time")
+        dated_condition = (
+            f"Chẩn đoán/Tình trạng bệnh: {condition_name} (ghi nhận {str(source_time)[:10]})"
+            if source_time else f"Chẩn đoán/Tình trạng bệnh: {condition_name}"
+        )
+        citations = _citations(cond.get("citations", []))
+        if not citations:
+            continue
+        facts.append(
+            {
+                "evidence_id": str(cond.get("evidence_id") or f"FACT-{patient_id}-COND-{cond.get('code', 'active')}"),
+                "tenant_id": tenant_id,
+                "patient_id": patient_id,
+                "fact_type": "timeline_condition",
+                "normalized_value": {
+                    "statement": dated_condition,
+                    "section_code": "active_conditions",
+                },
+                "source_value": cond,
+                "source_time": source_time,
+                "verification_status": "verified",
+                "citations": citations,
+            }
+        )
+    return facts
+
+
+def _current_medication_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    patient_id = str(packet["patient_id"])
+    for index, raw_medication in enumerate(packet.get("current_medications", []), 1):
+        medication = _mapping(raw_medication)
+        citations = _citations(medication.get("citations", []))
+        if not citations:
+            continue
+        name = str(medication.get("medication") or medication.get("name") or "Thuốc")
+        status = str(medication.get("status") or "active")
+        source_time = medication.get("source_time")
+        medication_statement = f"Thuốc hiện tại: {name} ({status})"
+        if source_time:
+            medication_statement += f" (ghi nhận {str(source_time)[:10]})"
+        facts.append({
+            "evidence_id": str(medication.get("evidence_id") or f"FACT-{patient_id}-CURRENT-MED-{index}"),
+            "tenant_id": tenant_id,
+            "patient_id": patient_id,
+            "fact_type": "current_medication_backend_fact",
+            "normalized_value": {
+                "statement": medication_statement,
+                "section_code": "current_medications",
+            },
+            "source_value": medication,
+            "source_time": source_time,
+            "verification_status": "verified",
+            "citations": citations,
+        })
+    return facts
+
+
 def _structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
     # Backend flags and canonical series are deliberately ranked before raw
     # timeline events so the bounded review retrieval cannot crowd them out.
     # Verified PDF facts are added after FHIR timeline facts.
     return [
         *_flag_facts(packet, tenant_id),
+        *_condition_facts(packet, tenant_id),
+        *_current_medication_facts(packet, tenant_id),
         *_trend_facts(packet, tenant_id),
         *_timeline_facts(packet, tenant_id),
+        *_uploaded_fhir_facts(packet, tenant_id),
         *_pdf_structured_facts(packet, tenant_id),
     ]
+
+
+def _uploaded_fhir_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
+    """Copy already-canonical uploaded FHIR evidence into locked request scope."""
+    patient_id = str(packet.get("patient_id", ""))
+    facts: list[dict[str, Any]] = []
+    for raw_item in packet.get("fhir_evidence", []):
+        item = _mapping(raw_item)
+        if str(item.get("patient_id", patient_id)) != patient_id:
+            continue
+        citations = _citations(item.get("citations", []))
+        if not citations:
+            continue
+        copied = dict(item)
+        copied["tenant_id"] = tenant_id
+        copied["patient_id"] = patient_id
+        copied["citations"] = citations
+        facts.append(copied)
+    return facts
 
 
 def _pdf_structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:

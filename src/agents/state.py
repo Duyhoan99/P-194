@@ -40,6 +40,8 @@ class ClinicalReviewState(TypedDict, total=False):
     retrieved_evidence: list[ScopedEvidence]
     proposed_claims: list[ProposedClaim]
     claims: list[VerifiedClaim]
+    unsupported_claims: list[VerifiedClaim]
+    conflicts: list[dict]
     verification_results: list[ClaimVerification]
     status: Literal[
         "running",

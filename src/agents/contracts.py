@@ -134,6 +134,8 @@ class AgentResult(_ContractModel):
     answer: str | None = None
     confidence: Literal["high", "medium", "low"] | None = None
     claims: list[VerifiedClaim] = Field(default_factory=list)
+    unsupported_claims: list[VerifiedClaim] = Field(default_factory=list)
+    conflicts: list[dict[str, Any]] = Field(default_factory=list)
     citations: list[Citation] = Field(default_factory=list)
     errors: list[AgentError] = Field(default_factory=list)
 
@@ -141,7 +143,7 @@ class AgentResult(_ContractModel):
     def public_contract_is_consistent(self) -> AgentResult:
         public_claims = [claim for claim in self.claims if claim.status in {"verified", "needs_verification"}]
         if len(public_claims) != len(self.claims):
-            raise ValueError("unsupported or invalid claims cannot appear in AgentResult")
+            raise ValueError("unsupported or invalid claims must be placed in unsupported_claims, not main claims list")
         if self.task_type == "ask_chart" and self.sections is not None:
             raise ValueError("ask_chart cannot return review sections")
         return self
