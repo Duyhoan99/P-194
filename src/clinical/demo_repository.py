@@ -52,6 +52,8 @@ class DemoRepository:
         self._watermarks: dict[str, str] = {}
         # PDF evidence: patient_id -> list of canonical evidence item dicts with DocumentCitation
         self._pdf_evidence: dict[str, list[dict[str, Any]]] = {}
+        # Canonical evidence from FHIR Bundles uploaded during this runtime.
+        self._uploaded_fhir_evidence: dict[str, list[dict[str, Any]]] = {}
         # PDF verification items from low-confidence OCR
         self._pdf_verification_items: dict[str, list[dict[str, Any]]] = {}
         self.med_safety = MedicationSafetyService()
@@ -129,6 +131,43 @@ class DemoRepository:
 
     def get_patient(self, patient_id: str) -> PatientSummary | None:
         return self._patients.get(patient_id)
+
+    def create_blank_patient(self, patient_id: str, name: str) -> PatientSummary:
+        patient = PatientSummary(
+            patient_id=patient_id,
+            pseudonym=name,
+            sex="unknown",
+            age=None,
+            primary_condition="Chưa có dữ liệu",
+            last_encounter_at=None,
+            latest_data_watermark=self.get_watermark(patient_id),
+        )
+        self._patients[patient_id] = patient
+        return patient
+
+    def delete_patient(self, patient_id: str) -> bool:
+        """Deletes the patient and all associated state from the repository.
+        Returns True if the patient existed and was deleted, False otherwise.
+        Note: Baseline patients will reappear if the repository is reloaded.
+        """
+        if patient_id not in self._patients:
+            return False
+
+        self._patients.pop(patient_id, None)
+        self._bundles.pop(patient_id, None)
+        self._reviews.pop(patient_id, None)
+        self._memories.pop(patient_id, None)
+        self._pdf_evidence.pop(patient_id, None)
+        self._uploaded_fhir_evidence.pop(patient_id, None)
+        self._watermarks.pop(patient_id, None)
+        
+        pdf_verif = self._pdf_verification_items.pop(patient_id, [])
+        for v in pdf_verif:
+            v_id = v.get("verification_item_id")
+            if v_id:
+                self._verification_items.pop(v_id, None)
+
+        return True
 
     def list_patients(self, search: str | None = None, page: int = 1, page_size: int = 20) -> tuple[list[PatientSummary], int]:
         items = list(self._patients.values())
@@ -328,6 +367,18 @@ class DemoRepository:
                     status=v.get("status", "pending"),
                 )
 
+    def add_fhir_evidence(self, patient_id: str, evidence_items: list[dict[str, Any]]) -> None:
+        """Merge uploaded FHIR evidence into runtime state without replacing baseline Bundle data."""
+        if patient_id not in self._patients:
+            raise KeyError(f"Patient {patient_id} not found")
+        safe_items = [
+            item for item in evidence_items
+            if str(item.get("patient_id", patient_id)) == patient_id
+        ]
+        if len(safe_items) != len(evidence_items):
+            raise ValueError("FHIR evidence contains a foreign patient scope.")
+        self._uploaded_fhir_evidence.setdefault(patient_id, []).extend(safe_items)
+
     def mark_reviews_stale(self, patient_id: str) -> int:
         """Mark all non-approved reviews for a patient as stale. Returns count marked."""
         revs = self._reviews.get(patient_id, [])
@@ -347,9 +398,10 @@ class DemoRepository:
         dates = sorted(event.occurred_at[:10] for event in events if event.occurred_at)
         pdf_evs = list(self._pdf_evidence.get(patient_id, []))
         pdf_doc_ids = list({
-            str(item.get("normalized_value", {}).get("document_id", ""))
+            str(cit.get("document_id"))
             for item in pdf_evs
-            if item.get("normalized_value", {}).get("document_id")
+            for cit in item.get("citations", [])
+            if cit.get("document_id")
         })
         return EvidencePacket(
             patient_id=patient_id,
@@ -361,6 +413,7 @@ class DemoRepository:
             lab_trends={"4548-4": [point.model_dump(mode="json") for point in hba1c_points]},
             active_conditions=[{"condition": "Đái tháo đường Típ 2", "code": "44054006"}],
             current_medications=[{"medication": "Metformin 1000mg", "status": "active"}],
+            fhir_evidence=list(self._uploaded_fhir_evidence.get(patient_id, [])),
             conflicts=[],
             drug_interactions=[],
             data_quality_flags=[],
