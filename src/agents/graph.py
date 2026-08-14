@@ -48,6 +48,12 @@ def _route_after_classification(state: ClinicalReviewState) -> str:
 
 
 def _route_after_retrieval(state: ClinicalReviewState) -> str:
+    qt = state.get("question_type")
+    if isinstance(qt, dict) and (
+        qt.get("task_type") in {"conversation", "conflict_check"}
+        or not qt.get("retrieval_required", True)
+    ):
+        return "generate"
     return "generate" if state.get("retrieved_evidence") else "abstain"
 
 
@@ -120,8 +126,10 @@ def run_agent(
         result = state.get("public_response")
         if isinstance(result, AgentResult):
             return result
-    except Exception:
-        pass
+    except Exception as e:
+        import traceback
+        with open('error.txt', 'w', encoding='utf-8') as f:
+            f.write(traceback.format_exc())
     return AgentResult(
         task_type=validated.task_type,
         status="error",
