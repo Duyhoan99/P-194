@@ -86,6 +86,7 @@ def generate_review(
             status_code=503,
             detail={"code": "AGENT_UNAVAILABLE", "message": "Không thể tạo bản rà soát an toàn từ dữ liệu hiện tại."},
         )
+
     try:
         review = repo.generate_review(patient_id, profiles, agent_result, packet)
     except ValueError:
@@ -190,6 +191,79 @@ def reject_review(
         )
 
 
+
+
+@router.patch("/reviews/{review_id}", response_model=ReviewResponse)
+def patch_review(
+    review_id: str,
+    payload: PatchReviewRequest,
+    repo: DemoRepository = Depends(get_demo_repository),
+) -> ReviewResponse:
+    try:
+        return repo.patch_review(review_id, payload.expected_version, payload.sections, payload.edit_reason)
+    except ReviewPolicyError as err:
+        err_code = str(err)
+        status_c = 409 if err_code in ("VERSION_CONFLICT", "INVALID_TRANSITION") else 422
+        raise HTTPException(
+            status_code=status_c,
+            detail={"code": err_code, "message": f"Không thể cập nhật bản rà soát: {err_code}"},
+        )
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": f"Không tìm thấy bản rà soát {review_id}."},
+        )
+
+
+@router.post("/reviews/{review_id}/approve", response_model=ReviewResponse)
+def approve_review(
+    review_id: str,
+    payload: ApproveReviewRequest,
+    repo: DemoRepository = Depends(get_demo_repository),
+) -> ReviewResponse:
+    try:
+        return repo.approve_review(
+            review_id, payload.review_version_id, payload.expected_version, payload.clinician_confirmation
+        )
+    except ReviewPolicyError as err:
+        err_code = str(err)
+        raise HTTPException(
+            status_code=409,
+            detail={"code": err_code, "message": f"Bác sĩ chưa thể duyệt bản rà soát: {err_code}"},
+        )
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": f"Không tìm thấy bản rà soát {review_id}."},
+        )
+
+
+@router.post("/reviews/{review_id}/reject", response_model=ReviewResponse)
+def reject_review(
+    review_id: str,
+    payload: RejectReviewRequest,
+    repo: DemoRepository = Depends(get_demo_repository),
+) -> ReviewResponse:
+    if len(payload.reason.strip()) < 3 or len(payload.reason) > 1000:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "VALIDATION_ERROR", "message": "Lý do từ chối phải dài từ 3 đến 1000 ký tự."},
+        )
+
+    try:
+        return repo.reject_review(review_id, payload.expected_version, payload.reason)
+    except ReviewPolicyError as err:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": str(err), "message": f"Không thể từ chối bản rà soát: {err}"},
+        )
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": f"Không tìm thấy bản rà soát {review_id}."},
+        )
+
+
 @router.get("/reviews/{review_id}/versions", response_model=VersionListResponse)
 def list_review_versions(
     review_id: str,
@@ -218,17 +292,15 @@ def export_pdf(
             detail={"code": "EXPORT_NOT_ALLOWED", "message": "Chỉ có thể xuất PDF từ phiên bản đã duyệt."},
         )
 
-    # Simple PDF binary payload for handoff contract
-    pdf_content = (
-        b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-        b"2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n"
-        b"3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n"
-        b"xref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000052 00000 n\n0000000101 00000 n\n"
-        b"trailer<</Size 4/Root 1 0 R>>\nstartxref\n162\n%%EOF\n"
-    )
+    patient = repo.get_patient(patient_id)
+
+    from src.clinical.pdf_generator import generate_review_pdf
+    pdf_content = generate_review_pdf(rev, patient)
+
+    filename = f"Clinical_Review_{patient_id}_v{rev.version}.pdf"
 
     headers = {
-        "Content-Disposition": 'attachment; filename="clinical-review.pdf"',
+        "Content-Disposition": f'attachment; filename="{filename}"',
         "X-Content-Checksum": f"sha256:{review_version_id}",
         "X-Review-Version-ID": review_version_id,
     }
