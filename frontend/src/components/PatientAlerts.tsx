@@ -6,6 +6,23 @@ import { AlertTriangle, AlertCircle, Info, ShieldAlert } from 'lucide-react';
 export default function PatientAlerts() {
   const { currentReview, setFocusedCitation } = useAppStore();
 
+  const getCitationLabel = (cit: any) => {
+    if (cit.source_type === 'pdf') {
+      return `📄 ${cit.document_name || 'Tài liệu'}${cit.page_number ? ` (Tr. ${cit.page_number})` : ''}`;
+    }
+    const dateMatch = cit.snippet?.match(/\d{4}-\d{2}-\d{2}/) || cit.source_time?.match(/\d{4}-\d{2}-\d{2}/);
+    const dateStr = dateMatch ? dateMatch[0].split('-').reverse().join('/') : '';
+    if (cit.resource_type) {
+        let typeName = cit.resource_type;
+        if (typeName === 'Observation') typeName = 'Xét nghiệm';
+        if (typeName === 'Encounter') typeName = 'Lượt khám';
+        if (typeName === 'MedicationRequest') typeName = 'Đơn thuốc';
+        if (typeName === 'Condition') typeName = 'Chẩn đoán';
+        return `📎 Nguồn: ${typeName}${dateStr ? ` · ${dateStr}` : ''}`;
+    }
+    return `📎 Nguồn hồ sơ${dateStr ? ` · ${dateStr}` : ''}`;
+  };
+
   if (!currentReview) return null;
 
   const conflicts = currentReview.conflicts || [];
@@ -34,12 +51,12 @@ export default function PatientAlerts() {
                 <div className="flex flex-wrap gap-2">
                   {conflict.source_a?.map((c: any) => (
                     <button key={c.citation_id} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
-                      Source A: {c.citation_id}
+                      Nguồn A: {getCitationLabel(c)}
                     </button>
                   ))}
                   {conflict.source_b?.map((c: any) => (
                     <button key={c.citation_id} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
-                      Source B: {c.citation_id}
+                      Nguồn B: {getCitationLabel(c)}
                     </button>
                   ))}
                 </div>
@@ -52,7 +69,7 @@ export default function PatientAlerts() {
                 <div className="flex flex-wrap gap-2">
                   {interaction.citations?.map((c: any) => (
                     <button key={c.citation_id} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
-                      {c.citation_id}
+                      {getCitationLabel(c)}
                     </button>
                   ))}
                 </div>

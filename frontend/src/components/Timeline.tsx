@@ -56,6 +56,26 @@ export default function Timeline({ patientId }: { patientId: string }) {
     setFocusedCitation(citation);
   };
 
+  const getCitationLabel = (cit: any) => {
+    if (cit.source_type === 'pdf') {
+      return `📄 ${cit.document_name || 'Tài liệu'}${cit.page_number ? ` (Tr. ${cit.page_number})` : ''}`;
+    }
+    
+    const dateMatch = cit.snippet?.match(/\d{4}-\d{2}-\d{2}/) || cit.source_time?.match(/\d{4}-\d{2}-\d{2}/);
+    const dateStr = dateMatch ? dateMatch[0].split('-').reverse().join('/') : '';
+    
+    if (cit.resource_type) {
+        let typeName = cit.resource_type;
+        if (typeName === 'Observation') typeName = 'Xét nghiệm';
+        if (typeName === 'Encounter') typeName = 'Lượt khám';
+        if (typeName === 'MedicationRequest') typeName = 'Đơn thuốc';
+        if (typeName === 'Condition') typeName = 'Chẩn đoán';
+        return `📎 Nguồn: ${typeName}${dateStr ? ` · ${dateStr}` : ''}`;
+    }
+    
+    return `📎 Nguồn hồ sơ${dateStr ? ` · ${dateStr}` : ''}`;
+  };
+
   if (loading) {
     return (
       <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl p-6 shadow-2xl">
@@ -162,10 +182,10 @@ export default function Timeline({ patientId }: { patientId: string }) {
                               <button
                                 key={cit.citation_id}
                                 onClick={() => handleCitationClick(cit)}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/50 hover:bg-cyan-900/40 text-[10px] font-mono text-cyan-400 border border-slate-700/50 hover:border-cyan-500/40 rounded transition-all"
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/50 hover:bg-cyan-900/40 text-[10px] text-cyan-400 border border-slate-700/50 hover:border-cyan-500/40 rounded transition-all"
                                 title="View evidence"
                               >
-                                {cit.source_type === 'pdf' ? '📄' : '🗃️'} {cit.citation_id?.split('-').pop()?.substring(0, 4)}
+                                {getCitationLabel(cit)}
                               </button>
                             ))}
                           </div>
