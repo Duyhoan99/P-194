@@ -411,8 +411,32 @@ class DemoRepository:
             encounter_count=sum(event.event_type == "encounter" for event in events),
             timeline=[event.model_dump(mode="json") for event in events],
             lab_trends={"4548-4": [point.model_dump(mode="json") for point in hba1c_points]},
-            active_conditions=[{"condition": "Đái tháo đường Típ 2", "code": "44054006"}],
-            current_medications=[{"medication": "Metformin 1000mg", "status": "active"}],
+            active_conditions=[{
+                "condition": "Đái tháo đường Típ 2",
+                "code": "44054006",
+                "citations": [{
+                    "citation_id": "cit_baseline_cond",
+                    "source_type": "fhir",
+                    "document_id": f"DOC-{patient_id}-FHIR",
+                    "resource_type": "Condition",
+                    "resource_id": "baseline_cond",
+                    "snippet": "Đái tháo đường Típ 2",
+                    "source_checksum": "sha256:baseline"
+                }]
+            }],
+            current_medications=[{
+                "medication": "Metformin 1000mg",
+                "status": "active",
+                "citations": [{
+                    "citation_id": "cit_baseline_med",
+                    "source_type": "fhir",
+                    "document_id": f"DOC-{patient_id}-FHIR",
+                    "resource_type": "MedicationStatement",
+                    "resource_id": "baseline_med",
+                    "snippet": "Metformin 1000mg",
+                    "source_checksum": "sha256:baseline"
+                }]
+            }],
             fhir_evidence=list(self._uploaded_fhir_evidence.get(patient_id, [])),
             conflicts=[],
             drug_interactions=[],

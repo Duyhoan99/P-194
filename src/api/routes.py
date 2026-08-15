@@ -1,7 +1,7 @@
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, HTTPException
 
-from src.agents.graph import agent
+from src.agents.graph import legacy_demo_agent as agent
 from src.models.schemas import ChatRequest, ChatResponse
 
 router = APIRouter()

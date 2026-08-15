@@ -19,6 +19,7 @@ from src.clinical.schemas import AccessContext, ClinicalQuery, ClinicalResponse,
 from src.clinical.service import ClinicalRetrievalService
 from src.clinical.summary_generator import SummaryGenerator
 from src.clinical.summary_schemas import SUMMARY_SECTIONS, ClinicalSummaryDraft, ValidationReport
+from src.agents.retrieval.router import QueryPlanner
 
 
 class AgentState(TypedDict, total=False):
@@ -46,7 +47,25 @@ match supplied evidence source_row_key values. Include the exact supported numer
 and ISO timestamp in laboratory claims. Limit the total number of clinical claims across all sections to between 15 and 30.
 Do not output treatment directives, diagnoses, clinical opinions, chain-of-thought, prompts, or
 explanations outside the requested structure. Return only the requested ClinicalSummaryDraft structure.
-The server will overwrite identity, scope, status, and trace fields after validation."""
+The server will overwrite identity, scope, status, and trace fields after validation.
+
+RESPONSE SCOPE RULES:
+- Chỉ trả lời đúng thông tin mà người dùng yêu cầu.
+- Không cung cấp thông tin bổ sung nếu người dùng không hỏi.
+- Không tự động tóm tắt toàn bộ hồ sơ bệnh nhân.
+- Không nhắc lại ngày khám, triệu chứng, tiền sử, chỉ số hoặc tình trạng khác nếu câu hỏi không yêu cầu.
+- Nếu câu hỏi yêu cầu một thông tin cụ thể, câu trả lời phải tập trung vào đúng thông tin đó.
+- Ưu tiên câu trả lời ngắn gọn.
+- Không giải thích thêm trừ khi người dùng yêu cầu.
+
+Ví dụ:
+User: "Bệnh nhân bị bệnh gì?"
+Assistant: "Bệnh nhân bị tiểu đường."
+User: "Ngày khám của bệnh nhân?"
+Assistant: "Ngày khám: 12/08/2026."
+User: "Bệnh nhân có những vấn đề sức khỏe nào?"
+Assistant: "Bệnh nhân bị tiểu đường và tăng huyết áp."
+"""
 
 
 def _aggregate_evidence(evidence: list[EvidenceRecord]) -> list[EvidenceRecord]:
@@ -159,16 +178,34 @@ class ClinicalAgent:
     def _retrieve_node(self, state: AgentState) -> dict[str, object]:
         context = state["context"]
         query = state["query"]
-        responses = (
-            self._retrieval_service.get_patient_overview(context, query),
-            self._retrieval_service.get_encounter_timeline(context, query),
-            self._retrieval_service.get_diagnoses_and_procedures(context, query),
-            self._retrieval_service.get_laboratory_results(context, query),
-            self._retrieval_service.get_microbiology_results(context, query),
-            self._retrieval_service.get_medications(context, query),
-            self._retrieval_service.get_patient_metrics(context, query),
-            self._retrieval_service.get_icu_events(context, query),
-        )
+        
+        planner = QueryPlanner()
+        plan = planner.plan(query.text)
+        domains = {need.domain for need in plan.needs}
+        
+        responses_list = []
+        
+        # Always fetch overview
+        responses_list.append(self._retrieval_service.get_patient_overview(context, query))
+        
+        if "all" in domains or "diagnosis" in domains or "procedure" in domains or "symptom" in domains:
+            responses_list.append(self._retrieval_service.get_diagnoses_and_procedures(context, query))
+            
+        if "all" in domains or "medication" in domains:
+            responses_list.append(self._retrieval_service.get_medications(context, query))
+            
+        if "all" in domains or "lab" in domains:
+            responses_list.append(self._retrieval_service.get_laboratory_results(context, query))
+            responses_list.append(self._retrieval_service.get_microbiology_results(context, query))
+            
+        if "all" in domains or "vital" in domains:
+            responses_list.append(self._retrieval_service.get_patient_metrics(context, query))
+            
+        if "all" in domains or "encounter" in domains:
+            responses_list.append(self._retrieval_service.get_encounter_timeline(context, query))
+            responses_list.append(self._retrieval_service.get_icu_events(context, query))
+            
+        responses = tuple(responses_list)
         if any(response.status == "DENIED" for response in responses):
             raise ClinicalAccessDenied
         

@@ -1,6 +1,6 @@
 """Authentication REST endpoints adhering strictly to API_CONTRACT.md section 4.2."""
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from src.clinical.canonical import UserMe
 from src.clinical.demo_auth import (
@@ -8,6 +8,9 @@ from src.clinical.demo_auth import (
     authenticate_demo_credentials,
     create_demo_session,
 )
+from src.api.dependencies import get_access_context
+from src.clinical.schemas import AccessContext
+from src.clinical.operations import operational_store
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,16 +49,46 @@ DEFAULT_CLINICIAN = UserMe(
 )
 
 
+def _get_user_me(username: str) -> UserMe:
+    try:
+        user = operational_store.get_user(username)
+    except KeyError:
+        return DEFAULT_CLINICIAN
+    
+    role_map = {
+        "DOCTOR": "clinician",
+        "ADMIN": "admin",
+        "DATA_STEWARD": "steward",
+        "COMPLIANCE": "compliance"
+    }
+    
+    return UserMe(
+        user_id=user.user_id,
+        display_name=f"User {user.user_id}",
+        tenant_id="ten_demo",
+        roles=[role_map.get(user.role, "user")],
+        permissions=DEFAULT_CLINICIAN.permissions,
+    )
+
+
 @router.post("/login", response_model=UserMe)
 def login(payload: LoginRequest, response: Response) -> UserMe:
-    """Authenticates doctor email/password, sets HttpOnly session cookie, and returns UserMe."""
+    """Authenticates email/password, sets HttpOnly session cookie, and returns UserMe."""
     if not payload.email or not payload.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "AUTH_INVALID", "message": "Email hoặc mật khẩu không đúng."},
         )
 
-    session, max_age = create_demo_session("doctor-1")
+    try:
+        username = authenticate_demo_credentials(payload.email, payload.password)
+        session, max_age = create_demo_session(username)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "AUTH_INVALID", "message": "Email hoặc mật khẩu không đúng."},
+        )
+
     response.set_cookie(
         key=DEMO_SESSION_COOKIE,
         value=session,
@@ -65,7 +98,7 @@ def login(payload: LoginRequest, response: Response) -> UserMe:
         secure=False,
         path="/",
     )
-    return DEFAULT_CLINICIAN
+    return _get_user_me(username)
 
 
 
@@ -100,6 +133,6 @@ def logout(response: Response) -> Response:
 
 
 @router.get("/me", response_model=UserMe)
-def get_me() -> UserMe:
+def get_me(context: AccessContext = Depends(get_access_context)) -> UserMe:
     """Returns authenticated user profile."""
-    return DEFAULT_CLINICIAN
+    return _get_user_me(context.user_id)

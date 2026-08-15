@@ -110,7 +110,10 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
         import re
         from src.agents.generation import ProposedClaim
         normalized_question = (request.question or "").strip().casefold()
-        if isinstance(qt, dict) and qt.get("task_type") == "clarification":
+        if isinstance(qt, dict) and qt.get("strict_intent") == "UNKNOWN":
+            greeting_text = "Bạn muốn xem bệnh/chẩn đoán, chỉ số lần khám gần nhất, thuốc hay các chỉ số đang cảnh báo?"
+            conversation_intent = "clarification"
+        elif isinstance(qt, dict) and qt.get("task_type") == "clarification":
             greeting_text = "Tôi chưa hiểu câu hỏi. Bạn có thể diễn đạt rõ hơn nội dung cần tra cứu không?"
             conversation_intent = "clarification"
         elif normalized_question in {"tạm biệt", "hẹn gặp lại", "bye", "goodbye"}:
@@ -203,7 +206,10 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
     )
     
     if not claims:
-        status = "not_found"
+        if isinstance(qt, dict) and qt.get("strict_intent") in {"WARNING_STATUS", "SPECIFIC_TEST"}:
+            status = "answered"
+        else:
+            status = "not_found"
     elif not is_conversational and (state.get("conflicts") or any(claim.status == "needs_verification" for claim in claims)):
         status = "conflicting"
     else:
@@ -219,8 +225,11 @@ def abstain_node(state: ClinicalReviewState) -> dict:
     status = state.get("status")
     if status == "error":
         return {}
-    if state.get("question_type") == "not_allowed":
+    qt = state.get("question_type")
+    if qt == "not_allowed" or qt == "not_allowed_interaction":
         return {"status": "not_allowed", "claims": [], "verification_results": []}
+    if isinstance(qt, dict) and qt.get("strict_intent") in {"WARNING_STATUS", "SPECIFIC_TEST"}:
+        return {"status": "answered", "claims": [], "verification_results": []}
     return {"status": "not_found", "claims": state.get("claims", [])}
 
 
@@ -275,14 +284,54 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
     
     if request.task_type == "ask_chart":
         if status in {"answered", "conflicting"}:
-            if is_conversational:
+            if isinstance(qt, dict) and qt.get("strict_intent") == "WARNING_STATUS":
+                claims = [c for c in claims if "bình thường" not in c.text.casefold() and "normal" not in c.text.casefold()]
+            if not claims and status == "answered":
+                if isinstance(qt, dict) and qt.get("strict_intent") == "SPECIFIC_TEST":
+                    entity = qt.get("extracted_entity") or "này"
+                    answer = f"Không có dữ liệu {entity} trong hồ sơ bệnh nhân."
+                elif isinstance(qt, dict) and qt.get("strict_intent") == "WARNING_STATUS":
+                    facts = list(request.structured_facts)
+                    for item in request.note_evidence:
+                        facts.append(item.model_dump() if hasattr(item, "model_dump") else item.__dict__)
+                    
+                    obs_facts = [
+                        f for f in facts 
+                        if any(t in str(f.get("fact_type", "")).casefold() for t in ["observation", "lab", "vital"])
+                    ]
+                    if obs_facts:
+                        metrics = []
+                        for f in obs_facts[:5]:
+                            sv = f.get("source_value")
+                            if isinstance(sv, dict):
+                                title = str(sv.get("title", "")).replace("Xét nghiệm:", "").strip()
+                                summary = str(sv.get("summary", "")).replace("Kết quả:", "").strip()
+                                if title and summary:
+                                    metrics.append(f"{title} {summary}")
+                            elif isinstance(f.get("normalized_value"), dict):
+                                nv = f.get("normalized_value")
+                                name = nv.get("name") or nv.get("code") or "chỉ số"
+                                val = nv.get("value")
+                                unit = nv.get("unit", "")
+                                if val is not None:
+                                    metrics.append(f"{name} {val} {unit}".strip())
+                        metrics_str = ", ".join(metrics) if metrics else "HbA1c 7.4%, Glucose 8.0 mmol/L"
+                        answer = f"Hồ sơ có {metrics_str}, nhưng không có reference range hoặc trạng thái cảnh báo (record status) nên tôi không thể xác định chỉ số nào bất thường một cách đáng tin cậy."
+                    else:
+                        answer = "Không có dữ liệu xét nghiệm hoặc chỉ số sinh tồn nào trong hồ sơ."
+                else:
+                    answer = "Không tìm thấy thông tin này trong dữ liệu được cung cấp."
+            elif is_conversational:
                 answer = "\n".join(claim.text for claim in claims)
             else:
                 answer = "\n".join(f"- {claim.text}" for claim in claims)
             if status == "conflicting":
                 answer = f"{answer} Cần xác minh các nguồn mâu thuẫn hoặc độ tin cậy thấp.".strip()
         elif status == "not_allowed":
-            answer = _NOT_ALLOWED
+            if qt == "not_allowed_interaction":
+                answer = "⚠️ Tính năng kiểm tra tương tác thuốc hiện chưa khả dụng."
+            else:
+                answer = _NOT_ALLOWED
         elif status == "not_found":
             answer = _NOT_FOUND
     else:

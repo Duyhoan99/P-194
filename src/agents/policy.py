@@ -8,7 +8,7 @@ from typing import Literal
 from src.agents.contracts import AgentRequest
 from src.agents.retrieval.router import QueryPlanner
 
-QuestionType = Literal["structured", "notes", "hybrid", "not_allowed", "narrative", "temporal", "mixed"]
+QuestionType = Literal["structured", "notes", "hybrid", "not_allowed", "not_allowed_interaction", "narrative", "temporal", "mixed"]
 
 _TREATMENT_REQUESTS = (
     "đổi thuốc",
@@ -20,6 +20,10 @@ _TREATMENT_REQUESTS = (
     "khuyến nghị điều trị",
     "recommend treatment",
     "which medication should",
+)
+_INTERACTION_REQUESTS = (
+    "tương tác",
+    "interaction",
 )
 _NOTE_TERMS = (
     "ghi chú",
@@ -73,6 +77,8 @@ def classify_request(request: AgentRequest) -> QuestionType | dict:
         return "not_allowed"
     if any(term in question for term in _TREATMENT_REQUESTS):
         return "not_allowed"
+    if any(term in question for term in _INTERACTION_REQUESTS):
+        return "not_allowed_interaction"
         
     # Use QueryPlanner to get the validated RetrievalPlan
     planner = QueryPlanner()
