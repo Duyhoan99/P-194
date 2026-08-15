@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from src.agents.contracts import AgentRequest, Citation, EvidenceItem
-from src.agents.retrieval.temporal import filter_temporal, filter_comparison_endpoints, TemporalQuery
+from src.agents.retrieval.temporal import filter_temporal, filter_comparison_endpoints, TemporalQuery, _parse_time
 from src.agents.retrieval.fusion import BaselineWeightedReranker
 from src.agents.retrieval.tools import RetrievalCandidate, SafeTool
 
@@ -332,6 +332,60 @@ def retrieve_evidence(
 
     wrapped_candidates = [RetrievalCandidate(c) for c in candidates]
     
+    # 2. Strict Intent Filtering (if present)
+    if plan_dict and plan_dict.get("strict_intent", "NONE") != "NONE":
+        strict_intent = plan_dict["strict_intent"]
+        if strict_intent == "PATIENT_OVERVIEW":
+            diagnoses = [c for c in candidates if "diagnosis" in str(c.item.fact_type).casefold() or "bệnh" in str(c.item.normalized_value).casefold()]
+            times = [c.item.source_time for c in candidates if c.item.source_time]
+            if times:
+                max_time = max(times)[:10]
+                latest_metrics = [c for c in candidates if c.item.source_time and c.item.source_time.startswith(max_time) and str(c.item.fact_type).casefold() in {"lab", "vital"}]
+                return diagnoses + latest_metrics
+            return diagnoses
+            
+        elif strict_intent == "WARNING_STATUS":
+            times = [c.item.source_time for c in candidates if c.item.source_time]
+            if not times:
+                return []
+            max_time = max(times)[:10]
+            warnings = []
+            for c in candidates:
+                if c.item.source_time and c.item.source_time.startswith(max_time):
+                    status = str(c.record_status).upper()
+                    if status in {"WARNING", "CRITICAL", "ABNORMAL", "HIGH", "LOW"}:
+                        warnings.append(c)
+            return warnings
+            
+        elif strict_intent == "LATEST_VISIT":
+            times = [c.item.source_time for c in candidates if c.item.source_time]
+            if not times:
+                return []
+            max_time = max(times)[:10]
+            return [c for c in candidates if c.item.source_time and c.item.source_time.startswith(max_time)]
+            
+        elif strict_intent == "PREVIOUS_VISIT":
+            times = sorted(list({c.item.source_time[:10] for c in candidates if c.item.source_time}), reverse=True)
+            if len(times) < 2:
+                return []
+            prev_time = times[1]
+            return [c for c in candidates if c.item.source_time and c.item.source_time.startswith(prev_time)]
+            
+        elif strict_intent == "SPECIFIC_TEST":
+            entity = plan_dict.get("extracted_entity")
+            if not entity:
+                return []
+            return [
+                c for c in candidates 
+                if entity in str(c.item.fact_type).casefold() 
+                or entity in str(c.item.normalized_value).casefold() 
+                or (isinstance(c.item.source_value, dict) and entity in str(c.item.source_value).casefold())
+            ]
+            
+        elif strict_intent == "DISEASE":
+            return [c for c in candidates if "diagnosis" in str(c.item.fact_type).casefold() or "bệnh" in str(c.item.normalized_value).casefold()]
+
+    
     # Apply Safe Domain Filtering & Entity-specific Temporal Filtering
     if plan_dict and plan_dict.get("needs"):
         filtered_wrappers = []
@@ -343,21 +397,46 @@ def retrieve_evidence(
         
         if _is_packet_wide_plan(plan_dict):
             filtered_wrappers = safe_tool.execute_summary(limit)
+            
+            # Apply temporal filtering even for summary/packet-wide plans
+            need = plan_dict.get("needs", [{}])[0] if plan_dict.get("needs") else {}
+            temporal_dict = need.get("temporal", {}) if isinstance(need, dict) else getattr(need, "temporal", {})
+            if hasattr(temporal_dict, "model_dump"):
+                temporal_dict = temporal_dict.model_dump()
+            elif hasattr(temporal_dict, "__dict__"):
+                temporal_dict = temporal_dict.__dict__
+            
+            intent = temporal_dict.get("intent", "none") if isinstance(temporal_dict, dict) else "none"
+            if intent != "none" and filtered_wrappers:
+                start_t = _parse_time(temporal_dict.get("start_time"))
+                end_t = _parse_time(temporal_dict.get("end_time"))
+                tk = limit  # For packet-wide, we want up to limit items from the latest encounter
+                t_query = TemporalQuery(intent=intent, k=tk, start_time=start_t, end_time=end_t)
+                dom_items = [c.scoped.item for c in filtered_wrappers]
+                filtered_dom_items = filter_temporal(dom_items, t_query)
+                filtered_ids = {id(it) for it in filtered_dom_items}
+                if intent == "trend":
+                    filtered_ids.update(
+                        id(it) for it in dom_items
+                        if "trend" in str(it.fact_type).casefold()
+                    )
+                filtered_wrappers = [c for c in filtered_wrappers if id(c.scoped.item) in filtered_ids]
         else:
             for need in plan_dict["needs"]:
-                dom = need["domain"]
+                need_dict = need.model_dump() if hasattr(need, "model_dump") else (need if isinstance(need, dict) else need.__dict__)
+                dom = need_dict.get("domain", "all")
                 dom_cands = safe_tool.execute(dom)
-                entity = need.get("entity")
+                entity = need_dict.get("entity")
                 if entity:
                     dom_cands = safe_tool.filter_entity(dom_cands, str(entity))
             
-                temporal_dict = need.get("temporal", {})
+                temporal_dict = need_dict.get("temporal", {})
                 intent = temporal_dict.get("intent", "none")
                 if intent != "none" and dom_cands:
-                    from src.agents.retrieval.temporal import _parse_time
                     start_t = _parse_time(temporal_dict.get("start_time"))
                     end_t = _parse_time(temporal_dict.get("end_time"))
-                    t_query = TemporalQuery(intent=intent, k=limit, start_time=start_t, end_time=end_t)
+                    tk = limit if dom == "all" else (1 if intent in {"latest", "earliest", "previous"} else limit)
+                    t_query = TemporalQuery(intent=intent, k=tk, start_time=start_t, end_time=end_t)
                     dom_items = [c.scoped.item for c in dom_cands]
                     filtered_dom_items = filter_temporal(dom_items, t_query)
                     filtered_ids = {id(it) for it in filtered_dom_items}
@@ -393,8 +472,11 @@ def retrieve_evidence(
             intent = "latest"
         elif "earliest" in q_lower or "cũ nhất" in q_lower:
             intent = "earliest"
+        elif "trước đó" in q_lower or "lần trước" in q_lower:
+            intent = "previous"
             
-        t_query = TemporalQuery(intent=intent, k=limit)
+        tk = 1 if intent in {"latest", "earliest", "previous"} else limit
+        t_query = TemporalQuery(intent=intent, k=tk)
         items = [c.scoped.item for c in wrapped_candidates]
         filtered_items = filter_temporal(items, t_query)
         filtered_ids = {id(it) for it in filtered_items}

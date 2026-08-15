@@ -124,6 +124,7 @@ class ReviewSection(_ContractModel):
 class AgentError(_ContractModel):
     code: str
     message: str
+    trace_id: str | None = None
 
 
 class AgentResult(_ContractModel):

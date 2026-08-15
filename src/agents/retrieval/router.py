@@ -5,6 +5,7 @@ from src.agents.llm_client import get_llm_runtime
 from src.agents.retrieval.concepts import resolve_concept
 
 QueryRoute = Literal["STRUCTURED", "NARRATIVE", "MIXED", "TEMPORAL", "SUMMARY", "OUT_OF_SCOPE", "CONVERSATION"]
+StrictIntent = Literal["PATIENT_OVERVIEW", "WARNING_STATUS", "LATEST_VISIT", "PREVIOUS_VISIT", "DISEASE", "LAB_RESULT", "VITAL_SIGN", "MEDICATION", "VISIT", "HISTORY", "COMPARISON", "SPECIFIC_TEST", "UNKNOWN", "NONE"]
 
 _SUMMARY_INTENT_MARKERS = (
     "tóm tắt",
@@ -71,7 +72,7 @@ def _relative_months(question: str) -> int | None:
     return None
 
 class TemporalIntent(BaseModel):
-    intent: Literal["latest", "earliest", "before", "after", "between", "trend", "none"] = "none"
+    intent: Literal["latest", "earliest", "previous", "before", "after", "between", "trend", "none"] = "none"
     start_time: str | None = None
     end_time: str | None = None
     relative_months: int | None = Field(default=None, ge=1, le=120)
@@ -89,6 +90,8 @@ class RetrievalPlan(BaseModel):
     use_lexical: bool = True
     retrieval_required: bool = True
     comparison_required: bool = False
+    strict_intent: StrictIntent = "NONE"
+    extracted_entity: str | None = None
     
     @property
     def route(self) -> str:
@@ -156,7 +159,7 @@ class PlanValidator:
         relative_months = _relative_months(q)
 
         if _is_low_information(q) or not _has_clinical_signal(q):
-            return RetrievalPlan(task_type="clarification", retrieval_required=False)
+            return RetrievalPlan(task_type="clarification", strict_intent="UNKNOWN", retrieval_required=False)
         
         # Domain parsing
         q_clean = q.replace("bệnh nhân", "").replace("bệnh án", "")
@@ -168,6 +171,10 @@ class PlanValidator:
             domain = "medication"
         elif any(marker in q for marker in ("huyết áp", "nhịp tim", "mạch", "cân nặng", "vital")):
             domain = "vital"
+        elif any(w in q_clean for w in ["ngày khám", "khám bệnh", "nhập viện", "xuất viện", "đến khám", "lịch khám", "encounter"]):
+            domain = "encounter"
+        elif any(w in q_clean for w in ["triệu chứng", "biểu hiện", "đau", "sốt", "ho", "symptom", "dấu hiệu"]):
+            domain = "symptom"
         elif any(w in q_clean for w in ["bệnh", "chẩn đoán", "tiền sử", "disease", "diagnosis", "condition"]):
             domain = "diagnosis"
             concept_wide = any(marker in q for marker in ("gì", "nào", "what", "which", "tình trạng bệnh"))
@@ -199,6 +206,8 @@ class PlanValidator:
             intent = "trend"
         elif "gần nhất" in q or "mới nhất" in q:
             intent = "latest"
+        elif "trước đó" in q or "lần trước" in q:
+            intent = "previous"
             
         from datetime import datetime, timedelta, timezone
         
@@ -217,19 +226,19 @@ class PlanValidator:
         # Using a very basic regex for dates like YYYY-MM-DD or DD/MM/YYYY for the fallback
         date_pattern = r"(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})"
         
-        m_between = re.search(fr"từ\s+{date_pattern}\s+đến\s+{date_pattern}", q)
+        m_between = re.search(fr"từ\s+(?:ngày\s+)?{date_pattern}\s+đến\s+(?:ngày\s+)?{date_pattern}", q)
         if m_between:
             intent = "between"
             start_time = m_between.group(1) # We can leave it as string; parse_time will handle it
             end_time = m_between.group(2)
         else:
-            m_before = re.search(fr"trước\s+{date_pattern}", q)
+            m_before = re.search(fr"trước\s+(?:ngày\s+)?{date_pattern}", q)
             if m_before:
                 intent = "before"
                 start_time = None
                 end_time = m_before.group(1)
                 
-            m_after = re.search(fr"sau\s+{date_pattern}", q)
+            m_after = re.search(fr"sau\s+(?:ngày\s+)?{date_pattern}", q)
             if m_after:
                 intent = "after"
                 start_time = m_after.group(1)
@@ -277,20 +286,20 @@ class QueryPlanner:
         
     def plan(self, question: str) -> RetrievalPlan:
         if not question or not question.strip():
-            return RetrievalPlan(task_type="clarification", retrieval_required=False)
+            return RetrievalPlan(task_type="clarification", strict_intent="UNKNOWN", retrieval_required=False)
             
         q = question.lower().strip()
         
         # 1. Fast path: conversational
         has_language_content = re.search(r"\w", q, flags=re.UNICODE) is not None
         if not has_language_content:
-            return RetrievalPlan(task_type="clarification", retrieval_required=False)
+            return RetrievalPlan(task_type="clarification", strict_intent="UNKNOWN", retrieval_required=False)
         if q in self.conversational_keywords or q.startswith("xin chào"):
             return RetrievalPlan(task_type="conversation", retrieval_required=False)
         if "bạn" in q and any(marker in q for marker in ("giúp", "hỗ trợ", "làm được", "khả năng")):
             return RetrievalPlan(task_type="conversation", retrieval_required=False)
         if _is_low_information(q):
-            return RetrievalPlan(task_type="clarification", retrieval_required=False)
+            return RetrievalPlan(task_type="clarification", strict_intent="UNKNOWN", retrieval_required=False)
 
         if any(marker in q for marker in _CONFLICT_INTENT_MARKERS):
             return self.validator.validate(RetrievalPlan(
@@ -306,11 +315,44 @@ class QueryPlanner:
                 use_structured=True,
                 use_semantic=False,
                 use_lexical=False,
-                retrieval_required=True
+                retrieval_required=True,
+                strict_intent="PATIENT_OVERVIEW"
             ), question)
-            
+
         deterministic = self.validator._fallback_plan(question)
+        
+        # 3. Strict Intents (from Task 1)
+        is_dated_query = bool(deterministic.needs and deterministic.needs[0].temporal.intent in {"before", "after", "between"})
+        
+        if any(marker in q for marker in ["tình trạng nào", "không ổn định", "cảnh báo", "bất thường", "có vấn đề gì", "abnormal", "high", "low", "warning", "critical"]):
+            deterministic.strict_intent = "WARNING_STATUS"
+        elif any(marker in q for marker in ["thông tin của bệnh nhân", "thông tin bệnh nhân", "tình trạng của bệnh nhân", "bệnh nhân hiện tại thế nào"]):
+            deterministic.strict_intent = "PATIENT_OVERVIEW"
+        elif not is_dated_query and any(marker in q for marker in ["lần khám gần nhất", "buổi khám gần đây nhất", "khám gần nhất", "chỉ số sức khỏe mới nhất", "chỉ số mới nhất", "chỉ số gần nhất", "các chỉ số sức khỏe", "các chỉ số mới nhất", "các chỉ số gần nhất"]):
+            deterministic.strict_intent = "LATEST_VISIT"
+        elif not is_dated_query and any(marker in q for marker in ["buổi khám trước", "lần khám trước", "khám lần trước"]):
+            deterministic.strict_intent = "PREVIOUS_VISIT"
+        elif not is_dated_query and any(marker in q for marker in ["buổi khám ngày", "khám ngày", "ngày", "buổi khám"]):
+            deterministic.strict_intent = "VISIT"
+        elif "bệnh gì" in q or q == "bệnh nhân bị bệnh gì?":
+            deterministic.strict_intent = "DISEASE"
+        elif "thuốc" in q and "đang dùng" in q:
+            deterministic.strict_intent = "MEDICATION"
+        elif any(marker in q for marker in ["huyết áp", "nhịp tim", "mạch", "cân nặng"]):
+            deterministic.strict_intent = "VITAL_SIGN"
+        elif any(marker in q for marker in ["nhiệt độ", "chiều cao", "nhịp thở", "spo2", "oxy"]):
+            deterministic.strict_intent = "SPECIFIC_TEST"
+            deterministic.extracted_entity = next((m for m in ["nhiệt độ", "chiều cao", "nhịp thở", "spo2", "oxy"] if m in q), None)
+        elif any(marker in q for marker in ["hba1c", "glucose"]) or "bao nhiêu" in q:
+            if any(marker in q for marker in _COMPARISON_MARKERS + _TREND_MARKERS):
+                deterministic.strict_intent = "COMPARISON"
+            else:
+                deterministic.strict_intent = "LAB_RESULT"
+
         needs = deterministic.needs
+        if deterministic.strict_intent != "NONE":
+            deterministic.task_type = "clinical_question"
+            return self.validator.validate(deterministic, question)
         if deterministic.task_type != "clinical_question" or (
             needs and needs[0].domain != "diagnosis" and needs[0].domain != "all"
         ):

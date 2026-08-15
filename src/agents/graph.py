@@ -1,5 +1,8 @@
 from typing import Any
+import logging
+import uuid
 
+logger = logging.getLogger(__name__)
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.contracts import AgentError, AgentRequest, AgentResult
@@ -12,7 +15,7 @@ from src.agents.nodes.clinical_nodes import (
     validate_scope_node,
     verify_claims_node,
 )
-from src.agents.nodes.example_node import analyze_node, respond_node
+from src.agents.nodes.example_node import analyze_node, respond_node, validate_node
 from src.agents.state import AgentState, ClinicalReviewState, RuntimeScope
 
 
@@ -21,22 +24,27 @@ def should_continue(state: AgentState) -> str:
     return "respond"
 
 
-def build_graph() -> StateGraph:
+def build_legacy_demo_graph() -> StateGraph:
+    """LEGACY/DEMO graph. Do not use for production clinical tasks.
+    See build_clinical_graph() for the actual WP2 clinical implementation.
+    """
     graph = StateGraph(AgentState)
 
     # Add nodes
     graph.add_node("analyze", analyze_node)
     graph.add_node("respond", respond_node)
+    graph.add_node("validate", validate_node)
 
     # Add edges
     graph.set_entry_point("analyze")
     graph.add_conditional_edges("analyze", should_continue)
-    graph.add_edge("respond", END)
+    graph.add_edge("respond", "validate")
+    graph.add_edge("validate", END)
 
     return graph.compile()
 
 
-agent = build_graph()
+legacy_demo_agent = build_legacy_demo_graph()
 
 
 def _route_after_scope(state: ClinicalReviewState) -> str:
@@ -44,7 +52,8 @@ def _route_after_scope(state: ClinicalReviewState) -> str:
 
 
 def _route_after_classification(state: ClinicalReviewState) -> str:
-    return "abstain" if state.get("question_type") == "not_allowed" else "retrieve"
+    qt = state.get("question_type")
+    return "abstain" if qt == "not_allowed" or qt == "not_allowed_interaction" else "retrieve"
 
 
 def _route_after_retrieval(state: ClinicalReviewState) -> str:
@@ -127,9 +136,15 @@ def run_agent(
         if isinstance(result, AgentResult):
             return result
     except Exception as e:
-        import traceback
-        with open('error.txt', 'w', encoding='utf-8') as f:
-            f.write(traceback.format_exc())
+        trace_id = str(uuid.uuid4())
+        logger.exception(
+            "Agent execution failed",
+            extra={
+                "request_id": validated.request_id,
+                "patient_id": validated.patient_id,
+                "trace_id": trace_id,
+            }
+        )
     return AgentResult(
         task_type=validated.task_type,
         status="error",
@@ -137,5 +152,5 @@ def run_agent(
         sections=[] if validated.task_type == "review_generation" else None,
         claims=[],
         citations=[],
-        errors=[AgentError(code="AGENT_EXECUTION_ERROR", message="Agent execution failed safely.")],
+        errors=[AgentError(code="AGENT_EXECUTION_ERROR", message="Agent execution failed safely.", trace_id=trace_id)],
     )

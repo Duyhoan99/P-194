@@ -69,9 +69,14 @@ def ask_patient_chart(
         },
     )
     if agent_result.status == "error" or agent_result.answer is None:
+        trace_id = next((e.trace_id for e in agent_result.errors if getattr(e, "trace_id", None)), None)
+        detail = {"code": "AGENT_UNAVAILABLE", "message": "Không thể trả lời an toàn từ dữ liệu hiện tại."}
+        if trace_id:
+            detail["trace_id"] = trace_id
+            
         raise HTTPException(
             status_code=503,
-            detail={"code": "AGENT_UNAVAILABLE", "message": "Không thể trả lời an toàn từ dữ liệu hiện tại."},
+            detail=detail,
         )
     response.headers["X-Request-ID"] = request_id
     return AskResponse(
