@@ -29,9 +29,38 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
         citations: res.citations
       }]);
     } catch (err: any) {
+      let detail = err.detail || err;
+      if (typeof detail === 'string' && detail.trim().startsWith('{')) {
+        try {
+          detail = JSON.parse(detail);
+        } catch {
+          /* ignore */
+        }
+      }
+      
+      const traceId = err.trace_id || (typeof detail === 'object' ? detail?.trace_id : undefined) || 'N/A';
+      const code = typeof detail === 'object' ? detail?.code : undefined;
+
+      console.warn(
+        `AGENT_UNAVAILABLE\n` +
+        `trace_id=${traceId}\n` +
+        `patient_id=${patientId}\n` +
+        `request_id=${err.request_id || 'N/A'}\n` +
+        `exception=${typeof detail === 'object' ? JSON.stringify(detail) : String(detail)}`
+      );
+
+      let textToDisplay = '⚠️ Không thể truy xuất dữ liệu lúc này.\nVui lòng thử lại sau.';
+      if (code === 'AGENT_UNAVAILABLE' || (typeof detail === 'string' && detail.includes('AGENT_UNAVAILABLE'))) {
+        textToDisplay = '⚠️ Không thể truy xuất dữ liệu lúc này.\nVui lòng thử lại sau.';
+      } else if (typeof detail === 'object' && detail?.message) {
+        textToDisplay = detail.message;
+      } else if (typeof detail === 'string' && detail && !detail.startsWith('{')) {
+        textToDisplay = detail;
+      }
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        text: err.detail || 'An error occurred while communicating with Copilot.',
+        text: textToDisplay,
         status: 'error'
       }]);
     } finally {
@@ -41,6 +70,26 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
 
   const handleCitationClick = (citation: any) => {
     setFocusedCitation(citation);
+  };
+
+  const getCitationLabel = (cit: any) => {
+    if (cit.source_type === 'pdf') {
+      return `📄 ${cit.document_name || 'Tài liệu'}${cit.page_number ? ` (Tr. ${cit.page_number})` : ''}`;
+    }
+    
+    const dateMatch = cit.snippet?.match(/\d{4}-\d{2}-\d{2}/) || cit.source_time?.match(/\d{4}-\d{2}-\d{2}/);
+    const dateStr = dateMatch ? dateMatch[0].split('-').reverse().join('/') : '';
+    
+    if (cit.resource_type) {
+        let typeName = cit.resource_type;
+        if (typeName === 'Observation') typeName = 'Xét nghiệm';
+        if (typeName === 'Encounter') typeName = 'Lượt khám';
+        if (typeName === 'MedicationRequest') typeName = 'Đơn thuốc';
+        if (typeName === 'Condition') typeName = 'Chẩn đoán';
+        return `📎 Nguồn: ${typeName}${dateStr ? ` · ${dateStr}` : ''}`;
+    }
+    
+    return `📎 Nguồn hồ sơ${dateStr ? ` · ${dateStr}` : ''}`;
   };
 
   return (
@@ -107,9 +156,9 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
                     <button 
                       key={cit.citation_id}
                       onClick={() => handleCitationClick(cit)}
-                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-900 hover:bg-slate-950 text-cyan-400 text-xs font-mono rounded-md border border-slate-700 hover:border-cyan-500 transition-colors shadow-sm"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 hover:bg-slate-950 text-cyan-400 text-xs rounded-md border border-slate-700 hover:border-cyan-500 transition-colors shadow-sm"
                     >
-                      {cit.source_type === 'pdf' ? '📄' : '🗃️'} {cit.citation_id.split('-').pop()?.substring(0, 4)}
+                      {getCitationLabel(cit)}
                     </button>
                   ))}
                 </div>
