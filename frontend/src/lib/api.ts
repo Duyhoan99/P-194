@@ -50,14 +50,14 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
   });
 
   if (!res.ok) {
-    let detail = 'Unknown error';
+    let detail: any = 'Unknown error';
     let trace_id: string | undefined;
     try {
       const err = await res.json();
-      if (err.detail) {
-        detail = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+      if (err.detail !== undefined) {
+        detail = err.detail;
       }
-      trace_id = err.trace_id;
+      trace_id = err.trace_id || (typeof err.detail === 'object' ? err.detail?.trace_id : undefined);
     } catch {
       /* ignore */
     }
