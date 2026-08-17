@@ -355,6 +355,12 @@ def retrieve_evidence(
                     status = str(c.record_status).upper()
                     if status in {"WARNING", "CRITICAL", "ABNORMAL", "HIGH", "LOW"}:
                         warnings.append(c)
+                    else:
+                        from src.clinical.guidelines import parse_and_evaluate_metric
+                        stmt = str(c.item.normalized_value).casefold()
+                        eval_res = parse_and_evaluate_metric(stmt, stmt)
+                        if eval_res and eval_res.is_warning:
+                            warnings.append(c)
             return warnings
             
         elif strict_intent == "LATEST_VISIT":

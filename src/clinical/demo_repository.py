@@ -56,6 +56,7 @@ class DemoRepository:
         self._uploaded_fhir_evidence: dict[str, list[dict[str, Any]]] = {}
         # PDF verification items from low-confidence OCR
         self._pdf_verification_items: dict[str, list[dict[str, Any]]] = {}
+        self._conflicts: dict[str, list[dict[str, Any]]] = {}
         self.med_safety = MedicationSafetyService()
 
         self._load_baseline()
@@ -126,6 +127,42 @@ class DemoRepository:
                             confidence=item.get("confidence", 0.75),
                             status=item.get("status", "pending"),
                         )
+            except Exception:
+                pass
+
+        # Load baseline conflicts if gold/conflicts.json exists
+        gold_conflicts = self.data_dir / "gold" / "conflicts.json"
+        if gold_conflicts.exists():
+            try:
+                with open(gold_conflicts, "r", encoding="utf-8") as f:
+                    c_data = json.load(f)
+                    for case in c_data.get("cases", []):
+                        p_id = case.get("patient_id")
+                        c_id = case.get("case_id", f"CONFLICT-{p_id}")
+                        self._conflicts.setdefault(p_id, []).append({
+                            "conflict_id": c_id,
+                            "type": case.get("type", "medication_dose_conflict"),
+                            "description": "Liều Metformin đang mâu thuẫn: FHIR ghi 500 mg, trong khi tài liệu ghi 850 mg.",
+                            "source_a": [{
+                                "citation_id": "PAT-003-MED-001",
+                                "source_type": "canonical_record",
+                                "source_record_id": "PAT-003-MED-001",
+                                "source_time": "2025-03-20",
+                                "snippet": "Metformin 500 MG; 500 mg twice daily"
+                            }],
+                            "source_b": [{
+                                "citation_id": "DOC-PAT003-RX-001",
+                                "source_type": "pdf",
+                                "document_id": "DOC-PAT003-RX-001",
+                                "document_name": "PAT-003_prescription_conflict.pdf",
+                                "page_number": 1,
+                                "block_id": "rx-metformin",
+                                "snippet": "Metformin 850 mg",
+                                "source_checksum": "a3db17359c3b2039946fcd1a2ad10887936de545e223a9c148e1435b0b2e7c54",
+                                "extraction_version": "1.0.0"
+                            }],
+                            "status": case.get("status", "unresolved")
+                        })
             except Exception:
                 pass
 
@@ -464,7 +501,7 @@ class DemoRepository:
                 }]
             }],
             fhir_evidence=list(self._uploaded_fhir_evidence.get(patient_id, [])),
-            conflicts=[],
+            conflicts=list(self._conflicts.get(patient_id, [])),
             drug_interactions=[],
             data_quality_flags=[],
             pdf_evidence=pdf_evs,

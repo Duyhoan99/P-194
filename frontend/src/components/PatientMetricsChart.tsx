@@ -18,12 +18,7 @@ import {
   TrendingDown,
   TrendingUp,
   AlertTriangle,
-  CheckCircle2,
   ShieldCheck,
-  Target,
-  Info,
-  ArrowUp,
-  ArrowDown,
 } from 'lucide-react';
 import { patients } from '@/lib/api';
 
@@ -203,27 +198,121 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
   const latestPoint = data.length > 0 ? data[data.length - 1] : null;
   const hasWarningPoints = data.some((d) => d.isWarning);
 
-  // Compute dynamic Y-axis domain so the threshold is cleanly visible inside the chart
+  // Compute dynamic Y-axis domain symmetric around activeThreshold so the threshold line is vertically centered ("cắt đều trên và dưới")
   const yDomain = useMemo<[number, number]>(() => {
     if (data.length === 0) {
-      return [Math.max(0, activeThreshold * 0.8), activeThreshold * 1.2];
+      const span = Math.max(activeThreshold * 0.25, 2);
+      const lower = Math.max(0, Math.round((activeThreshold - span) * 10) / 10);
+      const upper = Math.round((activeThreshold + span) * 10) / 10;
+      return [lower, upper];
     }
     const values = data.map((d) => d.value);
-    const minVal = Math.min(...values, activeThreshold);
-    const maxVal = Math.max(...values, activeThreshold);
-    const span = maxVal - minVal;
-    const padding = span > 0 ? span * 0.25 : Math.max(activeThreshold * 0.15, 1);
+    const maxDiff = Math.max(...values.map((v) => Math.abs(v - activeThreshold)));
+    // Provide ample breathing space so points are nicely distributed
+    const baseSpan = Math.max(maxDiff, activeThreshold * 0.15, 0.8);
+    const halfSpan = baseSpan * 1.35;
 
-    const lower = Math.max(0, Math.floor((minVal - padding) * 10) / 10);
-    const upper = Math.ceil((maxVal + padding) * 10) / 10;
+    let lower = Math.round((activeThreshold - halfSpan) * 10) / 10;
+    let upper = Math.round((activeThreshold + halfSpan) * 10) / 10;
+
+    if (lower < 0) {
+      lower = 0;
+      upper = Math.round(activeThreshold * 2 * 10) / 10;
+    }
+
     return [lower, upper];
   }, [data, activeThreshold]);
+
+  // 1. Calculate exact Stroke gradient (for the line curve itself)
+  const strokeGradStops = useMemo(() => {
+    if (data.length === 0) {
+      return { isSolidGreen: false, isSolidRed: false, offsetPct: '50%' };
+    }
+    const values = data.map((d) => d.value);
+    const dataMin = Math.min(...values);
+    const dataMax = Math.max(...values);
+    const isAboveGood = selectedMetric.goodDirection === 'above';
+
+    if (isAboveGood) {
+      if (dataMin >= activeThreshold) {
+        return { isSolidGreen: true, isSolidRed: false, offsetPct: '100%' };
+      }
+      if (dataMax < activeThreshold) {
+        return { isSolidGreen: false, isSolidRed: true, offsetPct: '0%' };
+      }
+    } else {
+      if (dataMax <= activeThreshold) {
+        return { isSolidGreen: true, isSolidRed: false, offsetPct: '100%' };
+      }
+      if (dataMin > activeThreshold) {
+        return { isSolidGreen: false, isSolidRed: true, offsetPct: '0%' };
+      }
+    }
+
+    const strokeRange = dataMax - dataMin;
+    const frac = strokeRange > 0 ? (dataMax - activeThreshold) / strokeRange : 0.5;
+    const clamped = Math.max(0, Math.min(1, frac));
+    return {
+      isSolidGreen: false,
+      isSolidRed: false,
+      offsetPct: `${(clamped * 100).toFixed(2)}%`,
+    };
+  }, [data, activeThreshold, selectedMetric]);
+
+  // 2. Calculate exact Area fill gradient (from dataMax down to domainMin)
+  const areaGradStops = useMemo(() => {
+    if (data.length === 0) {
+      return { isSolidGreen: false, isSolidRed: false, offsetPct: '50%' };
+    }
+    const values = data.map((d) => d.value);
+    const dataMax = Math.max(...values, activeThreshold);
+    const [domainMin] = yDomain;
+    const totalRange = dataMax - domainMin;
+    const isAboveGood = selectedMetric.goodDirection === 'above';
+
+    if (isAboveGood) {
+      if (dataMax <= activeThreshold) {
+        return { isSolidGreen: false, isSolidRed: true, offsetPct: '0%' };
+      }
+      if (Math.min(...values) >= activeThreshold) {
+        return { isSolidGreen: true, isSolidRed: false, offsetPct: '100%' };
+      }
+    } else {
+      if (dataMax <= activeThreshold) {
+        return { isSolidGreen: true, isSolidRed: false, offsetPct: '100%' };
+      }
+      if (Math.min(...values) > activeThreshold) {
+        return { isSolidGreen: false, isSolidRed: true, offsetPct: '0%' };
+      }
+    }
+
+    const frac = totalRange > 0 ? (dataMax - activeThreshold) / totalRange : 0.5;
+    const clamped = Math.max(0, Math.min(1, frac));
+    return {
+      isSolidGreen: false,
+      isSolidRed: false,
+      offsetPct: `${(clamped * 100).toFixed(2)}%`,
+    };
+  }, [data, activeThreshold, yDomain, selectedMetric]);
+
+  // 5 evenly spaced ticks centered around activeThreshold
+  const yTicks = useMemo(() => {
+    const [lower, upper] = yDomain;
+    const half = upper - activeThreshold;
+    const step = half / 2;
+    const t1 = Math.round(lower * 10) / 10;
+    const t2 = Math.round((activeThreshold - step) * 10) / 10;
+    const t3 = activeThreshold;
+    const t4 = Math.round((activeThreshold + step) * 10) / 10;
+    const t5 = Math.round(upper * 10) / 10;
+    return [t1, t2, t3, t4, t5];
+  }, [yDomain, activeThreshold]);
 
   return (
     <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl mb-6 relative overflow-hidden">
       {/* Ambient background glow */}
       <div className="absolute top-0 right-1/4 w-96 h-32 bg-cyan-500/5 blur-3xl pointer-events-none -z-10" />
-      <div className="absolute bottom-0 left-1/4 w-96 h-32 bg-amber-500/5 blur-3xl pointer-events-none -z-10" />
+      <div className="absolute bottom-0 left-1/4 w-96 h-32 bg-rose-500/5 blur-3xl pointer-events-none -z-10" />
 
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
@@ -270,13 +359,13 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-semibold text-xs shadow-sm ${
                 latestPoint.isGood
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.15)]'
               }`}
             >
               {latestPoint.isGood ? (
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
               ) : (
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
               )}
               <div className="flex items-center gap-1.5">
                 <span className="text-slate-300 font-normal">Gần nhất:</span>
@@ -290,50 +379,6 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                 {latestPoint.isGood ? 'Tốt' : 'Cảnh báo'}
               </span>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Threshold Explanation & Zone Visual Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 mb-4 rounded-xl bg-slate-950/40 border border-white/5 text-xs text-slate-300">
-        <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-slate-400">Ngưỡng chuẩn:</span>
-          <span className="font-bold text-slate-100 font-mono">
-            {activeThreshold} {activeUnit}
-          </span>
-        </div>
-
-        {/* Dynamic Zone Orientation Indicators */}
-        <div className="flex items-center gap-4 text-[11px]">
-          {selectedMetric.goodDirection === 'above' ? (
-            <>
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <ArrowUp className="w-3.5 h-3.5" />
-                <span className="font-medium">Phía trên (≥ {activeThreshold}):</span>
-                <span className="text-emerald-300/90 font-semibold">Tình trạng TỐT</span>
-              </div>
-              <div className="w-px h-3 bg-white/10" />
-              <div className="flex items-center gap-1.5 text-amber-400">
-                <ArrowDown className="w-3.5 h-3.5" />
-                <span className="font-medium">Phía dưới (&lt; {activeThreshold}):</span>
-                <span className="text-amber-300/90 font-semibold">Tình trạng CẢNH BÁO</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <ArrowDown className="w-3.5 h-3.5" />
-                <span className="font-medium">Phía dưới (≤ {activeThreshold}):</span>
-                <span className="text-emerald-300/90 font-semibold">Tình trạng TỐT (Mục tiêu)</span>
-              </div>
-              <div className="w-px h-3 bg-white/10" />
-              <div className="flex items-center gap-1.5 text-amber-400">
-                <ArrowUp className="w-3.5 h-3.5" />
-                <span className="font-medium">Phía trên (&gt; {activeThreshold}):</span>
-                <span className="text-amber-300/90 font-semibold">Tình trạng CẢNH BÁO</span>
-              </div>
-            </>
           )}
         </div>
       </div>
@@ -363,23 +408,79 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
       ) : (
         <div className="h-[260px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 18, right: 24, left: -10, bottom: 5 }}>
+            <AreaChart data={data} margin={{ top: 18, right: 24, left: -2, bottom: 5 }}>
               <defs>
-                {/* Visual Area Gradient */}
-                <linearGradient id="metricAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={hasWarningPoints ? '#f59e0b' : '#22d3ee'} stopOpacity={0.25} />
-                  <stop offset="95%" stopColor={hasWarningPoints ? '#f59e0b' : '#22d3ee'} stopOpacity={0.02} />
+                {/* 2-Color Split Stroke Gradient */}
+                <linearGradient id="curveStrokeGrad" x1="0" y1="0" x2="0" y2="1">
+                  {strokeGradStops.isSolidGreen ? (
+                    <>
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </>
+                  ) : strokeGradStops.isSolidRed ? (
+                    <>
+                      <stop offset="0%" stopColor="#ef4444" />
+                      <stop offset="100%" stopColor="#ef4444" />
+                    </>
+                  ) : selectedMetric.goodDirection === 'below' ? (
+                    <>
+                      <stop offset="0%" stopColor="#ef4444" />
+                      <stop offset={strokeGradStops.offsetPct} stopColor="#ef4444" />
+                      <stop offset={strokeGradStops.offsetPct} stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </>
+                  ) : (
+                    <>
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset={strokeGradStops.offsetPct} stopColor="#10b981" />
+                      <stop offset={strokeGradStops.offsetPct} stopColor="#ef4444" />
+                      <stop offset="100%" stopColor="#ef4444" />
+                    </>
+                  )}
                 </linearGradient>
 
-                {/* Glow filter for the reference threshold line */}
-                <filter id="thresholdGlow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="2" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
+                {/* 2-Color Split Area Fill Gradient */}
+                <linearGradient id="areaSplitGrad" x1="0" y1="0" x2="0" y2="1">
+                  {selectedMetric.goodDirection === 'below' ? (
+                    areaGradStops.isSolidGreen ? (
+                      <>
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                      </>
+                    ) : areaGradStops.isSolidRed ? (
+                      <>
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
+                      </>
+                    ) : (
+                      <>
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.35} />
+                        <stop offset={areaGradStops.offsetPct} stopColor="#ef4444" stopOpacity={0.12} />
+                        <stop offset={areaGradStops.offsetPct} stopColor="#10b981" stopOpacity={0.12} />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                      </>
+                    )
+                  ) : (
+                    areaGradStops.isSolidRed ? (
+                      <>
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
+                      </>
+                    ) : (
+                      <>
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                        <stop offset={areaGradStops.offsetPct} stopColor="#10b981" stopOpacity={0.12} />
+                        <stop offset={areaGradStops.offsetPct} stopColor="#ef4444" stopOpacity={0.12} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
+                      </>
+                    )
+                  )}
+                </linearGradient>
               </defs>
 
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
 
+              {/* X Axis */}
               <XAxis
                 dataKey="date"
                 stroke="#64748b"
@@ -388,88 +489,73 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                 axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
               />
 
+              {/* Y Axis: Ascending order with highlighted Threshold Tick */}
               <YAxis
+                width={38}
                 stroke="#64748b"
-                fontSize={11}
                 tickLine={false}
                 axisLine={false}
                 domain={yDomain}
-                tickFormatter={(v) => `${v}`}
-              />
+                ticks={yTicks}
+                tick={(props: any) => {
+                  const { x, y, payload } = props;
+                  if (!payload || payload.value === undefined) return null;
+                  const val = Number(payload.value);
+                  const isThreshold = Math.abs(val - activeThreshold) < 0.05;
 
-              {/* Shaded Zone Visuals for Good vs Warning areas */}
-              {selectedMetric.goodDirection === 'above' ? (
-                <>
-                  <ReferenceArea
-                    y1={activeThreshold}
-                    y2={yDomain[1]}
-                    fill="#10b981"
-                    fillOpacity={0.04}
-                  />
-                  <ReferenceArea
-                    y1={yDomain[0]}
-                    y2={activeThreshold}
-                    fill="#f59e0b"
-                    fillOpacity={0.04}
-                  />
-                </>
-              ) : (
-                <>
-                  <ReferenceArea
-                    y1={yDomain[0]}
-                    y2={activeThreshold}
-                    fill="#10b981"
-                    fillOpacity={0.04}
-                  />
-                  <ReferenceArea
-                    y1={activeThreshold}
-                    y2={yDomain[1]}
-                    fill="#f59e0b"
-                    fillOpacity={0.04}
-                  />
-                </>
-              )}
-
-              {/* Central Horizontal Threshold Reference Line */}
-              <ReferenceLine
-                y={activeThreshold}
-                stroke="#38bdf8"
-                strokeDasharray="6 4"
-                strokeWidth={2}
-                filter="url(#thresholdGlow)"
-                label={(props: any) => {
-                  const { viewBox } = props;
-                  if (!viewBox) return null;
-                  const { x, y, width } = viewBox;
-                  const badgeWidth = 175;
-                  const badgeX = Math.max(x + 10, x + width - badgeWidth - 10);
-                  const badgeY = Math.max(8, y - 13);
+                  if (isThreshold) {
+                    return (
+                      <text
+                        x={x - 4}
+                        y={y + 4}
+                        textAnchor="end"
+                        fill="#ef4444"
+                        fontSize={12}
+                        fontWeight="700"
+                        fontFamily="system-ui, -apple-system, sans-serif"
+                      >
+                        {val}
+                      </text>
+                    );
+                  }
 
                   return (
-                    <g key="threshold-badge" transform={`translate(${badgeX}, ${badgeY})`}>
-                      <rect
-                        width={badgeWidth}
-                        height={24}
-                        rx={6}
-                        fill="rgba(15, 23, 42, 0.9)"
-                        stroke="rgba(56, 189, 248, 0.6)"
-                        strokeWidth={1.2}
-                      />
-                      <circle cx={14} cy={12} r={4} fill="#38bdf8" />
-                      <text
-                        x={24}
-                        y={16}
-                        fill="#38bdf8"
-                        fontSize={10.5}
-                        fontWeight="700"
-                        letterSpacing="0.3px"
-                        fontFamily="system-ui, sans-serif"
-                      >
-                        NGƯỠNG: {activeThreshold} {activeUnit}
-                      </text>
-                    </g>
+                    <text
+                      x={x - 4}
+                      y={y + 4}
+                      textAnchor="end"
+                      fill="#64748b"
+                      fontSize={11}
+                      fontWeight="500"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {val}
+                    </text>
                   );
                 }}
+              />
+
+              {/* Top Shaded Zone: Above threshold */}
+              <ReferenceArea
+                y1={activeThreshold}
+                y2={yDomain[1]}
+                fill={selectedMetric.goodDirection === 'below' ? '#ef4444' : '#10b981'}
+                fillOpacity={0.05}
+              />
+
+              {/* Bottom Shaded Zone: Below threshold */}
+              <ReferenceArea
+                y1={yDomain[0]}
+                y2={activeThreshold}
+                fill={selectedMetric.goodDirection === 'below' ? '#10b981' : '#ef4444'}
+                fillOpacity={0.05}
+              />
+
+              {/* Central Horizontal Solid Red Threshold Reference Line */}
+              <ReferenceLine
+                y={activeThreshold}
+                stroke="#ef4444"
+                strokeWidth={2}
               />
 
               {/* Custom Interactive Tooltip */}
@@ -479,6 +565,7 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                   const pt = payload[0].payload as MetricPoint;
                   const diff = (pt.value - activeThreshold).toFixed(1);
                   const diffSign = Number(diff) > 0 ? `+${diff}` : `${diff}`;
+                  const isGood = pt.isGood;
 
                   return (
                     <div className="bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl p-3.5 shadow-2xl min-w-[230px]">
@@ -486,12 +573,12 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                         <span className="text-xs font-semibold text-slate-300">{pt.date}</span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                            pt.isGood
+                            isGood
                               ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
                           }`}
                         >
-                          {pt.isGood ? '✓ Tình trạng tốt' : '⚠️ Tình trạng cảnh báo'}
+                          {isGood ? '● Đạt mục tiêu (Tốt)' : '▲ Vượt ngưỡng (Cảnh báo)'}
                         </span>
                       </div>
 
@@ -504,53 +591,56 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
 
                       <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-white/5 text-slate-400">
                         <span>So với ngưỡng ({activeThreshold}):</span>
-                        <span className={`font-mono font-semibold ${pt.isGood ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        <span className={`font-mono font-semibold ${isGood ? 'text-emerald-400' : 'text-rose-400'}`}>
                           {diffSign} {activeUnit}
                         </span>
                       </div>
 
                       <div
                         className={`mt-2.5 text-[10.5px] rounded-lg px-2.5 py-1.5 border ${
-                          pt.isGood
+                          isGood
                             ? 'bg-emerald-950/30 border-emerald-500/20 text-emerald-300/90'
-                            : 'bg-amber-950/30 border-amber-500/20 text-amber-300/90'
+                            : 'bg-rose-950/30 border-rose-500/20 text-rose-300/90'
                         }`}
                       >
-                        {pt.isGood ? selectedMetric.goodText : selectedMetric.warningText}
+                        {isGood
+                          ? `Chỉ số đạt mục tiêu kiểm soát an toàn (${selectedMetric.goodText})`
+                          : `Chỉ số cảnh báo vượt ngưỡng khuyến cáo (${selectedMetric.warningText})`}
                       </div>
                     </div>
                   );
                 }}
               />
 
-              {/* Area & Trend Curve */}
+              {/* Area & Trend Curve: Split 2 colors based on clinical condition */}
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke={hasWarningPoints ? '#f59e0b' : '#22d3ee'}
-                strokeWidth={2.5}
+                stroke="url(#curveStrokeGrad)"
+                strokeWidth={2.8}
                 fillOpacity={1}
-                fill="url(#metricAreaGrad)"
+                fill="url(#areaSplitGrad)"
                 dot={(props: any) => {
                   const { cx, cy, payload } = props;
                   if (!payload || cx === undefined || cy === undefined) return <React.Fragment key={`dot-${cx}-${cy}`} />;
                   const isGood = payload.isGood;
+                  const dotColor = isGood ? '#10b981' : '#ef4444';
                   return (
                     <g key={`point-${payload.date}-${cx}-${cy}`}>
                       <circle
                         cx={cx}
                         cy={cy}
-                        r={6}
+                        r={7}
                         fill="transparent"
-                        stroke={isGood ? '#10b981' : '#f59e0b'}
-                        strokeWidth={1.5}
+                        stroke={dotColor}
+                        strokeWidth={2}
                         strokeOpacity={0.4}
                       />
                       <circle
                         cx={cx}
                         cy={cy}
-                        r={4}
-                        fill={isGood ? '#10b981' : '#f59e0b'}
+                        r={4.5}
+                        fill={dotColor}
                         stroke="#0f172a"
                         strokeWidth={2}
                       />
@@ -569,22 +659,22 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
           <div className="flex flex-wrap items-center gap-5">
             {/* Threshold Line Legend */}
             <div className="flex items-center gap-2">
-              <div className="w-6 border-t-2 border-dashed border-sky-400" />
-              <span className="text-slate-300 font-medium">
-                Dòng ngưỡng tham chiếu ({activeThreshold} {activeUnit})
+              <div className="w-6 border-t-2 border-red-500" />
+              <span className="text-red-400 font-semibold">
+                Đường ngưỡng tham chiếu ({activeThreshold} {activeUnit})
               </span>
             </div>
 
-            {/* Good Indicator Legend */}
+            {/* Safe / Good Indicator Legend */}
             <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
-              <span className="text-emerald-400 font-medium">Tình trạng tốt</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              <span className="text-emerald-400 font-medium">Đạt mục tiêu (Tốt)</span>
             </div>
 
             {/* Warning Indicator Legend */}
             <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.7)]" />
-              <span className="text-amber-400 font-medium">Tình trạng cảnh báo</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+              <span className="text-rose-400 font-medium">Vượt ngưỡng (Cảnh báo)</span>
             </div>
           </div>
 

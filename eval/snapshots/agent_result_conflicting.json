@@ -3,12 +3,12 @@
   "status": "conflicting",
   "data_watermark": "wm_demo_1_3_0_PAT003",
   "sections": null,
-  "answer": "- Li\u1ec1u Metformin \u0111ang m\u00e2u thu\u1eabn: FHIR ghi 500 mg, trong khi t\u00e0i li\u1ec7u ghi 850 mg. C\u1ea7n x\u00e1c minh c\u00e1c ngu\u1ed3n m\u00e2u thu\u1eabn ho\u1eb7c \u0111\u1ed9 tin c\u1eady th\u1ea5p.",
+  "answer": "- Liều Metformin đang mâu thuẫn: FHIR ghi 500 mg, trong khi tài liệu ghi 850 mg. Cần xác minh các nguồn mâu thuẫn hoặc độ tin cậy thấp.",
   "confidence": "low",
   "claims": [
     {
       "claim_id": "clm_921b3389-5515-558d-a2e6-05b335f0522b",
-      "text": "Li\u1ec1u Metformin \u0111ang m\u00e2u thu\u1eabn: FHIR ghi 500 mg, trong khi t\u00e0i li\u1ec7u ghi 850 mg.",
+      "text": "Liều Metformin đang mâu thuẫn: FHIR ghi 500 mg, trong khi tài liệu ghi 850 mg.",
       "status": "needs_verification",
       "confidence": "low",
       "citations": [
