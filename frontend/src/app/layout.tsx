@@ -3,10 +3,22 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { LanguageProvider } from "@/lib/i18n";
 
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter, Newsreader } from "next/font/google";
 import { RootLayoutWrapper } from "@/components/RootLayoutWrapper";
 
-const mainFont = Plus_Jakarta_Sans({ subsets: ["latin", "vietnamese"] });
+const inter = Inter({ 
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const serifFont = Newsreader({
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
+  style: ["normal", "italic"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-serif",
+});
 
 export const metadata: Metadata = {
   title: "Clinical Review Copilot — AI Rà Soát Bệnh Án Dọc (P-194)",
@@ -20,8 +32,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
-      <body className={`${mainFont.className} bg-slate-950 text-slate-200 antialiased`}>
+    <html lang="vi" className={`${inter.variable} ${serifFont.variable}`}>
+      <body className={`${inter.className} bg-[#06090e] text-slate-200 antialiased font-sans`}>
         <AuthProvider>
           <LanguageProvider>
             <RootLayoutWrapper>

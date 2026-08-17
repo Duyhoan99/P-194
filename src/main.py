@@ -33,12 +33,79 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down...")
 
 
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
+
+SWAGGER_DARK_STYLE = """
+<style>
+  body { background: #06090e !important; color: #e2e8f0 !important; font-family: 'Inter', -apple-system, sans-serif !important; }
+  .swagger-ui .topbar { background-color: #0c121d !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; }
+  .swagger-ui .topbar .topbar-wrapper { max-width: 1400px; margin: 0 auto; }
+  .swagger-ui .topbar a span { color: #14b8a6 !important; font-weight: 700 !important; }
+  .swagger-ui { background: #06090e !important; }
+  .swagger-ui .info .title { color: #f1f5f9 !important; font-weight: 700 !important; }
+  .swagger-ui .info p, .swagger-ui .info li, .swagger-ui .info span { color: #94a3b8 !important; }
+  .swagger-ui .scheme-container { background: #0c121d !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; box-shadow: none !important; }
+  .swagger-ui .opblock { border-radius: 12px !important; border: 1px solid rgba(255,255,255,0.08) !important; background: #0e1522 !important; box-shadow: none !important; margin: 0 0 16px !important; }
+  .swagger-ui .opblock .opblock-summary { border-color: rgba(255,255,255,0.05) !important; padding: 10px 16px !important; }
+  .swagger-ui .opblock .opblock-summary-path { color: #38bdf8 !important; font-family: monospace !important; font-weight: 600 !important; }
+  .swagger-ui .opblock .opblock-summary-description { color: #94a3b8 !important; }
+  .swagger-ui .opblock-get { border-color: rgba(20,184,166,0.3) !important; background: rgba(20,184,166,0.05) !important; }
+  .swagger-ui .opblock-post { border-color: rgba(6,182,212,0.3) !important; background: rgba(6,182,212,0.05) !important; }
+  .swagger-ui .opblock-delete { border-color: rgba(244,63,94,0.3) !important; background: rgba(244,63,94,0.05) !important; }
+  .swagger-ui .opblock-put { border-color: rgba(245,158,11,0.3) !important; background: rgba(245,158,11,0.05) !important; }
+  .swagger-ui .btn.execute { background-color: #14b8a6 !important; border-color: #14b8a6 !important; color: #ffffff !important; border-radius: 9999px !important; font-weight: 600 !important; }
+  .swagger-ui .btn.authorize { color: #14b8a6 !important; border-color: #14b8a6 !important; border-radius: 9999px !important; }
+  .swagger-ui select, .swagger-ui input[type=text] { background: #131b2b !important; color: #e2e8f0 !important; border: 1px solid rgba(255,255,255,0.15) !important; border-radius: 8px !important; }
+  .swagger-ui .model-box, .swagger-ui section.models { background: #0c121d !important; border-color: rgba(255,255,255,0.08) !important; border-radius: 12px !important; }
+  .swagger-ui section.models h4 { color: #e2e8f0 !important; }
+  .swagger-ui .model-title, .swagger-ui .model { color: #94a3b8 !important; }
+  .swagger-ui .response-col_status { color: #14b8a6 !important; }
+  .swagger-ui table thead tr td, .swagger-ui table thead tr th { color: #94a3b8 !important; border-color: rgba(255,255,255,0.08) !important; }
+</style>
+"""
+
 app = FastAPI(
-    title="Clinical Review Copilot API",
-    description="Backend API for Clinical Review Copilot platform",
+    title="Clinical Review Copilot API (P-194)",
+    description="Backend API for Clinical Review Copilot platform — FHIR R4 & PDF/OCR Ingestion",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None,
 )
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return HTMLResponse(
+        content=f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+        <link rel="shortcut icon" href="https://fastapi.tiangolo.com/img/favicon.png">
+        <title>Clinical Review Copilot API — Swagger UI</title>
+        {SWAGGER_DARK_STYLE}
+        </head>
+        <body>
+        <div id="swagger-ui"></div>
+        <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+        <script>
+        const ui = SwaggerUIBundle({{
+            url: '/openapi.json',
+            dom_id: '#swagger-ui',
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.SwaggerUIStandalonePreset
+            ],
+            layout: "BaseLayout",
+            deepLinking: true,
+            showExtensions: true,
+            showCommonExtensions: true
+        }})
+        </script>
+        </body>
+        </html>
+        """
+    )
 
 settings = get_settings()
 app.add_middleware(

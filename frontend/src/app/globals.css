@@ -5,10 +5,16 @@
    ========================================= */
 
 body {
-  background: radial-gradient(circle at 50% 0%, #0d1e36 0%, #060913 100%);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #06090e;
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(20, 184, 166, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 100% 50%, rgba(6, 182, 212, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
   background-attachment: fixed;
   color: #e2e8f0;
-  line-height: 1.6;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -54,9 +60,64 @@ body {
   box-shadow: none !important;
 }
 
-.chat-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3) !important;
-  box-shadow: none !important;
+/* ---- Oura Ring Editorial & Science Design Tokens ---- */
+.font-serif {
+  font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+.oura-glass {
+  background: rgba(10, 15, 26, 0.55);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.oura-glass-card {
+  background: rgba(14, 20, 33, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oura-glass-card:hover {
+  background: rgba(20, 29, 48, 0.6);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-2px);
+}
+
+.oura-pill {
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oura-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.oura-underline-hover {
+  position: relative;
+}
+
+.oura-underline-hover::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  width: 0;
+  height: 1.5px;
+  background: currentColor;
+  opacity: 0.6;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(-50%);
+}
+
+.oura-underline-hover:hover::after {
+  width: 80%;
 }
 
 /* ---- Layout ---- */
@@ -74,8 +135,8 @@ body {
 
 .page-content {
   flex: 1;
-  padding: 28px 32px;
-  max-width: 1400px;
+  padding: 28px 36px;
+  max-width: 1600px;
   width: 100%;
   margin: 0 auto;
 }
