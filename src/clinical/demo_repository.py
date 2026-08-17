@@ -281,8 +281,27 @@ class DemoRepository:
         bundle = self._bundles.get(patient_id, {})
         points: list[dict[str, Any]] = []
 
-        display_name = "HbA1c" if code == "4548-4" else ("Glucose" if code == "2339-0" else "Creatinine")
-        target_unit = "%" if code == "4548-4" else ("mmol/L" if code == "2339-0" else "µmol/L")
+        if code == "4548-4":
+            display_name = "HbA1c"
+            target_unit = "%"
+        elif code == "2339-0":
+            display_name = "Glucose"
+            target_unit = "mmol/L"
+        elif code == "2160-0":
+            display_name = "Creatinine"
+            target_unit = "µmol/L"
+        elif code == "33914-3":
+            display_name = "eGFR"
+            target_unit = "mL/min/1.73m2"
+        elif code == "8480-6":
+            display_name = "BP Systolic"
+            target_unit = "mmHg"
+        elif code == "8462-4":
+            display_name = "BP Diastolic"
+            target_unit = "mmHg"
+        else:
+            display_name = code
+            target_unit = ""
 
         for entry in bundle.get("entry", []):
             res = entry.get("resource", {})
@@ -309,6 +328,13 @@ class DemoRepository:
                     if raw_v is not None:
                         canonical_val, scale, unit, prov = convert_unit(raw_v, code, raw_u, target_unit, [cit.citation_id])
                         disp_val = format_display_value(canonical_val, scale)
+                        ref_map = {
+                            "4548-4": {"low": None, "high": 7.0},
+                            "2339-0": {"low": 3.9, "high": 7.0},
+                            "2160-0": {"low": 44.0, "high": 106.0},
+                            "33914-3": {"low": 60.0, "high": None},
+                            "8480-6": {"low": 90.0, "high": 140.0},
+                        }
                         points.append({
                             "observed_at": t_str,
                             "value": disp_val,
@@ -316,7 +342,7 @@ class DemoRepository:
                             "raw_value": float(raw_v),
                             "raw_unit": raw_u,
                             "calculation": prov.to_dict() if prov else None,
-                            "reference_range": {"low": None, "high": 7.0 if code == "4548-4" else None},
+                            "reference_range": ref_map.get(code, {"low": None, "high": None}),
                             "citations": [cit],
                         })
 
