@@ -45,6 +45,7 @@ def build_legacy_demo_graph() -> StateGraph:
 
 
 legacy_demo_agent = build_legacy_demo_graph()
+agent = legacy_demo_agent
 
 
 def _route_after_scope(state: ClinicalReviewState) -> str:

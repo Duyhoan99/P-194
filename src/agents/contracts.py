@@ -29,7 +29,7 @@ class DocumentCitation(_ContractModel):
     char_end: int | None = Field(default=None, ge=0)
     snippet: str
     source_checksum: str
-    extraction_version: str
+    extraction_version: str = Field(default="1.0.0")
     ocr_confidence: float | None = Field(default=None, ge=0, le=1)
 
 

@@ -32,6 +32,8 @@ _MEDICATION_ENTITIES = {"Metformin", "Amlodipine"}
 _CLINICAL_CONTEXT_MARKERS = (
     "hồ sơ", "bệnh án", "sức khỏe", "lâm sàng", "bệnh nhân", "người bệnh",
     "ca bệnh", "ca này", "điều trị", "triệu chứng", "thủ thuật", "lượt khám", "chức năng",
+    "biến chứng", "thần kinh", "ngoại biên", "dị ứng", "allergy", "tiền sử", "tình trạng",
+    "thận", "tim", "phổi", "gan", "mắt", "võng mạc", "loét", "bàn chân", "ghi nhận",
 )
 _LOW_INFORMATION_TERMS = {"thế", "nào", "rồi", "sao", "vậy", "à", "ừ", "ờ", "hả"}
 
@@ -167,6 +169,9 @@ class PlanValidator:
         entity = concept.canonical if concept else None
         if "báo cáo" in q or "ghi chú" in q or "note" in q:
             domain = "note"
+        elif "dị ứng" in q or "allergy" in q:
+            domain = "diagnosis"
+            entity = "dị ứng"
         elif "thuốc" in q or "medication" in q or (concept and concept.domain == "medication"):
             domain = "medication"
         elif any(marker in q for marker in ("huyết áp", "nhịp tim", "mạch", "cân nặng", "vital")):
@@ -175,13 +180,13 @@ class PlanValidator:
             domain = "encounter"
         elif any(w in q_clean for w in ["triệu chứng", "biểu hiện", "đau", "sốt", "ho", "symptom", "dấu hiệu"]):
             domain = "symptom"
-        elif any(w in q_clean for w in ["bệnh", "chẩn đoán", "tiền sử", "disease", "diagnosis", "condition"]):
+        elif any(w in q_clean for w in ["biến chứng", "thần kinh", "ngoại biên", "võng mạc", "loét", "bệnh", "chẩn đoán", "tiền sử", "disease", "diagnosis", "condition"]):
             domain = "diagnosis"
-            concept_wide = any(marker in q for marker in ("gì", "nào", "what", "which", "tình trạng bệnh"))
+            concept_wide = any(marker in q for marker in ("gì", "nào", "what", "which", "tình trạng bệnh")) and not any(marker in q for marker in ("thần kinh", "ngoại biên", "võng mạc", "loét", "dị ứng"))
             if not concept_wide and q_clean.strip() not in {"bệnh", "diagnosis", "condition"}:
                 generic = {
                     "bệnh", "bệnh lý", "bệnh nhân", "chẩn", "chẩn đoán", "của", "đang",
-                    "hiện", "hiện tại", "là", "mắc", "người", "nhân", "tình", "tình trạng",
+                    "hiện", "hiện tại", "là", "mắc", "người", "nhân", "tình", "tình trạng", "được", "ghi", "nhận", "ra", "sao", "thế", "nào",
                 }
                 residue = [token for token in re.findall(r"[\w%/.+-]+", q_clean, flags=re.UNICODE) if len(token) > 1 and token not in generic]
                 entity = " ".join(residue) or None
@@ -316,7 +321,7 @@ class QueryPlanner:
                 use_semantic=False,
                 use_lexical=False,
                 retrieval_required=True,
-                strict_intent="PATIENT_OVERVIEW"
+                strict_intent="NONE"
             ), question)
 
         deterministic = self.validator._fallback_plan(question)
@@ -324,10 +329,24 @@ class QueryPlanner:
         # 3. Strict Intents (from Task 1)
         is_dated_query = bool(deterministic.needs and deterministic.needs[0].temporal.intent in {"before", "after", "between"})
         
-        if any(marker in q for marker in ["tình trạng nào", "không ổn định", "cảnh báo", "bất thường", "có vấn đề gì", "abnormal", "high", "low", "warning", "critical"]):
+        if any(marker in q for marker in [
+            "tình trạng nào", "không ổn định", "cảnh báo", "bất thường", "có vấn đề gì",
+            "abnormal", "high", "low", "warning", "critical",
+            "đang tốt", "chỉ số nào", "tình trạng tốt", "chỉ số tốt", "chỉ số ổn định"
+        ]):
             deterministic.strict_intent = "WARNING_STATUS"
         elif any(marker in q for marker in ["thông tin của bệnh nhân", "thông tin bệnh nhân", "tình trạng của bệnh nhân", "bệnh nhân hiện tại thế nào"]):
             deterministic.strict_intent = "PATIENT_OVERVIEW"
+        elif any(marker in q for marker in ["nhiệt độ", "chiều cao", "nhịp thở", "spo2", "oxy", "loét", "võng mạc", "biến chứng", "thần kinh", "ngoại biên", "dị ứng"]):
+            deterministic.strict_intent = "SPECIFIC_TEST"
+            deterministic.extracted_entity = next((m for m in ["nhiệt độ", "chiều cao", "nhịp thở", "spo2", "oxy", "loét", "võng mạc", "biến chứng", "thần kinh ngoại biên", "thần kinh", "ngoại biên", "dị ứng"] if m in q), None)
+        elif any(marker in q for marker in ["hba1c", "glucose", "egfr", "creatinine"]) or ("bao nhiêu" in q and any(marker in q for marker in _LAB_CONCEPT_MARKERS)):
+            if any(marker in q for marker in _COMPARISON_MARKERS + _TREND_MARKERS):
+                deterministic.strict_intent = "COMPARISON"
+            else:
+                deterministic.strict_intent = "LAB_RESULT"
+        elif any(marker in q for marker in ["huyết áp", "nhịp tim", "mạch", "cân nặng"]):
+            deterministic.strict_intent = "VITAL_SIGN"
         elif not is_dated_query and any(marker in q for marker in ["lần khám gần nhất", "buổi khám gần đây nhất", "khám gần nhất", "chỉ số sức khỏe mới nhất", "chỉ số mới nhất", "chỉ số gần nhất", "các chỉ số sức khỏe", "các chỉ số mới nhất", "các chỉ số gần nhất"]):
             deterministic.strict_intent = "LATEST_VISIT"
         elif not is_dated_query and any(marker in q for marker in ["buổi khám trước", "lần khám trước", "khám lần trước"]):
@@ -338,16 +357,6 @@ class QueryPlanner:
             deterministic.strict_intent = "DISEASE"
         elif "thuốc" in q and "đang dùng" in q:
             deterministic.strict_intent = "MEDICATION"
-        elif any(marker in q for marker in ["huyết áp", "nhịp tim", "mạch", "cân nặng"]):
-            deterministic.strict_intent = "VITAL_SIGN"
-        elif any(marker in q for marker in ["nhiệt độ", "chiều cao", "nhịp thở", "spo2", "oxy"]):
-            deterministic.strict_intent = "SPECIFIC_TEST"
-            deterministic.extracted_entity = next((m for m in ["nhiệt độ", "chiều cao", "nhịp thở", "spo2", "oxy"] if m in q), None)
-        elif any(marker in q for marker in ["hba1c", "glucose"]) or "bao nhiêu" in q:
-            if any(marker in q for marker in _COMPARISON_MARKERS + _TREND_MARKERS):
-                deterministic.strict_intent = "COMPARISON"
-            else:
-                deterministic.strict_intent = "LAB_RESULT"
 
         needs = deterministic.needs
         if deterministic.strict_intent != "NONE":

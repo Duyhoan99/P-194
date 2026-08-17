@@ -12,7 +12,8 @@
   "errors": [
     {
       "code": "EVIDENCE_SCOPE_INVALID",
-      "message": "Evidence packet failed patient or tenant scope validation."
+      "message": "Evidence packet failed patient or tenant scope validation.",
+      "trace_id": null
     }
   ]
 }

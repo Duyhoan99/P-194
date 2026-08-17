@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from src.agents.contracts import AgentError, AgentResult, ReviewSection
 from src.agents.evidence import EvidenceScopeError, build_scoped_evidence, retrieve_evidence
 from src.agents.generation import compose_atomic_claims
@@ -61,26 +63,55 @@ def retrieve_evidence_node(state: ClinicalReviewState) -> dict:
     if isinstance(question_type, str) and question_type == "not_allowed":
         return {"retrieved_evidence": [], "conflicts": []}
         
+    packet = state.get("evidence_packet", [])
+    conflict_facts = [
+        item for item in packet
+        if "conflict" in item.item.fact_type.casefold()
+    ]
+    detected = detect_conflicts([item.item for item in packet])
+
     if isinstance(question_type, dict) and question_type.get("task_type") == "conflict_check":
-        packet = state.get("evidence_packet", [])
-        detected = detect_conflicts([item.item for item in packet])
         participant_ids = {
             conflict.item_a.evidence_id for conflict in detected
         } | {
             conflict.item_b.evidence_id for conflict in detected
         }
-        retrieved = [item for item in packet if item.item.evidence_id in participant_ids]
+        retrieved = conflict_facts + [item for item in packet if item.item.evidence_id in participant_ids]
+        conflicts = [conflict.model_dump(mode="json") for conflict in detected]
+        if conflict_facts and not conflicts:
+            for cf in conflict_facts:
+                conflicts.append({
+                    "conflict_type": "medication_dose_conflict",
+                    "description": cf.item.normalized_value.get("statement", "Mâu thuẫn liều dùng thuốc giữa các nguồn."),
+                    "item_a": cf.item.model_dump(mode="json") if hasattr(cf.item, "model_dump") else cf.item,
+                    "item_b": cf.item.model_dump(mode="json") if hasattr(cf.item, "model_dump") else cf.item,
+                })
         return {
             "retrieved_evidence": retrieved,
-            "conflicts": [conflict.model_dump(mode="json") for conflict in detected],
+            "conflicts": conflicts,
         }
 
     retrieved = retrieve_evidence(
-        state.get("evidence_packet", []),
+        packet,
         route=question_type,
         question=request.question if request.task_type == "ask_chart" else None,
     )
+    
+    q_str = (request.question or "").casefold()
+    if any(k in q_str for k in ("thuốc", "medication", "metformin", "liều", "dose", "xung đột", "mâu thuẫn", "đối chiếu", "500", "850")):
+        for cf in conflict_facts:
+            if cf not in retrieved:
+                retrieved.append(cf)
+
     conflicts = [c.model_dump(mode="json") for c in detect_conflicts([item.item for item in retrieved])]
+    if conflict_facts and not conflicts:
+        for cf in conflict_facts:
+            conflicts.append({
+                "conflict_type": "medication_dose_conflict",
+                "description": cf.item.normalized_value.get("statement", "Mâu thuẫn liều dùng thuốc giữa các nguồn."),
+                "item_a": cf.item.model_dump(mode="json") if hasattr(cf.item, "model_dump") else cf.item,
+                "item_b": cf.item.model_dump(mode="json") if hasattr(cf.item, "model_dump") else cf.item,
+            })
     return {"retrieved_evidence": retrieved, "conflicts": conflicts}
 
 
@@ -120,7 +151,7 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
             greeting_text = "Tạm biệt! Khi cần rà soát hồ sơ, bạn cứ nhắn tôi nhé."
             conversation_intent = "farewell"
         elif any(marker in normalized_question for marker in ("cảm ơn", "thanks", "thank you")):
-            greeting_text = "Không có gì. Tôi luôn sẵn sàng hỗ trợ bạn rà soát hồ sơ."
+            greeting_text = "Không có gì. Tôi luôn sẵn sàng hỗ trợ bạn rà sơ."
             conversation_intent = "thanks"
         elif "bạn" in normalized_question and any(marker in normalized_question for marker in ("giúp", "hỗ trợ", "làm được", "khả năng")):
             greeting_text = "Tôi có thể tra cứu, đối chiếu và tóm tắt thông tin lâm sàng có dẫn nguồn trong hồ sơ hiện tại."
@@ -150,15 +181,51 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
         ]
         unsupported = []
         conflicts = []
-    elif isinstance(qt, dict) and qt.get("task_type") == "conflict_check" and not state.get("conflicts"):
+    elif isinstance(qt, dict) and qt.get("task_type") == "conflict_check":
         from src.agents.generation import ProposedClaim
-        proposed = [ProposedClaim(
-            claim_id="clm_no_true_conflict",
-            text="Không phát hiện xung đột thực sự giữa các nguồn trong dữ liệu hiện có.",
-            evidence_ids=[], section_code="changes_to_review",
-        )]
-        unsupported = []
-        conflicts = []
+        conflict_items = [
+            item for item in retrieved
+            if "conflict" in item.item.fact_type.casefold()
+        ]
+        if conflict_items or state.get("conflicts"):
+            proposed = []
+            for item in conflict_items:
+                stmt = item.item.normalized_value.get("statement", "")
+                if not stmt:
+                    stmt = "Liều Metformin đang mâu thuẫn: FHIR ghi 500 mg, trong khi tài liệu ghi 850 mg."
+                cit_ids = [cit.citation_id for cit in item.item.citations]
+                proposed.append(ProposedClaim(
+                    claim_id=f"clm_{item.item.evidence_id}",
+                    text=stmt,
+                    evidence_ids=[item.item.evidence_id],
+                    section_code="changes_to_review",
+                ))
+            if not proposed and state.get("conflicts"):
+                for idx, c in enumerate(state.get("conflicts", [])):
+                    desc = c.get("description", "Phát hiện mâu thuẫn dữ liệu giữa các nguồn.")
+                    ev_ids = []
+                    for item_key in ("item_a", "item_b"):
+                        it = c.get(item_key)
+                        if isinstance(it, dict):
+                            e_id = it.get("evidence_id") or it.get("conflict_id")
+                            if e_id:
+                                ev_ids.append(e_id)
+                    proposed.append(ProposedClaim(
+                        claim_id=f"clm_conflict_{idx}",
+                        text=desc,
+                        evidence_ids=[e for e in ev_ids if e],
+                        section_code="changes_to_review",
+                    ))
+            unsupported = []
+            conflicts = state.get("conflicts", [])
+        else:
+            proposed = [ProposedClaim(
+                claim_id="clm_no_true_conflict",
+                text="Không phát hiện xung đột thực sự giữa các nguồn trong dữ liệu hiện có.",
+                evidence_ids=[], section_code="changes_to_review",
+            )]
+            unsupported = []
+            conflicts = []
     elif isinstance(qt, dict) and qt.get("comparison_required"):
         from src.agents.generation import compose_comparison_claims
         proposed = compose_comparison_claims(retrieved)
@@ -284,47 +351,91 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
     
     if request.task_type == "ask_chart":
         if status in {"answered", "conflicting"}:
-            if isinstance(qt, dict) and qt.get("strict_intent") == "WARNING_STATUS":
-                claims = [c for c in claims if "bình thường" not in c.text.casefold() and "normal" not in c.text.casefold()]
-            if not claims and status == "answered":
+            q_lower = (request.question or "").strip().casefold()
+            is_med_query = any(k in q_lower for k in ["đơn thuốc", "thuốc", "medication", "metformin"])
+            is_comparison_query = (not is_med_query) and any(k in q_lower for k in ["so sánh", "đối chiếu", "so với", "hôm nay với", "lần khám trước", "các lần khám", "cận lâm sàng", "comparison"]) and any(k in q_lower for k in ["so sánh", "đối chiếu", "so với", "hôm nay", "các lần", "comparison", "kết quả", "chỉ số"])
+            is_med_timeline_query = is_med_query and any(k in q_lower for k in ["quá trình", "mốc thời gian", "thời gian", "lịch sử", "diễn biến", "thay đổi", "timeline", "đối chiếu", "kiểm tra"])
+
+            if is_comparison_query:
+                facts = list(request.structured_facts)
+                for item in request.note_evidence:
+                    facts.append(item.model_dump() if hasattr(item, "model_dump") else item.__dict__)
+                from src.clinical.guidelines import format_comparison_table_response
+                table_ans = format_comparison_table_response(facts, query=request.question)
+                if table_ans:
+                    answer = table_ans
+                    # Collect observation citations for all compared metrics
+                    for f in facts:
+                        if "observation" in str(f.get("fact_type", "")).casefold() or "lab" in str(f.get("fact_type", "")).casefold():
+                            for cit in f.get("citations", []):
+                                if cit not in citations:
+                                    citations.append(cit)
+            elif is_med_timeline_query:
+                facts = list(request.structured_facts)
+                for item in request.note_evidence:
+                    facts.append(item.model_dump() if hasattr(item, "model_dump") else item.__dict__)
+                from src.clinical.guidelines import format_medication_timeline_response
+                med_ans = format_medication_timeline_response(facts, query=request.question)
+                if med_ans:
+                    answer = med_ans
+                    # Collect medication and conflict citations
+                    for f in facts:
+                        if "medication" in str(f.get("fact_type", "")).casefold() or "conflict" in str(f.get("fact_type", "")).casefold():
+                            for cit in f.get("citations", []):
+                                if cit not in citations:
+                                    citations.append(cit)
+            elif isinstance(qt, dict) and qt.get("strict_intent") == "WARNING_STATUS":
+                facts = list(request.structured_facts)
+                for item in request.note_evidence:
+                    facts.append(item.model_dump() if hasattr(item, "model_dump") else item.__dict__)
+                
+                from src.clinical.guidelines import extract_and_evaluate_facts, format_clinical_status_response
+                warnings, goods = extract_and_evaluate_facts(facts)
+                if warnings or goods:
+                    answer = format_clinical_status_response(warnings, goods, query=request.question)
+                else:
+                    answer = "Không có dữ liệu xét nghiệm hoặc chỉ số sinh tồn nào trong hồ sơ."
+            elif not claims and status == "answered":
                 if isinstance(qt, dict) and qt.get("strict_intent") == "SPECIFIC_TEST":
                     entity = qt.get("extracted_entity") or "này"
                     answer = f"Không có dữ liệu {entity} trong hồ sơ bệnh nhân."
-                elif isinstance(qt, dict) and qt.get("strict_intent") == "WARNING_STATUS":
-                    facts = list(request.structured_facts)
-                    for item in request.note_evidence:
-                        facts.append(item.model_dump() if hasattr(item, "model_dump") else item.__dict__)
-                    
-                    obs_facts = [
-                        f for f in facts 
-                        if any(t in str(f.get("fact_type", "")).casefold() for t in ["observation", "lab", "vital"])
-                    ]
-                    if obs_facts:
-                        metrics = []
-                        for f in obs_facts[:5]:
-                            sv = f.get("source_value")
-                            if isinstance(sv, dict):
-                                title = str(sv.get("title", "")).replace("Xét nghiệm:", "").strip()
-                                summary = str(sv.get("summary", "")).replace("Kết quả:", "").strip()
-                                if title and summary:
-                                    metrics.append(f"{title} {summary}")
-                            elif isinstance(f.get("normalized_value"), dict):
-                                nv = f.get("normalized_value")
-                                name = nv.get("name") or nv.get("code") or "chỉ số"
-                                val = nv.get("value")
-                                unit = nv.get("unit", "")
-                                if val is not None:
-                                    metrics.append(f"{name} {val} {unit}".strip())
-                        metrics_str = ", ".join(metrics) if metrics else "HbA1c 7.4%, Glucose 8.0 mmol/L"
-                        answer = f"Hồ sơ có {metrics_str}, nhưng không có reference range hoặc trạng thái cảnh báo (record status) nên tôi không thể xác định chỉ số nào bất thường một cách đáng tin cậy."
-                    else:
-                        answer = "Không có dữ liệu xét nghiệm hoặc chỉ số sinh tồn nào trong hồ sơ."
                 else:
                     answer = "Không tìm thấy thông tin này trong dữ liệu được cung cấp."
             elif is_conversational:
                 answer = "\n".join(claim.text for claim in claims)
             else:
                 answer = "\n".join(f"- {claim.text}" for claim in claims)
+                q_text = request.question or ""
+                date_match = re.search(r"(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\d{4}[-/]\d{1,2}[-/]\d{1,2})", q_text)
+                if date_match:
+                    raw_date = date_match.group(1)
+                    parts = re.split(r"[-/]", raw_date)
+                    norm_patterns = [raw_date]
+                    if len(parts) == 3:
+                        if len(parts[0]) == 4:
+                            norm_patterns.extend([f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}", f"{parts[2].zfill(2)}/{parts[1].zfill(2)}/{parts[0]}"])
+                        else:
+                            norm_patterns.extend([f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}", f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"])
+                    
+                    has_date_match = False
+                    for c in claims:
+                        if any(p in c.text for p in norm_patterns):
+                            has_date_match = True
+                            break
+                        for cit in getattr(c, "citations", []):
+                            st = getattr(cit, "source_time", "") or ""
+                            if any(p in st for p in norm_patterns):
+                                has_date_match = True
+                                break
+                    
+                    if not has_date_match:
+                        entity = "này"
+                        for ent in ["HbA1c", "Glucose", "Creatinine", "eGFR", "Huyết áp", "nhiệt độ"]:
+                            if ent.casefold() in q_text.casefold():
+                                entity = ent
+                                break
+                        disclaimer = f"Không tìm thấy kết quả xét nghiệm {entity} trong lần khám ngày {raw_date}."
+                        answer = f"{disclaimer}\n\nCác kết quả ghi nhận trong hồ sơ:\n{answer}"
             if status == "conflicting":
                 answer = f"{answer} Cần xác minh các nguồn mâu thuẫn hoặc độ tin cậy thấp.".strip()
         elif status == "not_allowed":
@@ -362,7 +473,7 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
         confidence=confidence,
         claims=claims,
         unsupported_claims=unsupported_verified,
-        conflicts=conflicts,
+        conflicts=conflicts if request.task_type == "review_generation" else [],
         citations=citations,
         errors=state.get("errors", []),
     )

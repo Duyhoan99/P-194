@@ -10,8 +10,8 @@
       "citations_exist": true,
       "numeric_unit_date_exact": true,
       "negation_preserved": true,
-      "entailed": true,
-      "prompt_injection_ignored": true
+      "prompt_injection_ignored": true,
+      "entailed": true
     },
     "reasons": []
   },
@@ -26,8 +26,8 @@
       "citations_exist": true,
       "numeric_unit_date_exact": true,
       "negation_preserved": true,
-      "entailed": true,
-      "prompt_injection_ignored": true
+      "prompt_injection_ignored": true,
+      "entailed": true
     },
     "reasons": []
   }

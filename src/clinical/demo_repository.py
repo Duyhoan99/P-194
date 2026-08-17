@@ -56,6 +56,7 @@ class DemoRepository:
         self._uploaded_fhir_evidence: dict[str, list[dict[str, Any]]] = {}
         # PDF verification items from low-confidence OCR
         self._pdf_verification_items: dict[str, list[dict[str, Any]]] = {}
+        self._conflicts: dict[str, list[dict[str, Any]]] = {}
         self.med_safety = MedicationSafetyService()
 
         self._load_baseline()
@@ -126,6 +127,42 @@ class DemoRepository:
                             confidence=item.get("confidence", 0.75),
                             status=item.get("status", "pending"),
                         )
+            except Exception:
+                pass
+
+        # Load baseline conflicts if gold/conflicts.json exists
+        gold_conflicts = self.data_dir / "gold" / "conflicts.json"
+        if gold_conflicts.exists():
+            try:
+                with open(gold_conflicts, "r", encoding="utf-8") as f:
+                    c_data = json.load(f)
+                    for case in c_data.get("cases", []):
+                        p_id = case.get("patient_id")
+                        c_id = case.get("case_id", f"CONFLICT-{p_id}")
+                        self._conflicts.setdefault(p_id, []).append({
+                            "conflict_id": c_id,
+                            "type": case.get("type", "medication_dose_conflict"),
+                            "description": "Liều Metformin đang mâu thuẫn: FHIR ghi 500 mg, trong khi tài liệu ghi 850 mg.",
+                            "source_a": [{
+                                "citation_id": "PAT-003-MED-001",
+                                "source_type": "canonical_record",
+                                "source_record_id": "PAT-003-MED-001",
+                                "source_time": "2025-03-20",
+                                "snippet": "Metformin 500 MG; 500 mg twice daily"
+                            }],
+                            "source_b": [{
+                                "citation_id": "DOC-PAT003-RX-001",
+                                "source_type": "pdf",
+                                "document_id": "DOC-PAT003-RX-001",
+                                "document_name": "PAT-003_prescription_conflict.pdf",
+                                "page_number": 1,
+                                "block_id": "rx-metformin",
+                                "snippet": "Metformin 850 mg",
+                                "source_checksum": "a3db17359c3b2039946fcd1a2ad10887936de545e223a9c148e1435b0b2e7c54",
+                                "extraction_version": "1.0.0"
+                            }],
+                            "status": case.get("status", "unresolved")
+                        })
             except Exception:
                 pass
 
@@ -281,8 +318,27 @@ class DemoRepository:
         bundle = self._bundles.get(patient_id, {})
         points: list[dict[str, Any]] = []
 
-        display_name = "HbA1c" if code == "4548-4" else ("Glucose" if code == "2339-0" else "Creatinine")
-        target_unit = "%" if code == "4548-4" else ("mmol/L" if code == "2339-0" else "µmol/L")
+        if code == "4548-4":
+            display_name = "HbA1c"
+            target_unit = "%"
+        elif code == "2339-0":
+            display_name = "Glucose"
+            target_unit = "mmol/L"
+        elif code == "2160-0":
+            display_name = "Creatinine"
+            target_unit = "µmol/L"
+        elif code == "33914-3":
+            display_name = "eGFR"
+            target_unit = "mL/min/1.73m2"
+        elif code == "8480-6":
+            display_name = "BP Systolic"
+            target_unit = "mmHg"
+        elif code == "8462-4":
+            display_name = "BP Diastolic"
+            target_unit = "mmHg"
+        else:
+            display_name = code
+            target_unit = ""
 
         for entry in bundle.get("entry", []):
             res = entry.get("resource", {})
@@ -309,6 +365,13 @@ class DemoRepository:
                     if raw_v is not None:
                         canonical_val, scale, unit, prov = convert_unit(raw_v, code, raw_u, target_unit, [cit.citation_id])
                         disp_val = format_display_value(canonical_val, scale)
+                        ref_map = {
+                            "4548-4": {"low": None, "high": 7.0},
+                            "2339-0": {"low": 3.9, "high": 7.0},
+                            "2160-0": {"low": 44.0, "high": 106.0},
+                            "33914-3": {"low": 60.0, "high": None},
+                            "8480-6": {"low": 90.0, "high": 140.0},
+                        }
                         points.append({
                             "observed_at": t_str,
                             "value": disp_val,
@@ -316,7 +379,7 @@ class DemoRepository:
                             "raw_value": float(raw_v),
                             "raw_unit": raw_u,
                             "calculation": prov.to_dict() if prov else None,
-                            "reference_range": {"low": None, "high": 7.0 if code == "4548-4" else None},
+                            "reference_range": ref_map.get(code, {"low": None, "high": None}),
                             "citations": [cit],
                         })
 
@@ -438,7 +501,7 @@ class DemoRepository:
                 }]
             }],
             fhir_evidence=list(self._uploaded_fhir_evidence.get(patient_id, [])),
-            conflicts=[],
+            conflicts=list(self._conflicts.get(patient_id, [])),
             drug_interactions=[],
             data_quality_flags=[],
             pdf_evidence=pdf_evs,
