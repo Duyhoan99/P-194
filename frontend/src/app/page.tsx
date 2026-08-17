@@ -85,7 +85,7 @@ export default function LandingPage() {
     }
   ];
 
-  // OCR Facts for Sandbox
+  // OCR Facts for Sandbox (Tọa độ Bounding Box Khít Khao 100%)
   const ocrFacts = [
     {
       id: 0,
@@ -94,27 +94,37 @@ export default function LandingPage() {
       ref: '< 5.7 %',
       status: 'VƯỢT NGƯỠNG',
       statusClass: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
-      box: { top: '34%', left: '6%', width: '88%', height: '12%' },
+      coords: '[X: 42, Y: 154, W: 520, H: 48]',
       docNote: 'Bảng Xét Nghiệm Máu Tĩnh Mạch (15/01/2026)'
     },
     {
       id: 1,
+      name: 'Glucose Máu Lúc Đói (FPG)',
+      value: '9.2 mmol/L',
+      ref: '3.9 - 6.4',
+      status: 'TĂNG CAO',
+      statusClass: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+      coords: '[X: 42, Y: 212, W: 520, H: 48]',
+      docNote: 'Đường huyết tương lúc đói tăng liên tục qua 3 đợt khám'
+    },
+    {
+      id: 2,
       name: 'Creatinine Huyết Thanh',
       value: '142 µmol/L',
       ref: '62 - 106',
       status: 'TĂNG CAO',
       statusClass: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      box: { top: '49%', left: '6%', width: '88%', height: '12%' },
+      coords: '[X: 42, Y: 270, W: 520, H: 48]',
       docNote: 'Tăng liên tục từ mốc 118 lên 142 µmol/L qua 2 đợt khám'
     },
     {
-      id: 2,
+      id: 3,
       name: 'eGFR (Độ Lọc Cầu Thận)',
       value: '48 mL/min/1.73m²',
       ref: '> 90',
       status: 'CKD G3a',
       statusClass: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/30',
-      box: { top: '64%', left: '6%', width: '88%', height: '12%' },
+      coords: '[X: 42, Y: 328, W: 520, H: 48]',
       docNote: 'Chỉ định giảm liều thuốc đào thải qua thận (Metformin)'
     }
   ];
@@ -572,44 +582,72 @@ export default function LandingPage() {
                     <span>Tọa độ Bounding Box Thực Tế</span>
                   </div>
 
-                  <div className="relative aspect-[4/3] bg-black/70 rounded-2xl p-7 border border-white/10 font-mono text-xs overflow-hidden select-none shadow-2xl text-slate-200">
-
-                    <div className="text-center pb-4 border-b border-white/10 mb-5">
-                      <div className="font-bold text-base text-slate-100 uppercase">Bệnh Viện Đại Học Y Dược — Khoa Xét Nghiệm</div>
-                      <div className="text-xs sm:text-sm text-slate-400 mt-1">Số phiếu: XN-2026-0892 · Ngày lấy mẫu: 15/01/2026</div>
-                    </div>
-
-                    <div className="space-y-3.5">
-                      <div className="flex justify-between text-xs sm:text-sm text-slate-400 border-b border-white/5 pb-1">
-                        <span>TÊN XÉT NGHIỆM</span>
-                        <span>KẾT QUẢ</span>
-                        <span>THAM CHIẾU</span>
-                      </div>
-
-                      {ocrFacts.map((fact, idx) => (
-                        <div
-                          key={fact.id}
-                          onClick={() => setSelectedOcrFact(idx)}
-                          className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${selectedOcrFact === idx
-                              ? 'bg-teal-500/20 border border-teal-500/50 text-white'
-                              : 'hover:bg-white/5'
-                            }`}
-                        >
-                          <span className="font-medium text-sm">{fact.name}</span>
-                          <span className="font-bold font-mono text-base text-teal-300">{fact.value}</span>
-                          <span className="text-xs sm:text-sm text-slate-400">{fact.ref}</span>
+                  <div className="relative bg-[#05080e] rounded-2xl p-6 sm:p-8 border border-white/10 font-mono text-xs overflow-hidden select-none shadow-2xl text-slate-200">
+                    
+                    {/* Header of Medical Document */}
+                    <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
+                      <div>
+                        <div className="font-bold text-sm sm:text-base text-slate-100 uppercase tracking-wide">
+                          Bệnh Viện Đại Học Y Dược — Khoa Sinh Hóa
                         </div>
-                      ))}
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          Số phiếu: <span className="text-teal-300">XN-2026-0892</span> · Ngày lấy mẫu: 15/01/2026
+                        </div>
+                      </div>
+                      <div className="px-3 py-1 rounded bg-white/5 border border-white/10 text-[10px] text-slate-400 font-mono">
+                        TRANG 1/1 (PDF SCAN)
+                      </div>
                     </div>
 
-                    {/* Animated Bounding Box Highlight Overlay */}
-                    <div
-                      className="absolute border-2 border-teal-400 bg-teal-400/15 rounded-lg transition-all duration-300 pointer-events-none shadow-[0_0_25px_rgba(45,212,191,0.5)]"
-                      style={ocrFacts[selectedOcrFact].box}
-                    >
-                      <span className="absolute -top-3.5 left-2 text-[10px] font-bold uppercase tracking-wider bg-teal-500 text-black px-2 py-0.5 rounded shadow">
-                        BBox Coordinate Grounded
-                      </span>
+                    {/* Table Header */}
+                    <div className="flex justify-between text-xs text-slate-400 border-b border-white/5 pb-2 mb-3 px-2 uppercase font-semibold">
+                      <span>CHỈ SỐ XÉT NGHIỆM</span>
+                      <div className="flex items-center gap-10">
+                        <span>KẾT QUẢ</span>
+                        <span className="w-24 text-right">THAM CHIẾU</span>
+                      </div>
+                    </div>
+
+                    {/* Interactive Bounding Box Rows */}
+                    <div className="space-y-3">
+                      {ocrFacts.map((fact, idx) => {
+                        const isSelected = selectedOcrFact === idx;
+                        return (
+                          <div
+                            key={fact.id}
+                            onClick={() => setSelectedOcrFact(idx)}
+                            className={`relative flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${
+                              isSelected
+                                ? 'border-2 border-teal-400 bg-teal-400/15 text-white shadow-[0_0_25px_rgba(45,212,191,0.35)] ring-1 ring-teal-400/50'
+                                : 'border border-white/5 hover:bg-white/5 hover:border-white/15 text-slate-300'
+                            }`}
+                          >
+                            {/* Bounding Box Floating Badge */}
+                            {isSelected && (
+                              <div className="absolute -top-3.5 left-3 flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-teal-400 text-black text-[10px] font-bold font-mono uppercase tracking-wider shadow-lg">
+                                <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
+                                <span>BBOX GROUNDED: {fact.coords}</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-mono text-slate-500">0{idx + 1}.</span>
+                              <span className="font-semibold text-sm sm:text-base">{fact.name}</span>
+                            </div>
+
+                            <div className="flex items-center gap-10">
+                              <span className="font-bold font-mono text-base sm:text-lg text-teal-300">{fact.value}</span>
+                              <span className="text-xs sm:text-sm text-slate-400 w-24 text-right">{fact.ref}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Document Footer Bar */}
+                    <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Bác sĩ chỉ định: <span className="text-slate-200">PGS.TS. Trần Quốc H.</span></span>
+                      <span className="font-mono text-teal-400">Độ tin cậy OCR: 99.8%</span>
                     </div>
 
                   </div>
