@@ -159,7 +159,7 @@ export default function AdminPage() {
                           <tr key={u.user_id}>
                             <td style={{ fontWeight: 600 }}>{u.user_id}</td>
                             <td><span className="badge badge-teal">{u.role}</span></td>
-                            <td><StatusBadge status={u.state} size="sm" /></td>
+                            <td><StatusBadge status={u.state || 'ACTIVE'} size="sm" /></td>
                             <td>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                 {u.assignments.length === 0 ? (

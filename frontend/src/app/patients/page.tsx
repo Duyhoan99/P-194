@@ -58,8 +58,8 @@ export default function PatientsLandingPage() {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center gap-4 bg-slate-900/40 backdrop-blur-xl border border-white/5 p-4 rounded-2xl shadow-xl">
+      {/* Search and Problem-Oriented Filters */}
+      <div className="space-y-3 bg-slate-900/40 backdrop-blur-xl border border-white/5 p-4 rounded-2xl shadow-xl">
         <div className="relative flex-1">
           <Search className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
           <input 
@@ -69,6 +69,30 @@ export default function PatientsLandingPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-800/50 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors"
           />
+        </div>
+
+        {/* Problem-Oriented Specialty Chips */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/5">
+          <span className="text-xs text-slate-400 font-semibold mr-1">Bộ lọc lâm sàng:</span>
+          {[
+            { label: 'Tất cả', query: '' },
+            { label: '🩸 Đái tháo đường T2', query: 'diabetes' },
+            { label: '🫀 Tăng huyết áp', query: 'hypertension' },
+            { label: '🧪 Bệnh thận mạn CKD', query: 'kidney' },
+            { label: '⚠️ Cần rà soát gấp', query: 'alert' }
+          ].map((chip, idx) => (
+            <button
+              key={idx}
+              onClick={() => setSearch(chip.query)}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${
+                search === chip.query
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
+                  : 'bg-slate-800/40 text-slate-400 border-white/5 hover:border-white/20 hover:text-slate-200'
+              }`}
+            >
+              {chip.label}
+            </button>
+          ))}
         </div>
       </div>
 

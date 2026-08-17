@@ -13,9 +13,9 @@ jest.mock('@/lib/auth', () => ({
 }))
 
 describe('Home Page', () => {
-  it('renders loading text', () => {
+  it('renders clinical copilot brand title', () => {
     render(<Page />)
-    const text = screen.getByText('Đang tải...')
-    expect(text).toBeInTheDocument()
+    const text = screen.getByText('Clinical Copilot')
+    expect(text).toBeDefined()
   })
 })

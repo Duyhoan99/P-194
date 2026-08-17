@@ -61,6 +61,7 @@ const translations = {
     'pt.deleteError': 'Failed to delete patient',
     'common.cancel': 'Cancel',
     'common.confirm': 'Confirm',
+    'cf.quota': 'Storage Quota',
 
     // Help
     'help.title': 'How can we help?',
@@ -155,6 +156,7 @@ const translations = {
     'pt.deleteError': 'Lỗi khi xóa bệnh nhân',
     'common.cancel': 'Hủy',
     'common.confirm': 'Xác nhận',
+    'cf.quota': 'Dung lượng lưu trữ',
 
     // Help
     'help.title': 'Chúng tôi có thể giúp gì?',

@@ -9,9 +9,9 @@ import { RootLayoutWrapper } from "@/components/RootLayoutWrapper";
 const mainFont = Plus_Jakarta_Sans({ subsets: ["latin", "vietnamese"] });
 
 export const metadata: Metadata = {
-  title: "Clinical Summary Agent — AI20K",
-  description: "Hệ thống AI hỗ trợ tóm tắt hồ sơ lâm sàng cho bác sĩ, xây dựng trên MIMIC-IV",
-  keywords: "clinical, AI, MIMIC-IV, medical, summary, healthcare",
+  title: "Clinical Review Copilot — AI Rà Soát Bệnh Án Dọc (P-194)",
+  description: "Hệ thống AI hỗ trợ tóm tắt hồ sơ lâm sàng đa nguồn & rà soát bệnh án dọc (FHIR R4 & PDF/OCR Ingestion)",
+  keywords: "clinical copilot, FHIR R4, PDF OCR, longitudinal patient summary, HITL, AI20K, P-194",
 };
 
 export default function RootLayout({
