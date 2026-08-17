@@ -195,3 +195,40 @@ export const reviews = {
   listVersions: (review_id: string, page: number = 1) =>
     request<any>(`/reviews/${review_id}/versions`, { params: { page } }),
 };
+
+/* ========== Admin Types & API ========== */
+export interface UserResponse {
+  user_id: string;
+  username?: string;
+  role: 'ADMIN' | 'DOCTOR' | 'NURSE' | 'REVIEWER' | string;
+  state?: string;
+  assignments: string[];
+  created_at?: string;
+}
+
+export interface AuditEntry {
+  id?: string;
+  event_type?: string;
+  actor: string;
+  action: string;
+  subject_reference?: string;
+  result: string;
+  trace_id: string;
+  timestamp: string;
+  details?: Record<string, any>;
+}
+
+export const admin = {
+  listUsers: () => request<{ users: UserResponse[] }>('/admin/users'),
+  listAudit: () => request<{ events: AuditEntry[] }>('/admin/audit'),
+  grantAssignment: (user_id: string, subject_id: number) =>
+    request<any>('/admin/assignments', {
+      method: 'POST',
+      body: JSON.stringify({ user_id, subject_id })
+    }),
+  revokeAssignment: (user_id: string, subject_id: number) =>
+    request<any>('/admin/assignments', {
+      method: 'DELETE',
+      body: JSON.stringify({ user_id, subject_id })
+    })
+};
