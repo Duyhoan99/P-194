@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { Send, Bot, User, Search, AlertCircle, XCircle, Sparkles, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -86,8 +86,8 @@ function MarkdownRenderer({ content }: { content: string }) {
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
                   {dataRows.map((row, rIdx) => (
-                    <tr 
-                      key={rIdx} 
+                    <tr
+                      key={rIdx}
                       className={`transition-colors hover:bg-teal-950/20 ${rIdx % 2 === 0 ? 'bg-transparent' : 'bg-slate-900/40'}`}
                     >
                       {row.map((cell, cIdx) => (
@@ -151,9 +151,14 @@ function MarkdownRenderer({ content }: { content: string }) {
 export default function ChatPanel({ patientId }: { patientId: string }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState<{role: 'user' | 'assistant', text: string, status?: string, citations?: any[]}[]>([]);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string, status?: string, citations?: any[] }[]>([]);
   const [showDemoBar, setShowDemoBar] = useState(true);
   const { setFocusedCitation } = useAppStore();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
   const handleAskWithText = async (questionText: string) => {
     if (!questionText.trim() || loading) return;
@@ -180,7 +185,7 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
           /* ignore */
         }
       }
-      
+
       const traceId = err.trace_id || (typeof detail === 'object' ? detail?.trace_id : undefined) || 'N/A';
       const code = typeof detail === 'object' ? detail?.code : undefined;
 
@@ -223,26 +228,26 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
     if (cit.source_type === 'pdf') {
       return `📄 ${cit.document_name || 'Tài liệu'}${cit.page_number ? ` (Tr. ${cit.page_number})` : ''}`;
     }
-    
+
     const dateMatch = cit.snippet?.match(/\d{4}-\d{2}-\d{2}/) || cit.source_time?.match(/\d{4}-\d{2}-\d{2}/);
     const dateStr = dateMatch ? dateMatch[0].split('-').reverse().join('/') : '';
-    
+
     if (cit.resource_type) {
-        let typeName = cit.resource_type;
-        if (typeName === 'Observation') typeName = 'Xét nghiệm';
-        if (typeName === 'Encounter') typeName = 'Lượt khám';
-        if (typeName === 'MedicationRequest') typeName = 'Đơn thuốc';
-        if (typeName === 'Condition') typeName = 'Chẩn đoán';
-        return `📎 Nguồn: ${typeName}${dateStr ? ` · ${dateStr}` : ''}`;
+      let typeName = cit.resource_type;
+      if (typeName === 'Observation') typeName = 'Xét nghiệm';
+      if (typeName === 'Encounter') typeName = 'Lượt khám';
+      if (typeName === 'MedicationRequest') typeName = 'Đơn thuốc';
+      if (typeName === 'Condition') typeName = 'Chẩn đoán';
+      return `📎 Nguồn: ${typeName}${dateStr ? ` · ${dateStr}` : ''}`;
     }
-    
+
     return `📎 Nguồn hồ sơ${dateStr ? ` · ${dateStr}` : ''}`;
   };
 
   return (
-    <div className="glass-panel overflow-hidden flex flex-col h-full min-h-[500px]">
+    <div className="glass-panel overflow-hidden flex flex-col h-[840px] max-h-[840px] min-h-[840px] shadow-2xl">
       {/* Header */}
-      <div className="glass-header p-3 px-4 flex items-center justify-between">
+      <div className="glass-header p-3 px-4 flex items-center justify-between shrink-0 border-b border-white/5 bg-slate-900/90">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/20 shadow-[0_0_15px_rgba(20,184,166,0.15)]">
             <Bot className="w-4 h-4 text-teal-400" />
@@ -259,11 +264,10 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
           {/* Toggle Demo Scenarios */}
           <button
             onClick={() => setShowDemoBar(prev => !prev)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all duration-200 flex items-center gap-1.5 ${
-              showDemoBar
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all duration-200 flex items-center gap-1.5 ${showDemoBar
                 ? 'bg-teal-500/20 border-teal-500/40 text-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.2)]'
                 : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
+              }`}
             title="Bật/Tắt 5 Tiêu chí Demo Case"
           >
             <Sparkles className="w-3.5 h-3.5 text-teal-400" />
@@ -292,7 +296,7 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden border-b border-white/5 px-3 py-2.5 bg-slate-950/40"
+            className="border-b border-white/5 px-3 py-2 bg-slate-950/60 shrink-0 overflow-y-auto max-h-[320px] chat-scrollbar"
           >
             <DemoScenarios
               currentPatientId={patientId}
@@ -304,41 +308,33 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
       </AnimatePresence>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && !showDemoBar && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 py-8">
-            <div className="w-16 h-16 rounded-full bg-slate-800/30 flex items-center justify-center border border-slate-700/30 shadow-inner shadow-teal-500/5">
-              <Search className="w-7 h-7 text-teal-500/40" />
+      <div className="flex-1 min-h-[160px] overflow-y-scroll p-4 space-y-4 chat-scrollbar pr-2">
+        {messages.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-3 py-6">
+            <div className="w-12 h-12 rounded-full bg-slate-800/40 flex items-center justify-center border border-slate-700/40 shadow-inner shadow-teal-500/5">
+              <Search className="w-5 h-5 text-teal-500/50" />
             </div>
-            <p className="text-xs text-center font-medium text-slate-400 max-w-sm">
-              Hỏi bất kỳ câu hỏi nào về hồ sơ bệnh nhân. AI chỉ trả lời dựa trên bằng chứng y khoa đã kiểm chứng.
+            <p className="text-xs text-center font-medium text-slate-400 max-w-xs leading-relaxed">
+              Nhấp chọn câu hỏi ở <strong className="text-teal-300">5 Tiêu chí Demo</strong> ở trên hoặc nhập câu hỏi vào ô bên dưới để bắt đầu.
             </p>
-            <button
-              onClick={() => setShowDemoBar(true)}
-              className="px-3.5 py-1.5 bg-teal-900/30 hover:bg-teal-900/50 border border-teal-500/40 text-teal-300 rounded-full text-xs font-medium flex items-center gap-1.5 shadow-sm transition-all"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-              Mở 5 Tiêu chí Demo Case
-            </button>
           </div>
         )}
 
         {messages.map((msg, idx) => (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            key={idx} 
+            key={idx}
             className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-cyan-900 text-cyan-400' : 'bg-teal-900 text-teal-400'}`}>
               {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
             </div>
-            <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-              msg.role === 'user' 
-                ? 'bg-cyan-600 text-white rounded-tr-none' 
+            <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user'
+                ? 'bg-cyan-600 text-white rounded-tr-none'
                 : 'bg-slate-800/95 text-slate-200 rounded-tl-none border border-slate-700/80 shadow-md'
-            }`}>
-              
+              }`}>
+
               {msg.status === 'not_found' && (
                 <div className="flex items-center gap-2 text-slate-400 mb-2 font-medium text-xs uppercase tracking-wider">
                   <AlertCircle className="w-4 h-4" /> Not found in provided data
@@ -361,12 +357,12 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
               ) : (
                 <div className="whitespace-pre-wrap">{msg.text}</div>
               )}
-              
+
               {msg.citations && msg.citations.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-wrap gap-1.5">
-                  {msg.citations.slice(0, 10).map((cit: any) => (
-                    <button 
-                      key={cit.citation_id || cit.evidence_id || Math.random()}
+                  {msg.citations.slice(0, 10).map((cit: any, citIdx: number) => (
+                    <button
+                      key={`${cit.citation_id || cit.evidence_id || 'cit'}-${citIdx}`}
                       onClick={() => handleCitationClick(cit)}
                       className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-900 hover:bg-slate-950 text-cyan-300 text-[11px] rounded-md border border-slate-700/80 hover:border-cyan-500 transition-colors shadow-sm"
                     >
@@ -396,26 +392,42 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input area */}
-      <div className="p-3 px-4 border-t border-white/5 bg-slate-900/60 backdrop-blur-md">
-        <div className="flex gap-2">
-          <input 
-            type="text" 
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-            placeholder="Nhập câu hỏi hoặc chọn từ 5 Tiêu chí Demo ở trên..."
-            disabled={loading}
-            className="flex-1 bg-slate-800/50 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500/50 border border-white/5 disabled:opacity-50 placeholder-slate-500 text-sm"
-          />
-          <button 
+      <div className="shrink-0 p-3 px-4 border-t border-white/10 bg-slate-950/80 backdrop-blur-md">
+        <div className="flex items-end gap-2.5">
+          <div className="flex-1 relative">
+            <textarea
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAsk();
+                }
+              }}
+              rows={2}
+              placeholder="Nhập câu hỏi lâm sàng cho AI Co-pilot (Enter để gửi, Shift+Enter xuống dòng)..."
+              disabled={loading}
+              className="w-full bg-slate-900/90 text-slate-100 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500/60 border border-slate-700/80 disabled:opacity-50 placeholder-slate-400 text-xs sm:text-sm resize-none chat-scrollbar leading-relaxed"
+            />
+          </div>
+          <button
             onClick={handleAsk}
             disabled={loading || !query.trim()}
-            className="bg-teal-600 hover:bg-teal-500 text-white p-2 px-4 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 shadow-[0_0_15px_rgba(20,184,166,0.2)]"
+            className="h-[52px] px-4 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white rounded-xl flex items-center justify-center transition-all disabled:opacity-40 shadow-lg shadow-teal-900/30 shrink-0 font-medium text-xs gap-1.5"
+            title="Gửi câu hỏi"
           >
-            {loading ? <span className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span> : <Send className="w-4 h-4" />}
+            {loading ? (
+              <span className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                <span className="hidden sm:inline">Hỏi AI</span>
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -49,13 +49,13 @@ export default function PatientAlerts() {
               <div key={conflict.conflict_id} className="text-sm text-slate-300 bg-black/20 p-3 rounded-lg border border-rose-900/30">
                 <div className="mb-2"><span className="font-medium text-rose-300">Data Conflict:</span> {conflict.description}</div>
                 <div className="flex flex-wrap gap-2">
-                  {conflict.source_a?.map((c: any) => (
-                    <button key={c.citation_id} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
+                  {conflict.source_a?.map((c: any, i: number) => (
+                    <button key={`${c.citation_id || 'sa'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
                       Nguồn A: {getCitationLabel(c)}
                     </button>
                   ))}
-                  {conflict.source_b?.map((c: any) => (
-                    <button key={c.citation_id} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
+                  {conflict.source_b?.map((c: any, i: number) => (
+                    <button key={`${c.citation_id || 'sb'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
                       Nguồn B: {getCitationLabel(c)}
                     </button>
                   ))}
@@ -63,12 +63,12 @@ export default function PatientAlerts() {
               </div>
             ))}
 
-            {interactions.map((interaction: any) => (
-              <div key={interaction.flag_id} className="text-sm text-slate-300 bg-black/20 p-3 rounded-lg border border-rose-900/30">
+            {interactions.map((interaction: any, intIdx: number) => (
+              <div key={interaction.flag_id || intIdx} className="text-sm text-slate-300 bg-black/20 p-3 rounded-lg border border-rose-900/30">
                 <div className="mb-2"><span className="font-medium text-rose-300">Drug Interaction ({interaction.severity}):</span> {interaction.description}</div>
                 <div className="flex flex-wrap gap-2">
-                  {interaction.citations?.map((c: any) => (
-                    <button key={c.citation_id} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
+                  {interaction.citations?.map((c: any, i: number) => (
+                    <button key={`${c.citation_id || 'cit'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
                       {getCitationLabel(c)}
                     </button>
                   ))}

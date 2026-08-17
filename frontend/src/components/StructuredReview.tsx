@@ -290,9 +290,9 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                 : 'bg-amber-500/10 text-amber-400 border-amber-500/20';
 
     return (
-        <div className="bg-slate-900 border border-slate-700/50 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full min-h-[500px]">
+        <div className="bg-slate-900 border border-slate-700/50 rounded-2xl shadow-xl overflow-hidden flex flex-col h-[840px] max-h-[840px] min-h-[840px]">
             {/* Header */}
-            <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                     <FileSignature className="w-5 h-5 text-cyan-500" />
                     <div>
@@ -372,7 +372,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             )}
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-8">
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-8 chat-scrollbar pr-3">
                 {sections.map((section: any, idx: number) => (
                     <div
                         key={section.section_code || idx}
@@ -422,9 +422,9 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                                 <span>{claim.text}</span>
                                                 {claim.citations && claim.citations.length > 0 && (
                                                     <span className="inline-flex gap-1 ml-2 align-middle">
-                                                        {claim.citations.map((cit: any) => (
+                                                        {claim.citations.map((cit: any, citIdx: number) => (
                                                             <button
-                                                                key={cit.citation_id || Math.random()}
+                                                                key={`${cit.citation_id || cit.evidence_id || 'cit'}-${citIdx}`}
                                                                 onClick={() => handleCitationClick(cit)}
                                                                 className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 text-[10px] font-bold font-mono bg-slate-800 hover:bg-cyan-900 text-cyan-400 border border-slate-700 hover:border-cyan-500 rounded cursor-pointer transition-all shadow-sm group-hover:shadow-cyan-900/20"
                                                                 title="View evidence"

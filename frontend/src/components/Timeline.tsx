@@ -142,7 +142,7 @@ export default function Timeline({ patientId }: { patientId: string }) {
       </button>
 
       {expanded && (
-        <div className="px-5 pb-5 space-y-6 max-h-[400px] overflow-y-auto">
+        <div className="px-5 pb-5 space-y-6 max-h-[450px] overflow-y-auto chat-scrollbar pr-3">
           {Object.entries(grouped).map(([date, dayEvents]) => (
             <div key={date}>
               {/* Date Header */}
@@ -178,9 +178,9 @@ export default function Timeline({ patientId }: { patientId: string }) {
 
                         {ev.citations && ev.citations.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {ev.citations.map((cit: any) => (
+                            {ev.citations.map((cit: any, cIdx: number) => (
                               <button
-                                key={cit.citation_id}
+                                key={`${cit.citation_id || cit.evidence_id || 'cit'}-${cIdx}`}
                                 onClick={() => handleCitationClick(cit)}
                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/50 hover:bg-cyan-900/40 text-[10px] text-cyan-400 border border-slate-700/50 hover:border-cyan-500/40 rounded transition-all"
                                 title="View evidence"

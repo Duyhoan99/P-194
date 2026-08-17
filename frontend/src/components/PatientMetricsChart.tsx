@@ -385,12 +385,12 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
 
       {/* Chart Canvas Area */}
       {loading ? (
-        <div className="h-[250px] flex items-center justify-center text-slate-400">
+        <div className="h-[290px] flex items-center justify-center text-slate-400">
           <RefreshCw className="w-5 h-5 animate-spin mr-2 text-cyan-400" />
-          <span className="text-sm">Đang tải biểu đồ chỉ số...</span>
+          <span className="text-sm font-medium">Đang tải biểu đồ chỉ số...</span>
         </div>
       ) : error ? (
-        <div className="h-[250px] flex flex-col items-center justify-center text-slate-400">
+        <div className="h-[290px] flex flex-col items-center justify-center text-slate-400">
           <Activity className="w-8 h-8 text-slate-600 mb-2" />
           <span className="text-sm">{error}</span>
           <button
@@ -401,12 +401,12 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
           </button>
         </div>
       ) : data.length === 0 ? (
-        <div className="h-[250px] flex flex-col items-center justify-center text-slate-400">
+        <div className="h-[290px] flex flex-col items-center justify-center text-slate-400">
           <Activity className="w-8 h-8 text-slate-600 mb-2" />
           <span className="text-sm">Không có dữ liệu {selectedMetric.label} cho bệnh nhân này.</span>
         </div>
       ) : (
-        <div className="h-[260px] w-full">
+        <div className="h-[290px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 18, right: 24, left: -2, bottom: 5 }}>
               <defs>

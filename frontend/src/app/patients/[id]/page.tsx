@@ -138,18 +138,18 @@ export default function PatientWorkspace() {
         </header>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 scroll-smooth bg-transparent">
-          <div className="max-w-7xl mx-auto flex flex-col gap-6 min-h-[800px]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 scroll-smooth bg-transparent">
+          <div className="max-w-[1440px] w-full mx-auto flex flex-col gap-6 min-h-[750px]">
             
             <PatientAlerts />
             <PatientMetricsChart patientId={patientId} />
             <Timeline patientId={patientId} />
 
-            <div className="flex-1 flex flex-col xl:flex-row gap-6 pb-12">
-              <div className="flex-1 flex flex-col min-w-0">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pb-12 items-start">
+              <div className="w-full min-w-0 h-[840px]">
                 <StructuredReview patientId={patientId} />
               </div>
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="w-full min-w-0 h-[840px]">
                 <ChatPanel patientId={patientId} />
               </div>
             </div>

@@ -2,16 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  TrendingUp, 
-  AlertTriangle, 
-  ShieldCheck, 
-  Search, 
-  CheckCircle2, 
-  Sparkles, 
-  ArrowRight, 
-  Zap, 
-  UserCheck, 
+import {
+  TrendingUp,
+  AlertTriangle,
+  ShieldCheck,
+  Search,
+  CheckCircle2,
+  Sparkles,
+  ArrowRight,
+  Zap,
+  UserCheck,
   ChevronRight,
   Info
 } from 'lucide-react';
@@ -262,11 +262,10 @@ export default function DemoScenarios({
             <button
               key={sc.id}
               onClick={() => setActiveTab(idx)}
-              className={`px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 text-left flex flex-col gap-0.5 border ${
-                isActive
+              className={`px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 text-left flex flex-col gap-0.5 border ${isActive
                   ? sc.theme.activeTab
                   : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between w-full">
                 <span className="font-bold text-[11px] truncate">{sc.shortTitle}</span>
