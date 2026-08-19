@@ -169,6 +169,28 @@ class DemoRepository:
     def get_patient(self, patient_id: str) -> PatientSummary | None:
         return self._patients.get(patient_id)
 
+    def find_patient_by_identifier_or_name(self, identifier: str | None, name: str | None = None) -> PatientSummary | None:
+        """Find an existing patient by patient_id or matching pseudonym/name."""
+        if identifier:
+            clean_id = identifier.strip().upper().replace("PAT", "PAT-").replace("--", "-")
+            if clean_id in self._patients:
+                return self._patients[clean_id]
+            # Try partial matching e.g. PAT-001 vs PAT001
+            for p_id, pat in self._patients.items():
+                if clean_id.replace("-", "") == p_id.replace("-", ""):
+                    return pat
+
+        if name:
+            clean_name = name.strip().lower()
+            if len(clean_name) >= 3:
+                for pat in self._patients.values():
+                    pat_name = pat.pseudonym.strip().lower()
+                    if clean_name in pat_name or pat_name in clean_name:
+                        return pat
+
+        return None
+
+
     def create_blank_patient(self, patient_id: str, name: str) -> PatientSummary:
         patient = PatientSummary(
             patient_id=patient_id,
@@ -441,6 +463,91 @@ class DemoRepository:
         if len(safe_items) != len(evidence_items):
             raise ValueError("FHIR evidence contains a foreign patient scope.")
         self._uploaded_fhir_evidence.setdefault(patient_id, []).extend(safe_items)
+
+    def add_parsed_clinical_document(
+        self,
+        patient_id: str,
+        parsed_doc: Any,
+        document_id: str,
+        document_name: str,
+    ) -> None:
+        """Ingest parsed clinical observations, timeline encounters, and conditions into the patient's FHIR bundle."""
+        if patient_id not in self._patients:
+            raise KeyError(f"Patient {patient_id} not found")
+
+        doc_date = getattr(parsed_doc, "document_date", None) or datetime.now().strftime("%Y-%m-%d")
+        occurred_iso = f"{doc_date}T08:00:00+07:00"
+
+        bundle = self._bundles.setdefault(patient_id, {"resourceType": "Bundle", "type": "collection", "entry": []})
+        entries = bundle.setdefault("entry", [])
+
+        # 1. Add Encounter entry
+        enc_id = f"enc_{document_id}"
+        enc_title = getattr(parsed_doc, "document_title", None) or "Phiếu kết quả xét nghiệm"
+        enc_resource = {
+            "resourceType": "Encounter",
+            "id": enc_id,
+            "status": "finished",
+            "type": [{"text": enc_title}],
+            "period": {"start": occurred_iso, "end": occurred_iso},
+        }
+        entries.append({"resource": enc_resource})
+
+        # 2. Add Observation entries
+        observations = getattr(parsed_doc, "observations", [])
+        for idx, obs in enumerate(observations):
+            obs_id = f"obs_{document_id}_{idx}"
+            obs_name = getattr(obs, "name", "Xét nghiệm")
+            obs_code = getattr(obs, "code", "unknown")
+            obs_val = getattr(obs, "value", None)
+            obs_unit = getattr(obs, "unit", "")
+            obs_flag = getattr(obs, "flag", None)
+
+            obs_resource = {
+                "resourceType": "Observation",
+                "id": obs_id,
+                "status": "final",
+                "code": {
+                    "coding": [{"system": "http://loinc.org", "code": obs_code, "display": obs_name}],
+                    "text": obs_name,
+                },
+                "valueQuantity": {
+                    "value": obs_val,
+                    "unit": obs_unit,
+                },
+                "effectiveDateTime": occurred_iso,
+            }
+            if obs_flag:
+                obs_resource["interpretation"] = [{"text": obs_flag}]
+            entries.append({"resource": obs_resource})
+
+        # 3. Add Condition entries
+        conditions = getattr(parsed_doc, "conditions", [])
+        for idx, cond in enumerate(conditions):
+            cond_id = f"cond_{document_id}_{idx}"
+            cond_name = getattr(cond, "name", "Chẩn đoán")
+            cond_code = getattr(cond, "code", None)
+            cond_date = getattr(cond, "recorded_date", None) or doc_date
+
+            cond_resource = {
+                "resourceType": "Condition",
+                "id": cond_id,
+                "clinicalStatus": {"coding": [{"code": "active"}]},
+                "code": {
+                    "coding": [{"system": "http://snomed.info/sct", "code": cond_code or "unknown", "display": cond_name}],
+                    "text": cond_name,
+                },
+                "recordedDate": f"{cond_date}T08:00:00+07:00",
+            }
+            entries.append({"resource": cond_resource})
+
+        # 4. Update patient summary
+        pat = self._patients.get(patient_id)
+        if pat:
+            pat.last_encounter_at = occurred_iso
+            if conditions and (pat.primary_condition == "Chưa có dữ liệu" or not pat.primary_condition):
+                pat.primary_condition = getattr(conditions[0], "name", pat.primary_condition)
+
 
     def mark_reviews_stale(self, patient_id: str) -> int:
         """Mark all non-approved reviews for a patient as stale. Returns count marked."""

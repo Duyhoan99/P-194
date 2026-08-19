@@ -254,7 +254,7 @@ class GeminiOcrExtractor(PdfExtractorBase):
     """Real OCR extractor using Gemini API."""
     
     OCR_ENGINE = "gemini-ocr"
-    OCR_ENGINE_VERSION = "gemini-3.5-flash"
+    OCR_ENGINE_VERSION = "gemini-2.5-flash"
     
     def __init__(self, api_key: str):
         self._api_key = api_key
@@ -266,8 +266,8 @@ class GeminiOcrExtractor(PdfExtractorBase):
         
         checksum = _sha256(content)
         
-        if not self._api_key:
-            logger.warning("No API key for Gemini OCR; falling back to empty extraction")
+        if not self._api_key or not self._api_key.startswith("AIza"):
+            logger.warning("No valid Gemini API key for Gemini OCR; falling back to empty extraction")
             return DocumentExtraction(
                 document_id=document_id,
                 page_count=1,
@@ -291,9 +291,10 @@ class GeminiOcrExtractor(PdfExtractorBase):
                 mime_type = "image/jpeg"
                 
             prompt = (
-                "Extract all clinical text from this document. "
-                "Return ONLY a structured JSON array with one object per meaningful text block. "
-                "Each object must have exactly two keys: 'text' (the extracted string) and 'confidence' (a float between 0 and 1 estimating OCR accuracy)."
+                "Extract all clinical text and data from this medical document accurately.\n"
+                "Return a structured JSON object with:\n"
+                "- 'markdown': faithful reconstructed Markdown text of the entire document (tables, headings, values)\n"
+                "- 'blocks': array of objects with 'text' and 'confidence' (float 0.8-1.0)."
             )
             
             response = client.models.generate_content(
@@ -310,7 +311,7 @@ class GeminiOcrExtractor(PdfExtractorBase):
                 )
             )
             
-            raw_text = response.text or "[]"
+            raw_text = response.text or "{}"
             
             # Strip markdown json block if present
             if raw_text.startswith("```json"):
@@ -319,24 +320,24 @@ class GeminiOcrExtractor(PdfExtractorBase):
                 raw_text = raw_text.strip("`")
                 
             parsed = json.loads(raw_text)
-            if not isinstance(parsed, list):
-                if isinstance(parsed, dict) and "blocks" in parsed:
-                    parsed = parsed["blocks"]
-                else:
-                    parsed = [parsed]
+            blocks_data = parsed.get("blocks", []) if isinstance(parsed, dict) else (parsed if isinstance(parsed, list) else [])
+            markdown_text = parsed.get("markdown", "") if isinstance(parsed, dict) else ""
+            
+            if not blocks_data and markdown_text:
+                blocks_data = [{"text": line.strip(), "confidence": 0.95} for line in markdown_text.split("\n\n") if line.strip()]
             
             blocks = []
             full_text_parts = []
-            for idx, item in enumerate(parsed):
+            for idx, item in enumerate(blocks_data):
                 if not isinstance(item, dict):
                     continue
                 text = str(item.get("text", "")).strip()
                 if not text:
                     continue
-                confidence = float(item.get("confidence", 1.0))
+                confidence = float(item.get("confidence", 0.95))
                 
                 block = BlockExtraction(
-                    page_number=1, # Gemini doesn't easily map back to pages for PDFs in simple API, assume 1
+                    page_number=1,
                     block_id=f"blk_{document_id}_ocr_{idx}",
                     text=text,
                     source_type="ocr",
@@ -347,9 +348,10 @@ class GeminiOcrExtractor(PdfExtractorBase):
                 blocks.append(block)
                 full_text_parts.append(text)
                 
+            full_md = markdown_text if markdown_text else "\n\n".join(full_text_parts)
             page = PageExtraction(
                 page_number=1,
-                full_text="\n".join(full_text_parts),
+                full_text=full_md,
                 blocks=blocks,
                 has_text_layer=False,
             )
@@ -357,7 +359,7 @@ class GeminiOcrExtractor(PdfExtractorBase):
             return DocumentExtraction(
                 document_id=document_id,
                 page_count=1,
-                pages=[page] if blocks else [],
+                pages=[page] if blocks or full_md else [],
                 source_checksum=checksum,
                 extraction_version=EXTRACTION_VERSION,
                 has_text_layer=False,
@@ -373,3 +375,167 @@ class GeminiOcrExtractor(PdfExtractorBase):
                 extraction_version=EXTRACTION_VERSION,
                 has_text_layer=False,
             )
+
+
+class OpenAIVisionExtractor(PdfExtractorBase):
+    """Vision OCR extractor using OpenAI GPT-4o / GPT-4o-mini."""
+
+    OCR_ENGINE = "openai-vision"
+    OCR_ENGINE_VERSION = "gpt-4o-mini"
+
+    def __init__(self, api_key: str, model_name: str = "gpt-4o-mini", base_url: str | None = None):
+        self._api_key = api_key
+        self._model_name = model_name or "gpt-4o-mini"
+        self._base_url = base_url
+
+    def extract(self, content: bytes, document_id: str) -> DocumentExtraction:
+        import base64
+        import json
+        import logging
+        logger = logging.getLogger(__name__)
+        checksum = _sha256(content)
+
+        if not self._api_key:
+            logger.warning("No API key for OpenAI Vision; falling back to empty extraction")
+            return DocumentExtraction(
+                document_id=document_id,
+                page_count=1,
+                pages=[],
+                source_checksum=checksum,
+                extraction_version=EXTRACTION_VERSION,
+                has_text_layer=False,
+            )
+
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=self._api_key, base_url=self._base_url or None)
+
+            mime_type = "application/pdf"
+            if content.startswith(b"\x89PNG"):
+                mime_type = "image/png"
+            elif content.startswith(b"\xff\xd8"):
+                mime_type = "image/jpeg"
+
+            prompt = (
+                "You are an expert clinical OCR and medical document digitization system.\n"
+                "Read this entire medical document accurately and completely.\n"
+                "Extract all text, administrative info (patient ID, patient name, date, doc ID), "
+                "diagnoses, and test results tables.\n"
+                "Return a JSON object with:\n"
+                "- 'markdown': full faithfully reconstructed Markdown text representing the entire document (including tables with columns: Xét nghiệm, Kết quả, Đơn vị, Tham chiếu, Cờ)\n"
+                "- 'blocks': array of objects, each with 'text' (string block) and 'confidence' (float between 0.85 and 1.0)"
+            )
+
+            b64_data = base64.b64encode(content).decode("utf-8")
+            data_url = f"data:{mime_type};base64,{b64_data}"
+
+            if mime_type.startswith("image/"):
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ],
+                    }
+                ]
+            else:
+                messages = [
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ]
+
+            response = client.chat.completions.create(
+                model=self._model_name,
+                messages=messages,
+                response_format={"type": "json_object"},
+                max_tokens=4096,
+            )
+
+            raw_text = response.choices[0].message.content or "{}"
+            parsed = json.loads(raw_text)
+
+            blocks_data = parsed.get("blocks", []) if isinstance(parsed, dict) else []
+            markdown_text = parsed.get("markdown", "") if isinstance(parsed, dict) else ""
+
+            if not blocks_data and markdown_text:
+                blocks_data = [{"text": line.strip(), "confidence": 0.95} for line in markdown_text.split("\n\n") if line.strip()]
+
+            blocks = []
+            full_text_parts = []
+            for idx, item in enumerate(blocks_data):
+                if not isinstance(item, dict):
+                    continue
+                text = str(item.get("text", "")).strip()
+                if not text:
+                    continue
+                confidence = float(item.get("confidence", 0.95))
+                block = BlockExtraction(
+                    page_number=1,
+                    block_id=f"blk_{document_id}_ocr_{idx}",
+                    text=text,
+                    source_type="ocr",
+                    ocr_confidence=confidence,
+                    ocr_engine=self.OCR_ENGINE,
+                    ocr_engine_version=self._model_name,
+                )
+                blocks.append(block)
+                full_text_parts.append(text)
+
+            full_md = markdown_text if markdown_text else "\n\n".join(full_text_parts)
+            page = PageExtraction(
+                page_number=1,
+                full_text=full_md,
+                blocks=blocks,
+                has_text_layer=False,
+            )
+
+            return DocumentExtraction(
+                document_id=document_id,
+                page_count=1,
+                pages=[page] if blocks or full_md else [],
+                source_checksum=checksum,
+                extraction_version=EXTRACTION_VERSION,
+                has_text_layer=False,
+            )
+        except Exception as exc:
+            logger.warning("OpenAI Vision OCR failed: %s", exc)
+            return DocumentExtraction(
+                document_id=document_id,
+                page_count=1,
+                pages=[],
+                source_checksum=checksum,
+                extraction_version=EXTRACTION_VERSION,
+                has_text_layer=False,
+            )
+
+
+class UniversalVisionExtractor(PdfExtractorBase):
+    """Dispatcher extractor: chooses OpenAI Vision, Gemini Vision, or TextLayerExtractor."""
+
+    def __init__(self, api_key: str = "", model_name: str = "gpt-4o-mini", base_url: str | None = None):
+        self.api_key = api_key
+        self.model_name = model_name
+        self.base_url = base_url
+        self.text_layer_extractor = TextLayerExtractor()
+
+        if api_key.startswith("sk-") or "gpt" in model_name.lower():
+            self.vision_extractor: PdfExtractorBase = OpenAIVisionExtractor(api_key=api_key, model_name=model_name, base_url=base_url)
+        elif model_name.lower().startswith("gemini") or api_key.startswith("AIza"):
+            self.vision_extractor = GeminiOcrExtractor(api_key=api_key)
+        else:
+            self.vision_extractor = OpenAIVisionExtractor(api_key=api_key, model_name=model_name, base_url=base_url)
+
+    def extract(self, content: bytes, document_id: str) -> DocumentExtraction:
+        if content.startswith(b"%PDF-") and detect_has_text_layer(content):
+            try:
+                extraction = self.text_layer_extractor.extract(content, document_id)
+                if extraction.pages and any(p.blocks for p in extraction.pages):
+                    return extraction
+            except Exception:
+                pass
+
+        return self.vision_extractor.extract(content, document_id)
+

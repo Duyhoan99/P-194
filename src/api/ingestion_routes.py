@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Uploa
 from pydantic import BaseModel, Field
 
 from src.api.dependencies import get_demo_repository
+from src.clinical.ai_document_parser import parse_clinical_markdown
 from src.clinical.demo_repository import DemoRepository
 from src.clinical.fhir_canonicalizer import canonicalize_fhir_bundle
 from src.clinical.ingestion import (
@@ -25,6 +26,7 @@ from src.clinical.pdf_canonicalizer import canonicalize_extraction
 from src.clinical.pdf_extractor import (
     GeminiOcrExtractor,
     TextLayerExtractor,
+    UniversalVisionExtractor,
     detect_has_text_layer,
 )
 from src.config import get_settings
@@ -32,10 +34,16 @@ from src.config import get_settings
 router = APIRouter(tags=["ingestion"])
 
 _ingestion_service = IngestionService()
-
-# Use TextLayerExtractor by default; GeminiOcrExtractor for images/scans
 _text_layer_extractor = TextLayerExtractor()
-_gemini_ocr_extractor = GeminiOcrExtractor(api_key=get_settings().llm_api_key)
+
+
+def _get_vision_extractor() -> UniversalVisionExtractor:
+    settings = get_settings()
+    return UniversalVisionExtractor(
+        api_key=settings.llm_api_key,
+        model_name=settings.llm_model_name,
+        base_url=settings.llm_base_url or None,
+    )
 
 
 class ProcessPatientRequest(BaseModel):
@@ -63,9 +71,10 @@ async def ingest_file(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     repo: DemoRepository = Depends(get_demo_repository),
 ) -> IngestionBatch:
-    """Ingest a PDF or JSON document for a patient.
+    """Ingest a PDF, Image, or JSON document for a patient.
 
-    If patient_id is not provided, a new patient will be created automatically.
+    If patient_id is not provided, AI will parse the document to match an existing patient,
+    or automatically create a new patient with extracted demographic data.
     """
     content = await file.read()
     client_filename = file.filename
@@ -93,28 +102,63 @@ async def ingest_file(
         )
 
     # ------------------------------------------------------------------
-    # 2. Patient scope check & Dynamic Creation
-    # ------------------------------------------------------------------
-    import uuid
-    if not patient_id:
-        # Create a new patient
-        target_pid = f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
-        name = new_patient_name.strip() if new_patient_name and new_patient_name.strip() else f"Bệnh nhân mới {target_pid[-4:]}"
-        repo.create_blank_patient(target_pid, name)
-    else:
-        target_pid = patient_id
-        if not repo.get_patient(target_pid):
-            raise HTTPException(
-                status_code=404,
-                detail={"code": "PATIENT_SCOPE_DENIED", "message": "Bệnh nhân không tồn tại."},
-            )
-
-    # ------------------------------------------------------------------
-    # 3. Determine format and create batch
+    # 2. Extract text / OCR / Markdown
     # ------------------------------------------------------------------
     is_json = (client_filename or "").lower().endswith(".json") or "json" in (content_type or "").lower()
     detected_format = "fhir_r4" if is_json else "pdf"
+    import uuid
+    temp_doc_id = f"doc_{uuid.uuid4().hex[:12]}"
+    extraction = None
+    parsed_doc = None
+    full_markdown = ""
 
+    if not is_json:
+        try:
+            vision_extractor = _get_vision_extractor()
+            extraction = vision_extractor.extract(content, temp_doc_id)
+            full_markdown = "\n\n".join(p.full_text for p in extraction.pages if p.full_text)
+            parsed_doc = parse_clinical_markdown(full_markdown)
+        except Exception as exc:
+            pass
+
+    # ------------------------------------------------------------------
+    # 3. Smart Patient Scope Resolution
+    # ------------------------------------------------------------------
+    if not patient_id:
+        # Check if AI identified an existing patient from document
+        matched_patient = None
+        if parsed_doc:
+            matched_patient = repo.find_patient_by_identifier_or_name(
+                parsed_doc.patient_id,
+                parsed_doc.patient_name,
+            )
+
+        if matched_patient:
+            target_pid = matched_patient.patient_id
+        else:
+            # Create a new patient
+            doc_pid = parsed_doc.patient_id if (parsed_doc and parsed_doc.patient_id) else None
+            target_pid = doc_pid if (doc_pid and not repo.get_patient(doc_pid)) else f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
+            extracted_name = parsed_doc.patient_name if (parsed_doc and parsed_doc.patient_name) else None
+            name = new_patient_name.strip() if (new_patient_name and new_patient_name.strip()) else (extracted_name or f"Bệnh nhân mới {target_pid[-4:]}")
+            repo.create_blank_patient(target_pid, name)
+    else:
+        # User specified a patient ID
+        target_pid = patient_id
+        if not repo.get_patient(target_pid):
+            # Check if matching without dash (e.g. PAT001)
+            alt_match = repo.find_patient_by_identifier_or_name(target_pid)
+            if alt_match:
+                target_pid = alt_match.patient_id
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail={"code": "PATIENT_SCOPE_DENIED", "message": "Bệnh nhân không tồn tại."},
+                )
+
+    # ------------------------------------------------------------------
+    # 4. Create Batch in Document Store
+    # ------------------------------------------------------------------
     batch, stored_doc = _ingestion_service.create_batch(
         content=content,
         client_filename=client_filename,
@@ -131,7 +175,7 @@ async def ingest_file(
     _ingestion_service.mark_processing(batch.batch_id)
 
     # ------------------------------------------------------------------
-    # 4. Extract text / OCR / JSON parse
+    # 5. Process JSON / PDF canonicalization & Clinical Entity Ingestion
     # ------------------------------------------------------------------
     if is_json:
         try:
@@ -141,7 +185,6 @@ async def ingest_file(
                 document_id=stored_doc.document_id, source_checksum=stored_doc.checksum,
             )
             verification_items = []
-            extraction = None
             _ingestion_service.document_store.mark_extracted(
                 stored_doc.document_id,
                 {"resource_count": len(evidence_items), "is_fhir": True},
@@ -152,29 +195,29 @@ async def ingest_file(
                 errors=[IngestionErrorDetail(code="FHIR_VALIDATION_FAILED", message=str(exc)[:200])],
             )
     else:
-        try:
-            # Use text layer extractor for PDFs with a text layer
-            if detect_has_text_layer(content):
-                extraction = _text_layer_extractor.extract(content, stored_doc.document_id)
-            else:
-                # For scan/image PDFs use Gemini OCR
-                extraction = _gemini_ocr_extractor.extract(content, stored_doc.document_id)
+        if extraction is None or not extraction.pages:
+            try:
+                vision_extractor = _get_vision_extractor()
+                extraction = vision_extractor.extract(content, stored_doc.document_id)
+                full_markdown = "\n\n".join(p.full_text for p in extraction.pages if p.full_text)
+                if not parsed_doc:
+                    parsed_doc = parse_clinical_markdown(full_markdown)
+            except Exception as exc:
+                batch = _ingestion_service.mark_failed(
+                    batch.batch_id,
+                    errors=[IngestionErrorDetail(code="EXTRACTION_FAILED", message=str(exc)[:200])],
+                )
+                return batch
 
-            _ingestion_service.document_store.mark_extracted(
-                stored_doc.document_id,
-                {"page_count": extraction.page_count, "has_text_layer": extraction.has_text_layer},
-            )
-        except Exception as exc:
-            batch = _ingestion_service.mark_failed(
-                batch.batch_id,
-                errors=[IngestionErrorDetail(code="EXTRACTION_FAILED", message=str(exc)[:200])],
-            )
-            return batch
+        _ingestion_service.document_store.mark_extracted(
+            stored_doc.document_id,
+            {
+                "page_count": extraction.page_count,
+                "has_text_layer": extraction.has_text_layer,
+                "markdown": full_markdown,
+            },
+        )
 
-    # ------------------------------------------------------------------
-    # 5. Canonicalize extraction → EvidenceItems + VerificationItems
-    # ------------------------------------------------------------------
-    if not is_json:
         try:
             display_name = stored_doc.document_name
             evidence_items, verification_items = canonicalize_extraction(
@@ -191,18 +234,28 @@ async def ingest_file(
             return batch
 
     # ------------------------------------------------------------------
-    # 6. Add PDF evidence to repository (patient-scoped)
+    # 6. Add evidence & structured clinical data to repository
     # ------------------------------------------------------------------
     try:
         if is_json:
             repo.add_fhir_evidence(target_pid, evidence_items)
         else:
+            # 1. Add canonical PDF evidence for citations & AI copilot
             repo.add_pdf_evidence(
                 patient_id=target_pid,
                 document_id=stored_doc.document_id,
                 evidence_items=evidence_items,
                 verification_items=verification_items if verification_items else None,
             )
+            # 2. Add parsed clinical entities (Observations, Encounters, Conditions) to patient trends & timeline
+            if parsed_doc:
+                repo.add_parsed_clinical_document(
+                    patient_id=target_pid,
+                    parsed_doc=parsed_doc,
+                    document_id=stored_doc.document_id,
+                    document_name=stored_doc.document_name,
+                )
+
             from src.agents.retrieval.vector import index_evidence
             index_evidence(tenant_id="ten_demo", patient_id=target_pid, items=evidence_items)
 
@@ -212,6 +265,7 @@ async def ingest_file(
             errors=[IngestionErrorDetail(code="REPOSITORY_ERROR", message=str(exc)[:200])],
         )
         return batch
+
 
     # ------------------------------------------------------------------
     # 7. Mark existing reviews stale (new data arrived)
