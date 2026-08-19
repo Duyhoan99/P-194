@@ -124,37 +124,47 @@ async def ingest_file(
     # ------------------------------------------------------------------
     # 3. Smart Patient Scope Resolution
     # ------------------------------------------------------------------
-    if not patient_id:
-        # Check if AI identified an existing patient from document
-        matched_patient = None
-        if parsed_doc:
-            matched_patient = repo.find_patient_by_identifier_or_name(
-                parsed_doc.patient_id,
-                parsed_doc.patient_name,
-            )
-
-        if matched_patient:
-            target_pid = matched_patient.patient_id
+    target_pid = None
+    if patient_id and patient_id.strip():
+        # User explicitly passed patient_id
+        exact_match = repo.get_patient(patient_id.strip())
+        if exact_match:
+            target_pid = exact_match.patient_id
         else:
-            # Create a new patient
-            doc_pid = parsed_doc.patient_id if (parsed_doc and parsed_doc.patient_id) else None
-            target_pid = doc_pid if (doc_pid and not repo.get_patient(doc_pid)) else f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
-            extracted_name = parsed_doc.patient_name if (parsed_doc and parsed_doc.patient_name) else None
-            name = new_patient_name.strip() if (new_patient_name and new_patient_name.strip()) else (extracted_name or f"Bệnh nhân mới {target_pid[-4:]}")
-            repo.create_blank_patient(target_pid, name)
-    else:
-        # User specified a patient ID
-        target_pid = patient_id
-        if not repo.get_patient(target_pid):
-            # Check if matching without dash (e.g. PAT001)
-            alt_match = repo.find_patient_by_identifier_or_name(target_pid)
+            alt_match = repo.find_patient_by_identifier_or_name(patient_id.strip(), patient_id.strip())
             if alt_match:
                 target_pid = alt_match.patient_id
             else:
                 raise HTTPException(
                     status_code=404,
-                    detail={"code": "PATIENT_SCOPE_DENIED", "message": "Bệnh nhân không tồn tại."},
+                    detail={"code": "PATIENT_SCOPE_DENIED", "message": f"Bệnh nhân {patient_id} không tồn tại."},
                 )
+    else:
+        # Check if new_patient_name matches an existing patient in repository
+        matched_patient = None
+        if new_patient_name and new_patient_name.strip():
+            matched_patient = repo.find_patient_by_identifier_or_name(
+                identifier=new_patient_name.strip(),
+                name=new_patient_name.strip(),
+            )
+
+        # If not matched by name input, check from AI parsed_doc
+        if not matched_patient and parsed_doc:
+            matched_patient = repo.find_patient_by_identifier_or_name(
+                identifier=parsed_doc.patient_id,
+                name=parsed_doc.patient_name,
+            )
+
+        if matched_patient:
+            target_pid = matched_patient.patient_id
+        else:
+            # Check if parsed_doc has a specific patient_id that doesn't exist yet
+            doc_pid = parsed_doc.patient_id if (parsed_doc and parsed_doc.patient_id) else None
+            target_pid = doc_pid if (doc_pid and not repo.get_patient(doc_pid)) else f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
+            extracted_name = parsed_doc.patient_name if (parsed_doc and parsed_doc.patient_name) else None
+            name = new_patient_name.strip() if (new_patient_name and new_patient_name.strip()) else (extracted_name or f"Bệnh nhân mới {target_pid[-4:]}")
+            repo.create_blank_patient(target_pid, name)
+
 
     # ------------------------------------------------------------------
     # 4. Create Batch in Document Store

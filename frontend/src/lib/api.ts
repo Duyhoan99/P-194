@@ -1,7 +1,8 @@
 /* API Client for Clinical Backend */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_V1 = `${API_BASE}/api/v1`;
+
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | undefined | null>;
