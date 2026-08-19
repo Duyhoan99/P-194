@@ -170,25 +170,36 @@ class DemoRepository:
         return self._patients.get(patient_id)
 
     def find_patient_by_identifier_or_name(self, identifier: str | None, name: str | None = None) -> PatientSummary | None:
-        """Find an existing patient by patient_id or matching pseudonym/name."""
+        """Find an existing patient by patient_id or matching pseudonym/name (accent-insensitive)."""
+        import unicodedata
+
+        def _norm(s: str) -> str:
+            s = unicodedata.normalize("NFKD", s)
+            return "".join(c for c in s if not unicodedata.combining(c)).lower().strip()
+
+        # 1. Try matching by identifier
         if identifier:
             clean_id = identifier.strip().upper().replace("PAT", "PAT-").replace("--", "-")
             if clean_id in self._patients:
                 return self._patients[clean_id]
-            # Try partial matching e.g. PAT-001 vs PAT001
+            norm_id = _norm(identifier)
             for p_id, pat in self._patients.items():
-                if clean_id.replace("-", "") == p_id.replace("-", ""):
+                if norm_id in _norm(p_id) or _norm(p_id) in norm_id:
+                    return pat
+                if norm_id in _norm(pat.pseudonym) or _norm(pat.pseudonym) in norm_id:
                     return pat
 
+        # 2. Try matching by name
         if name:
-            clean_name = name.strip().lower()
-            if len(clean_name) >= 3:
+            norm_name = _norm(name)
+            if len(norm_name) >= 2:
                 for pat in self._patients.values():
-                    pat_name = pat.pseudonym.strip().lower()
-                    if clean_name in pat_name or pat_name in clean_name:
+                    pat_norm = _norm(pat.pseudonym)
+                    if norm_name in pat_norm or pat_norm in norm_name:
                         return pat
 
         return None
+
 
 
     def create_blank_patient(self, patient_id: str, name: str) -> PatientSummary:

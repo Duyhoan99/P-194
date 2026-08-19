@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { ingestions } from '@/lib/api';
-import { AlertCircle, CheckCircle2, FileText, Loader2, UploadCloud, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ingestions, patients } from '@/lib/api';
+import { AlertCircle, CheckCircle2, FileText, Loader2, UploadCloud, UserCheck, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 
@@ -26,12 +26,22 @@ function fileId(file: File) {
 
 export default function UploadZone({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const { selectedPatient, triggerRefresh } = useAppStore();
-  const patientId = selectedPatient?.patient_id || '';
+  const contextPatientId = selectedPatient?.patient_id || '';
+  const [patientList, setPatientList] = useState<any[]>([]);
+  const [selectedTarget, setSelectedTarget] = useState<string>(contextPatientId || 'auto');
   const [newPatientName, setNewPatientName] = useState('');
   const [items, setItems] = useState<UploadItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    patients.list({ page_size: 50 }).then((res) => {
+      if (res?.items) {
+        setPatientList(res.items);
+      }
+    }).catch(() => {});
+  }, []);
 
   const updateItem = (id: string, patch: Partial<UploadItem>) => {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
@@ -68,19 +78,21 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
     if (!queued.length || isUploading) return;
 
     setIsUploading(true);
-    let resolvedPatientId = patientId;
+    let targetPid = contextPatientId || (selectedTarget !== 'auto' && selectedTarget !== 'new' ? selectedTarget : undefined);
+    let targetName = selectedTarget === 'new' ? newPatientName : undefined;
+
     try {
       for (const item of queued) {
         updateItem(item.id, { status: 'uploading', progress: 10, error: undefined });
         try {
           const result = await ingestions.upload(
             item.file,
-            resolvedPatientId || undefined,
+            targetPid,
             'auto',
-            resolvedPatientId ? undefined : newPatientName,
+            targetName,
           );
-          resolvedPatientId = resolvedPatientId || result.patient_id || '';
-          if (!resolvedPatientId) throw new Error('Backend did not return the patient created for this upload.');
+          targetPid = targetPid || result.patient_id || '';
+          if (!targetPid) throw new Error('Backend did not return the patient created for this upload.');
 
           const initialStatus = result.status as UploadStatus;
           updateItem(item.id, {
@@ -98,7 +110,7 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
             progress: 100,
             error: error instanceof Error ? error.message : 'Failed to process document.',
           });
-          if (!resolvedPatientId && !patientId) break;
+          if (!targetPid && !contextPatientId) break;
         }
       }
     } finally {
@@ -129,28 +141,55 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
           if (!isUploading) addFiles(Array.from(event.dataTransfer.files));
         }}
       >
-        {!patientId && (
-          <div className="w-full mb-6">
-            <label htmlFor="new-patient-name" className="block text-left text-xs font-semibold text-cyan-400 uppercase tracking-widest mb-2">
-              Tên bệnh nhân mới (Tùy chọn)
-            </label>
-            <input
-              id="new-patient-name"
-              type="text"
-              value={newPatientName}
-              disabled={isUploading}
-              onChange={(event) => setNewPatientName(event.target.value)}
-              placeholder="VD: Nguyễn Văn A..."
-              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500 disabled:opacity-50 transition-colors"
-            />
+        {!contextPatientId && (
+          <div className="w-full mb-6 space-y-3">
+            <div>
+              <label htmlFor="target-patient" className="block text-left text-xs font-semibold text-cyan-400 uppercase tracking-widest mb-2">
+                Hồ sơ bệnh nhân đích
+              </label>
+              <select
+                id="target-patient"
+                value={selectedTarget}
+                disabled={isUploading}
+                onChange={(e) => setSelectedTarget(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500 disabled:opacity-50 transition-colors"
+              >
+                <option value="auto">✨ Tự động nhận diện từ tài liệu (AI Auto-detect)</option>
+                {patientList.map((p) => (
+                  <option key={p.patient_id} value={p.patient_id}>
+                    {p.pseudonym} ({p.patient_id})
+                  </option>
+                ))}
+                <option value="new">➕ Tạo bệnh nhân mới...</option>
+              </select>
+            </div>
+
+            {selectedTarget === 'new' && (
+              <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
+                <label htmlFor="new-patient-name" className="block text-left text-xs font-semibold text-teal-400 uppercase tracking-widest mb-2">
+                  Tên bệnh nhân mới
+                </label>
+                <input
+                  id="new-patient-name"
+                  type="text"
+                  value={newPatientName}
+                  disabled={isUploading}
+                  onChange={(event) => setNewPatientName(event.target.value)}
+                  placeholder="VD: Nguyễn Văn A..."
+                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500 disabled:opacity-50 transition-colors"
+                />
+              </motion.div>
+            )}
           </div>
         )}
 
-        {patientId && (
-          <p className="mb-4 text-xs text-slate-400">
-            Tất cả tệp sẽ được thêm vào bệnh nhân <span className="font-semibold text-cyan-300">{patientId}</span>.
+        {contextPatientId && (
+          <p className="mb-4 text-xs text-slate-400 flex items-center gap-1.5">
+            <UserCheck className="w-4 h-4 text-cyan-400" />
+            Tất cả tệp sẽ được thêm vào bệnh nhân <span className="font-semibold text-cyan-300">{contextPatientId}</span>.
           </p>
         )}
+
 
         <input
           id="file-upload"
