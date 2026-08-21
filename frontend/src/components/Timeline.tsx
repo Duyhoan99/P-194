@@ -124,32 +124,29 @@ export default function Timeline({ patientId }: { patientId: string }) {
   }
 
   return (
-    <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-5 hover:bg-white/[0.02] transition-colors"
-      >
+    <div className="bg-slate-950/70 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full">
+      <div className="p-4 px-5 border-b border-white/10 bg-slate-900/90 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 shadow-[0_0_12px_rgba(34,211,238,0.15)]">
-            <Calendar className="w-4.5 h-4.5 text-cyan-400" />
+          <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/30 text-blue-400">
+            <Calendar className="w-4 h-4" />
           </div>
-          <div className="text-left">
-            <h3 className="text-base font-bold text-slate-100">Clinical Timeline</h3>
-            <span className="text-xs text-slate-500">{events.length} events</span>
+          <div>
+            <h3 className="text-sm font-bold text-slate-100">Dòng thời gian Sự kiện Lâm sàng</h3>
+            <span className="text-xs text-slate-400">{events.length} sự kiện được ghi nhận</span>
           </div>
         </div>
-        <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
-      </button>
+      </div>
 
-      {expanded && (
-        <div className="px-5 pb-5 space-y-6 max-h-[450px] overflow-y-auto chat-scrollbar pr-3">
-          {Object.entries(grouped).map(([date, dayEvents]) => (
-            <div key={date}>
-              {/* Date Header */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className="text-xs font-bold text-cyan-400/70 uppercase tracking-widest whitespace-nowrap">{date}</div>
-                <div className="flex-1 h-px bg-gradient-to-r from-cyan-500/20 to-transparent" />
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 chat-scrollbar pr-3">
+        {Object.entries(grouped).map(([date, dayEvents]) => (
+          <div key={date}>
+            {/* Date Header */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className="text-xs font-bold text-teal-400 uppercase tracking-wider whitespace-nowrap bg-teal-950/40 px-2.5 py-1 rounded-lg border border-teal-500/30">
+                📅 {date}
               </div>
+              <div className="flex-1 h-px bg-gradient-to-r from-teal-500/30 to-transparent" />
+            </div>
 
               {/* Events */}
               <div className="space-y-2 ml-2 border-l border-slate-800 pl-4">
@@ -198,7 +195,6 @@ export default function Timeline({ patientId }: { patientId: string }) {
             </div>
           ))}
         </div>
-      )}
     </div>
   );
 }

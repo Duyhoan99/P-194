@@ -25,7 +25,7 @@ function fileId(file: File) {
 }
 
 export default function UploadZone({ onUploadComplete }: { onUploadComplete?: () => void }) {
-  const { selectedPatient, triggerRefresh } = useAppStore();
+  const { selectedPatient, triggerRefresh, refreshTrigger } = useAppStore();
   const contextPatientId = selectedPatient?.patient_id || '';
   const [patientList, setPatientList] = useState<any[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<string>(contextPatientId || 'auto');
@@ -35,13 +35,18 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    patients.list({ page_size: 50 }).then((res) => {
+  const loadPatients = async () => {
+    try {
+      const res = await patients.list({ page_size: 50 });
       if (res?.items) {
         setPatientList(res.items);
       }
-    }).catch(() => {});
-  }, []);
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadPatients();
+  }, [refreshTrigger]);
 
   const updateItem = (id: string, patch: Partial<UploadItem>) => {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
@@ -115,6 +120,7 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
       }
     } finally {
       setIsUploading(false);
+      await loadPatients();
       triggerRefresh();
       onUploadComplete?.();
     }

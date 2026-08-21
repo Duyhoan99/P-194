@@ -3,9 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { Send, Bot, User, Search, AlertCircle, XCircle, Sparkles, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import DemoScenarios from './DemoScenarios';
+import { Send, Bot, User, Search, AlertCircle, XCircle, Trash2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 /**
  * Enhanced Markdown renderer for clinical chat responses,
@@ -152,13 +151,19 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string, status?: string, citations?: any[] }[]>([]);
-  const [showDemoBar, setShowDemoBar] = useState(true);
   const { setFocusedCitation } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  const quickPrompts = [
+    { label: '💊 Diễn tiến Thuốc & Phác đồ', text: 'Quá trình sử dụng thuốc của bệnh nhân qua các đợt khám thay đổi như thế nào?' },
+    { label: '⚠️ Đối soát Mâu thuẫn Liều', text: 'Có bất kỳ mâu thuẫn hay xung đột liều thuốc nào giữa các nguồn dữ liệu không?' },
+    { label: '📉 Xu hướng HbA1c & Đường huyết', text: 'Chỉ số HbA1c và đường huyết gần đây biến động ra sao và can thiệp điều chỉnh thế nào?' },
+    { label: '🛡️ Tiền sử & Dị ứng Thuốc', text: 'Bệnh nhân có tiền sử dị ứng thuốc gì không và được ghi nhận ở tài liệu nào?' }
+  ];
 
   const handleAskWithText = async (questionText: string) => {
     if (!questionText.trim() || loading) return;
@@ -245,42 +250,28 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
   };
 
   return (
-    <div className="glass-panel overflow-hidden flex flex-col h-[840px] max-h-[840px] min-h-[840px] shadow-2xl">
+    <div className="glass-panel overflow-hidden flex flex-col h-full min-h-0 shadow-2xl rounded-2xl border border-white/10 bg-slate-950/70 backdrop-blur-xl">
       {/* Header */}
-      <div className="glass-header p-3 px-4 flex items-center justify-between shrink-0 border-b border-white/5 bg-slate-900/90">
+      <div className="p-3 px-4 flex items-center justify-between shrink-0 border-b border-white/10 bg-slate-900/90">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/20 shadow-[0_0_15px_rgba(20,184,166,0.15)]">
+          <div className="w-8 h-8 rounded-xl bg-teal-500/10 flex items-center justify-center border border-teal-500/30 shadow-[0_0_15px_rgba(20,184,166,0.15)]">
             <Bot className="w-4 h-4 text-teal-400" />
           </div>
           <div>
             <h3 className="text-sm font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-cyan-300">
-              AI Co-pilot
+              AI Co-pilot Lâm sàng
             </h3>
-            <p className="text-[10px] text-slate-400">Grounded Clinical Reasoning</p>
+            <p className="text-[10px] text-slate-400 font-mono">Grounded Clinical Reasoning</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Toggle Demo Scenarios */}
-          <button
-            onClick={() => setShowDemoBar(prev => !prev)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all duration-200 flex items-center gap-1.5 ${showDemoBar
-                ? 'bg-teal-500/20 border-teal-500/40 text-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.2)]'
-                : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            title="Bật/Tắt 5 Tiêu chí Demo Case"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-            <span className="font-semibold">5 Tiêu chí Demo</span>
-            {showDemoBar ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
-          </button>
-
           {/* Clear messages */}
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
-              className="p-1.5 rounded-lg bg-slate-800/40 hover:bg-red-950/40 border border-slate-700/50 hover:border-red-500/30 text-slate-400 hover:text-red-400 transition-all text-xs"
-              title="Xóa hội thoại"
+              className="p-1.5 rounded-lg bg-slate-900 hover:bg-red-950/40 border border-slate-800 hover:border-red-500/30 text-slate-400 hover:text-red-400 transition-all text-xs"
+              title="Xóa cuộc trò chuyện"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -288,35 +279,34 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
         </div>
       </div>
 
-      {/* Collapsible Demo Scenarios Bar */}
-      <AnimatePresence>
-        {showDemoBar && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="border-b border-white/5 px-3 py-2 bg-slate-950/60 shrink-0 overflow-y-auto max-h-[320px] chat-scrollbar"
-          >
-            <DemoScenarios
-              currentPatientId={patientId}
-              onSelectPrompt={handleAskWithText}
-              isLoading={loading}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Messages area */}
-      <div className="flex-1 min-h-[160px] overflow-y-scroll p-4 space-y-4 chat-scrollbar pr-2">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 chat-scrollbar pr-2">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-3 py-6">
-            <div className="w-12 h-12 rounded-full bg-slate-800/40 flex items-center justify-center border border-slate-700/40 shadow-inner shadow-teal-500/5">
-              <Search className="w-5 h-5 text-teal-500/50" />
+          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 py-8 px-4">
+            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 flex items-center justify-center border border-teal-500/20 shadow-inner">
+              <Bot className="w-6 h-6 text-teal-400" />
             </div>
-            <p className="text-xs text-center font-medium text-slate-400 max-w-xs leading-relaxed">
-              Nhấp chọn câu hỏi ở <strong className="text-teal-300">5 Tiêu chí Demo</strong> ở trên hoặc nhập câu hỏi vào ô bên dưới để bắt đầu.
-            </p>
+            <div className="text-center space-y-1">
+              <h4 className="text-sm font-semibold text-slate-200">Trợ lý Hỏi - Đáp Lâm sàng</h4>
+              <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+                Hỏi trực tiếp về diễn tiến, xét nghiệm, chẩn đoán, thuốc hoặc chọn câu hỏi nhanh bên dưới:
+              </p>
+            </div>
+
+            {/* Quick Prompts Chips */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md pt-2">
+              {quickPrompts.map((p, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleAskWithText(p.text)}
+                  disabled={loading}
+                  className="text-left p-2.5 rounded-xl bg-slate-900/80 hover:bg-teal-950/40 border border-slate-800 hover:border-teal-500/40 text-slate-300 hover:text-teal-200 transition-all text-xs group shadow-sm flex flex-col gap-0.5"
+                >
+                  <span className="font-semibold text-[11px] text-teal-300/90 group-hover:text-teal-300">{p.label}</span>
+                  <span className="text-[11px] text-slate-400 line-clamp-1 group-hover:text-slate-300">{p.text}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

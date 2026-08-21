@@ -19,6 +19,7 @@ from src.api.ocr_routes import router as ocr_router
 from src.api.review_v1_routes import router as review_v1_router
 from src.api.claim_routes import router as claim_router
 from src.api.ask_routes import router as ask_router
+from src.api.tts_routes import router as tts_router
 from src.config import get_settings
 from src.logger import setup_logging
 
@@ -124,6 +125,7 @@ app.include_router(ocr_router, prefix="/api/v1")
 app.include_router(review_v1_router, prefix="/api/v1")
 app.include_router(claim_router, prefix="/api/v1")
 app.include_router(ask_router, prefix="/api/v1")
+app.include_router(tts_router)
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(ops_router, prefix="/api/v1")
 app.include_router(summary_router, prefix="/api/v1")

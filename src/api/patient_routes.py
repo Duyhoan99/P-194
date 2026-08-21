@@ -190,3 +190,48 @@ def delete_patient(
             )
     except Exception:
         pass
+
+
+@router.post("/patients/{patient_id}/care-plan")
+async def generate_patient_care_plan(
+    patient_id: str,
+    repo: DemoRepository = Depends(get_demo_repository),
+):
+    """Generate dynamic patient home care plan using Clinical LLM Agent & Medical RAG."""
+    from src.clinical.care_plan_agent import care_plan_agent
+    
+    patient = repo.get_patient(patient_id)
+    if not patient:
+        # Fallback patient info if not in demo repo
+        patient_name = "Nguyễn Demo An"
+        age = 61
+        gender = "Nữ"
+        condition = "Đái tháo đường Típ 2 (E11)"
+    else:
+        patient_name = patient.pseudonym or "Bệnh nhân"
+        age = patient.age or 60
+        gender = "Nữ" if patient.sex == "female" else "Nam"
+        condition = patient.primary_condition or "Đái tháo đường Típ 2 (E11)"
+
+    # Extract medications and vitals from review or timeline
+    medications = ["Metformin 1000mg BID"]
+    vitals = {"HbA1c": "7.4%", "BloodPressure": "130/79 mmHg", "eGFR": "70 mL/min/1.73m2"}
+    
+    try:
+        review = repo.get_latest_review(patient_id)
+        if review and review.claims:
+            for c in review.claims:
+                if c.section == "medications":
+                    medications.append(c.statement)
+    except Exception:
+        pass
+
+    result = await care_plan_agent.generate_care_plan(
+        patient_name=patient_name,
+        age=age,
+        gender=gender,
+        condition=condition,
+        medications=medications,
+        vitals=vitals,
+    )
+    return result

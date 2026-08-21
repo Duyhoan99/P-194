@@ -13,11 +13,16 @@ export class ApiError extends Error {
   detail: string;
   trace_id?: string;
 
-  constructor(status: number, detail: string, trace_id?: string) {
-    super(detail);
+  constructor(status: number, detail: any, trace_id?: string) {
+    const message = typeof detail === 'string'
+      ? detail
+      : (detail && typeof detail === 'object' && detail.message)
+        ? String(detail.message)
+        : JSON.stringify(detail || 'Unknown error');
+    super(message);
     this.name = 'ApiError';
     this.status = status;
-    this.detail = detail;
+    this.detail = message;
     this.trace_id = trace_id;
   }
 }

@@ -25,7 +25,7 @@ export function Sidebar() {
   ];
 
   useEffect(() => {
-    patients.list().then((data) => {
+    patients.list({ page_size: 50 }).then((data) => {
       setPatientList(data.items || []);
       setError(null);
     }).catch(() => {
