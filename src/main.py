@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from loguru import logger
 
 from src.api.admin_routes import router as admin_router
@@ -72,10 +72,6 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url=None,
 )
-
-@app.get("/", include_in_schema=False)
-async def root():
-    return RedirectResponse(url="/docs")
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
