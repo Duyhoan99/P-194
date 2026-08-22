@@ -1,32 +1,24 @@
-"""Scope-only audit events for clinical retrieval."""
+"""Scope-only audit events for the clinical review workflow."""
 
 from datetime import datetime
 from typing import Annotated, Literal, Protocol
 
 # pyrefly: ignore [missing-import]
 from loguru import logger
+
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, ConfigDict, Field
 
 AuditAction = Literal[
     "VIEW_PATIENT_OVERVIEW",
     "VIEW_ENCOUNTER_TIMELINE",
-    "VIEW_DIAGNOSES_AND_PROCEDURES",
-    "VIEW_LABS",
-    "VIEW_LABORATORY_RESULTS",
-    "VIEW_MICROBIOLOGY",
-    "VIEW_MICROBIOLOGY_RESULTS",
-    "VIEW_MEDICATIONS",
-    "VIEW_PATIENT_METRICS",
-    "VIEW_ICU_EVENTS",
-    "GENERATE_CLINICAL_SUMMARY",
-    "EDIT_CLINICAL_SUMMARY",
-    "REJECT_CLINICAL_SUMMARY",
-    "APPROVE_CLINICAL_SUMMARY",
-    "EXPORT_CLINICAL_SUMMARY",
-    "RESOLVE_CLINICAL_CONFLICT",
-    "ASSIGN_CLINICAL_SUBJECT",
-    "REVOKE_CLINICAL_SUBJECT",
+    "GENERATE_REVIEW",
+    "EDIT_REVIEW",
+    "REJECT_REVIEW",
+    "APPROVE_REVIEW",
+    "EXPORT_REVIEW",
+    "ASSIGN_PATIENT",
+    "REVOKE_PATIENT",
     "DELETE_PATIENT",
 ]
 AuditResult = Literal["SUCCESS", "PARTIAL", "EMPTY", "DENIED", "NOT_LOADED", "ERROR"]
@@ -40,9 +32,7 @@ class AuditEvent(BaseModel):
 
     user_id: str
     action: AuditAction
-    subject_id: int
-    hadm_id: int | None
-    stay_id: int | None
+    patient_id: str
     result: AuditResult
     trace_id: TraceId
     timestamp: datetime

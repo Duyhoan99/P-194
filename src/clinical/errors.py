@@ -1,4 +1,4 @@
-"""Domain errors for clinical retrieval."""
+"""Domain errors shared by the clinical review workflow."""
 
 
 class ClinicalAuthNotConfigured(Exception):  # noqa: N818
@@ -6,7 +6,7 @@ class ClinicalAuthNotConfigured(Exception):  # noqa: N818
 
 
 class ClinicalAccessDenied(Exception):  # noqa: N818
-    """Raised when a user is not authorized for a clinical subject."""
+    """Raised when a user is not authorized for a patient."""
 
 
 class ClinicalScopeInvalid(Exception):  # noqa: N818

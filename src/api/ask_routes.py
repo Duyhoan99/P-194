@@ -1,18 +1,75 @@
 """Ask the Chart REST endpoint adhering strictly to API_CONTRACT.md section 4.8."""
 
-from uuid import uuid4
 from typing import Literal
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+
 from src.agents.adapter import AgentRequestAdapter
 from src.agents.graph import run_agent
 from src.api.auth_routes import DEFAULT_CLINICIAN
 from src.api.dependencies import get_demo_repository
 from src.clinical.canonical import Citation
+from src.clinical.care_plan_agent import CarePlanResponse, care_plan_agent
 from src.clinical.demo_repository import DemoRepository
 
 router = APIRouter(tags=["ask"])
+
+
+_CARE_PLAN_MARKERS = (
+    "kế hoạch chăm sóc",
+    "chăm sóc tại nhà",
+    "hướng dẫn tại nhà",
+    "phiếu hướng dẫn điều trị",
+    "phác đồ gợi ý",
+    "gợi ý phác đồ",
+    "care plan",
+)
+
+
+def _is_care_plan_question(question: str) -> bool:
+    normalized = question.strip().casefold()
+    return any(marker in normalized for marker in _CARE_PLAN_MARKERS)
+
+
+def _care_plan_answer(care_plan: CarePlanResponse) -> str:
+    plan = care_plan.plan
+    lines = [
+        "### Bản nháp kế hoạch chăm sóc cá nhân hóa",
+        plan.doctor_greeting,
+        "",
+        "**Thuốc đang hoạt động trong hồ sơ**",
+        f"- Lần dùng 1: {plan.morning_meds}",
+        f"- Lần dùng 2: {plan.evening_meds}",
+        f"- Lưu ý nguồn thuốc: {plan.medication_note}",
+        "",
+        "**Dinh dưỡng**",
+        f"- Nên ưu tiên: {plan.diet_good}",
+        f"- Cần hạn chế: {plan.diet_bad}",
+        "",
+        f"**Vận động và tự theo dõi:** {plan.exercise}",
+        f"**Dấu hiệu cần xử trí khẩn:** {plan.emergency_warning}",
+        f"**Tái khám:** {plan.follow_up}",
+    ]
+    if care_plan.safety_flags:
+        lines.extend(["", "**Cờ an toàn cần bác sĩ rà soát**"])
+        lines.extend(f"- {flag}" for flag in care_plan.safety_flags)
+    lines.extend(["", f"> {care_plan.disclaimer}"])
+    return "\n".join(lines)
+
+
+def _care_plan_citations(approved_memory: object) -> list[dict]:
+    raw = approved_memory.model_dump(mode="json") if hasattr(approved_memory, "model_dump") else {}
+    citations: list[dict] = []
+    seen: set[str] = set()
+    for item in raw.get("items", []):
+        for citation in item.get("citations", []):
+            citation_id = str(citation.get("citation_id") or "")
+            if citation_id and citation_id not in seen:
+                seen.add(citation_id)
+                citations.append(citation)
+    return citations
 
 
 class Lookback(BaseModel):
@@ -34,17 +91,55 @@ class AskResponse(BaseModel):
 
 
 @router.post("/patients/{patient_id}/ask", response_model=AskResponse)
-def ask_patient_chart(
+async def ask_patient_chart(
     patient_id: str,
     payload: AskRequest,
     request: Request,
     response: Response,
     repo: DemoRepository = Depends(get_demo_repository),
 ) -> AskResponse:
-    if not repo.get_patient(patient_id):
+    patient = repo.get_patient(patient_id)
+    if not patient:
         raise HTTPException(
             status_code=404,
             detail={"code": "PATIENT_SCOPE_DENIED", "message": "Bệnh nhân không tồn tại hoặc không có quyền truy cập."},
+        )
+
+    if _is_care_plan_question(payload.question):
+        approved_review = repo.get_review(patient_id)
+        if (
+            not approved_review
+            or approved_review.status != "approved"
+            or not approved_review.is_current_watermark
+            or approved_review.data_watermark != repo.get_watermark(patient_id)
+        ):
+            return AskResponse(
+                status="not_allowed",
+                answer="Bác sĩ cần hoàn tất và ký duyệt bản tóm tắt hiện tại trước khi yêu cầu agent hỗ trợ bệnh lý tạo phác đồ.",
+                confidence="high",
+                citations=[],
+                data_watermark=repo.get_watermark(patient_id),
+            )
+        approved_memory = repo.get_patient_memory(patient_id, approved_review.memory_version_used)
+        if not approved_memory or approved_memory.source_review_version_id != approved_review.review_version_id:
+            return AskResponse(
+                status="not_allowed",
+                answer="Không tìm thấy bản tóm tắt đã duyệt khớp với phiên bản hiện tại.",
+                confidence="high",
+                citations=[],
+                data_watermark=approved_review.data_watermark,
+            )
+        care_plan = await care_plan_agent.generate_care_plan(
+            patient=patient,
+            approved_review=approved_review,
+            approved_memory=approved_memory,
+        )
+        return AskResponse(
+            status="conflicting" if care_plan.data_summary.conflicts else "answered",
+            answer=_care_plan_answer(care_plan),
+            confidence="low" if care_plan.status == "needs_review" else "medium",
+            citations=_care_plan_citations(approved_memory),
+            data_watermark=approved_review.data_watermark,
         )
 
     request_id = request.headers.get("X-Request-ID") or f"req_{uuid4().hex}"
@@ -73,7 +168,7 @@ def ask_patient_chart(
         detail = {"code": "AGENT_UNAVAILABLE", "message": "Không thể trả lời an toàn từ dữ liệu hiện tại."}
         if trace_id:
             detail["trace_id"] = trace_id
-            
+
         raise HTTPException(
             status_code=503,
             detail=detail,

@@ -1,415 +1,568 @@
-"""PDF generator for Clinical Review Copilot using fpdf2.
+"""Generate a restrained, print-ready Vietnamese clinical summary PDF.
 
-Generates a premium, hospital-grade clinical review PDF report including:
-- Header & Visual Branding
-- Patient Demographics Card
-- Formatted Clinical Review Sections & Claims (Clean human-readable snippets, no raw JSON!)
-- Highlighted Clinician Edits & Notes
-- Evidence Citations (Source Document, Page, Snippet)
-- Drug Interactions & Data Quality Alerts
-- Clinician Digital Signature / Approval Stamp & Legal Disclaimer
+The exported document intentionally contains only the approved clinical content.
+Evidence citations remain available in the review application but are not printed.
 """
 
+from __future__ import annotations
+
+import html
 import os
-import json
 from datetime import datetime
-from typing import Any
-from fpdf import FPDF
-from src.clinical.canonical import ReviewResponse, PatientSummary
+from io import BytesIO
+from pathlib import Path
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import (
+    KeepTogether,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+
+from src.clinical.canonical import PatientSummary, ReviewResponse
+
+NAVY = colors.HexColor("#172033")
+SLATE = colors.HexColor("#475569")
+MUTED = colors.HexColor("#64748B")
+LINE = colors.HexColor("#D9E0E8")
+SURFACE = colors.HexColor("#F6F8FA")
+TEAL = colors.HexColor("#0F766E")
+TEAL_LIGHT = colors.HexColor("#ECFDF5")
+AMBER = colors.HexColor("#B45309")
+AMBER_LIGHT = colors.HexColor("#FFF7ED")
+RED = colors.HexColor("#B42318")
+RED_LIGHT = colors.HexColor("#FEF3F2")
+WHITE = colors.white
+
+PAGE_WIDTH, PAGE_HEIGHT = A4
+LEFT_MARGIN = 18 * mm
+RIGHT_MARGIN = 18 * mm
+CONTENT_WIDTH = PAGE_WIDTH - LEFT_MARGIN - RIGHT_MARGIN
 
 
-def _clean_snippet(snippet: str) -> str:
-    """Format raw snippet text into human-readable text, converting raw JSON if present."""
-    if not snippet:
-        return ""
-    snippet_str = str(snippet).strip()
-    if snippet_str.startswith("{") and snippet_str.endswith("}"):
+def _font_candidates() -> list[dict[str, str]]:
+    configured = os.getenv("CLINICAL_PDF_FONT_DIR")
+    candidates: list[dict[str, str]] = []
+    if configured:
+        root = Path(configured)
+        candidates.append(
+            {
+                "regular": str(root / "DejaVuSans.ttf"),
+                "bold": str(root / "DejaVuSans-Bold.ttf"),
+                "italic": str(root / "DejaVuSans-Oblique.ttf"),
+            }
+        )
+
+    candidates.extend(
+        [
+            {
+                "regular": r"C:\Windows\Fonts\arial.ttf",
+                "bold": r"C:\Windows\Fonts\arialbd.ttf",
+                "italic": r"C:\Windows\Fonts\ariali.ttf",
+            },
+            {
+                "regular": r"C:\Windows\Fonts\DejaVuSans.ttf",
+                "bold": r"C:\Windows\Fonts\DejaVuSans-Bold.ttf",
+                "italic": r"C:\Windows\Fonts\DejaVuSans-Oblique.ttf",
+            },
+            {
+                "regular": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "italic": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+            },
+            {
+                "regular": "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                "bold": "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+                "italic": "/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf",
+            },
+        ]
+    )
+    return candidates
+
+
+def _register_fonts() -> tuple[str, str, str]:
+    """Register a Vietnamese-capable font family on Windows and Linux."""
+    for candidate in _font_candidates():
+        if not all(Path(path).is_file() for path in candidate.values()):
+            continue
         try:
-            data = json.loads(snippet_str)
-            res_type = data.get("resourceType", "")
-            res_id = data.get("id", "")
-            
-            parts = []
-            if res_type:
-                parts.append(f"Resource: {res_type}")
-            if res_id:
-                parts.append(f"ID: {res_id}")
-                
-            # Extract common FHIR fields
-            if "code" in data and isinstance(data["code"], dict):
-                text_val = data["code"].get("text") or data["code"].get("coding", [{}])[0].get("display")
-                if text_val:
-                    parts.append(f"Chỉ số: {text_val}")
-                    
-            if "valueQuantity" in data and isinstance(data["valueQuantity"], dict):
-                val = data["valueQuantity"].get("value")
-                unit = data["valueQuantity"].get("unit") or data["valueQuantity"].get("code") or ""
-                if val is not None:
-                    parts.append(f"Kết quả: {val} {unit}".strip())
-            elif "valueString" in data:
-                parts.append(f"Kết quả: {data['valueString']}")
-
-            if "status" in data:
-                parts.append(f"Trạng thái: {data['status']}")
-
-            if parts:
-                return " • ".join(parts)
+            pdfmetrics.registerFont(TTFont("ClinicalSans", candidate["regular"]))
+            pdfmetrics.registerFont(TTFont("ClinicalSans-Bold", candidate["bold"]))
+            pdfmetrics.registerFont(TTFont("ClinicalSans-Italic", candidate["italic"]))
+            pdfmetrics.registerFontFamily(
+                "ClinicalSans",
+                normal="ClinicalSans",
+                bold="ClinicalSans-Bold",
+                italic="ClinicalSans-Italic",
+                boldItalic="ClinicalSans-Bold",
+            )
+            return "ClinicalSans", "ClinicalSans-Bold", "ClinicalSans-Italic"
         except Exception:
-            pass
-    
-    # Trim overly long strings cleanly
-    if len(snippet_str) > 200:
-        return snippet_str[:197] + "..."
-    return snippet_str
+            continue
+
+    # Docker installs DejaVu Sans; this remains a last-resort fallback.
+    return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
 
 
-class ClinicalPDF(FPDF):
-    def __init__(self):
-        super().__init__(orientation="P", unit="mm", format="A4")
-        
-        # Load Arial font with Unicode support if available
-        self.unicode_font = False
-        font_dir = r"C:\Windows\Fonts"
-        regular_ttf = os.path.join(font_dir, "arial.ttf")
-        bold_ttf = os.path.join(font_dir, "arialbd.ttf")
-        italic_ttf = os.path.join(font_dir, "ariali.ttf")
+FONT_REGULAR, FONT_BOLD, FONT_ITALIC = _register_fonts()
 
-        if os.path.exists(regular_ttf) and os.path.exists(bold_ttf):
-            try:
-                self.add_font("Arial", "", regular_ttf)
-                self.add_font("Arial", "B", bold_ttf)
-                if os.path.exists(italic_ttf):
-                    self.add_font("Arial", "I", italic_ttf)
-                self.unicode_font = True
-            except Exception:
-                self.unicode_font = False
 
-    def header(self):
-        # Header banner height 22mm
-        self.set_fill_color(15, 23, 42)  # Dark slate #0f172a
-        self.rect(0, 0, 210, 22, style="F")
+def _safe(value: object | None) -> str:
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=False).replace("\n", "<br/>")
 
-        # Cyan Accent bottom border (1.5mm)
-        self.set_fill_color(8, 145, 178)  # Cyan #0891b2
-        self.rect(0, 20.5, 210, 1.5, style="F")
 
-        font_name = "Arial" if self.unicode_font else "Helvetica"
-        
-        # Left Title
-        self.set_font(font_name, "B", 13)
-        self.set_text_color(34, 211, 238)  # Cyan #22d3ee
-        self.set_xy(12, 5)
-        self.cell(130, 7, "CLINICAL REVIEW COPILOT", new_x="RIGHT", new_y="TOP")
+def _format_date(value: str | None, *, include_time: bool = False) -> str:
+    if not value:
+        return "Chưa ghi nhận"
+    raw = value.strip()
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return parsed.strftime("%d/%m/%Y - %H:%M") if include_time else parsed.strftime("%d/%m/%Y")
+    except ValueError:
+        return raw
 
-        self.set_font(font_name, "", 8.5)
-        self.set_text_color(148, 163, 184)  # Slate-400
-        self.set_xy(12, 12)
-        self.cell(130, 5, "Hệ thống AI hỗ trợ tóm tắt & rà soát hồ sơ bệnh án (MIMIC-IV / AI20K)", new_x="RIGHT", new_y="TOP")
 
-        # Right Confidential Badge
-        self.set_font(font_name, "B", 8)
-        self.set_text_color(248, 250, 252)
-        self.set_xy(145, 6)
-        self.cell(53, 5, "BÁO CÁO LÂM SÀNG BẢO MẬT", align="R", new_x="LMARGIN", new_y="NEXT")
+def _clean_claim_text(text: str) -> str:
+    replacements = {
+        "Status: finished": "Đã hoàn thành khám",
+        "Status: active": "Đang duy trì",
+        "Status: completed": "Đã kết thúc đợt",
+        "status: active": "Đang duy trì",
+        "status: completed": "Đã hoàn thành",
+    }
+    result = str(text or "").strip()
+    for source, target in replacements.items():
+        result = result.replace(source, target)
+    medical_terms = {
+        " (Type 2 diabetes mellitus)": "",
+        " (Hypertension)": "",
+        " (Chronic kidney disease)": "",
+        " (Obesity)": "",
+        "Type 2 diabetes mellitus": "Đái tháo đường típ 2",
+        "Hypertension": "Tăng huyết áp",
+        "Chronic kidney disease": "Bệnh thận mạn",
+        "Obesity": "Béo phì",
+        "type 2": "típ 2",
+    }
+    for source, target in medical_terms.items():
+        result = result.replace(source, target)
+    return result
 
-        self.set_font(font_name, "", 7.5)
-        self.set_text_color(148, 163, 184)
-        self.set_xy(145, 11)
-        self.cell(53, 5, "Confidential Medical Record", align="R", new_x="LMARGIN", new_y="NEXT")
 
-        self.ln(6)
+def _styles() -> dict[str, ParagraphStyle]:
+    base = getSampleStyleSheet()
+    return {
+        "title": ParagraphStyle(
+            "ClinicalTitle",
+            parent=base["Title"],
+            fontName=FONT_BOLD,
+            fontSize=17,
+            leading=21,
+            textColor=NAVY,
+            alignment=TA_LEFT,
+            spaceAfter=2 * mm,
+        ),
+        "subtitle": ParagraphStyle(
+            "ClinicalSubtitle",
+            parent=base["Normal"],
+            fontName=FONT_REGULAR,
+            fontSize=9,
+            leading=13,
+            textColor=MUTED,
+        ),
+        "label": ParagraphStyle(
+            "ClinicalLabel",
+            parent=base["Normal"],
+            fontName=FONT_BOLD,
+            fontSize=7.2,
+            leading=10,
+            textColor=MUTED,
+        ),
+        "value": ParagraphStyle(
+            "ClinicalValue",
+            parent=base["Normal"],
+            fontName=FONT_REGULAR,
+            fontSize=8.8,
+            leading=12,
+            textColor=NAVY,
+        ),
+        "value_bold": ParagraphStyle(
+            "ClinicalValueBold",
+            parent=base["Normal"],
+            fontName=FONT_BOLD,
+            fontSize=9,
+            leading=12,
+            textColor=NAVY,
+        ),
+        "section": ParagraphStyle(
+            "ClinicalSection",
+            parent=base["Heading2"],
+            fontName=FONT_BOLD,
+            fontSize=10.2,
+            leading=13,
+            textColor=NAVY,
+        ),
+        "section_number": ParagraphStyle(
+            "ClinicalSectionNumber",
+            parent=base["Normal"],
+            fontName=FONT_BOLD,
+            fontSize=9,
+            leading=11,
+            textColor=WHITE,
+            alignment=TA_CENTER,
+        ),
+        "body": ParagraphStyle(
+            "ClinicalBody",
+            parent=base["BodyText"],
+            fontName=FONT_REGULAR,
+            fontSize=9.2,
+            leading=14,
+            textColor=NAVY,
+            leftIndent=4 * mm,
+            firstLineIndent=-3 * mm,
+            spaceAfter=1.6 * mm,
+        ),
+        "note": ParagraphStyle(
+            "ClinicalNote",
+            parent=base["BodyText"],
+            fontName=FONT_REGULAR,
+            fontSize=8.8,
+            leading=13,
+            textColor=NAVY,
+        ),
+        "note_label": ParagraphStyle(
+            "ClinicalNoteLabel",
+            parent=base["BodyText"],
+            fontName=FONT_BOLD,
+            fontSize=8.2,
+            leading=11,
+            textColor=TEAL,
+            spaceAfter=1 * mm,
+        ),
+        "small": ParagraphStyle(
+            "ClinicalSmall",
+            parent=base["Normal"],
+            fontName=FONT_REGULAR,
+            fontSize=7.5,
+            leading=10,
+            textColor=MUTED,
+        ),
+        "approval": ParagraphStyle(
+            "ClinicalApproval",
+            parent=base["Normal"],
+            fontName=FONT_BOLD,
+            fontSize=10,
+            leading=13,
+            textColor=TEAL,
+        ),
+    }
 
-    def footer(self):
-        self.set_y(-14)
-        font_name = "Arial" if self.unicode_font else "Helvetica"
-        self.set_font(font_name, "I", 8)
-        self.set_text_color(148, 163, 184)
-        self.cell(0, 8, f"Trang {self.page_no()} / {{nb}}  |  Hồ sơ rà soát y tế bảo mật  |  Exported by Clinical Review Copilot", align="C")
+
+def _page_chrome(canvas, doc) -> None:
+    canvas.saveState()
+    canvas.setFillColor(TEAL)
+    canvas.rect(0, PAGE_HEIGHT - 3 * mm, PAGE_WIDTH, 3 * mm, stroke=0, fill=1)
+
+    canvas.setFont(FONT_BOLD, 8.2)
+    canvas.setFillColor(NAVY)
+    canvas.drawString(LEFT_MARGIN, PAGE_HEIGHT - 12 * mm, "HỒ SƠ LÂM SÀNG")
+    canvas.setFont(FONT_REGULAR, 7.5)
+    canvas.setFillColor(MUTED)
+    canvas.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, PAGE_HEIGHT - 12 * mm, "TÀI LIỆU Y KHOA BẢO MẬT")
+    canvas.setStrokeColor(LINE)
+    canvas.setLineWidth(0.5)
+    canvas.line(LEFT_MARGIN, PAGE_HEIGHT - 16 * mm, PAGE_WIDTH - RIGHT_MARGIN, PAGE_HEIGHT - 16 * mm)
+
+    canvas.line(LEFT_MARGIN, 14 * mm, PAGE_WIDTH - RIGHT_MARGIN, 14 * mm)
+    canvas.setFont(FONT_REGULAR, 7.2)
+    canvas.setFillColor(MUTED)
+    canvas.drawString(LEFT_MARGIN, 9 * mm, "Bản tóm tắt điều trị đã được phê duyệt")
+    canvas.drawRightString(PAGE_WIDTH - RIGHT_MARGIN, 9 * mm, f"Trang {doc.page}")
+    canvas.restoreState()
+
+
+def _info_table(data: list[list[Paragraph]]) -> Table:
+    table = Table(data, colWidths=[27 * mm, 59 * mm, 27 * mm, 61 * mm], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), SURFACE),
+                ("BOX", (0, 0), (-1, -1), 0.7, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
+
+
+def _section_heading(number: int, title: str, styles: dict[str, ParagraphStyle]) -> Table:
+    table = Table(
+        [[Paragraph(f"{number:02d}", styles["section_number"]), Paragraph(_safe(title), styles["section"])]],
+        colWidths=[12 * mm, CONTENT_WIDTH - 12 * mm],
+        hAlign="LEFT",
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), TEAL),
+                ("BACKGROUND", (1, 0), (1, 0), SURFACE),
+                ("BOX", (0, 0), (-1, -1), 0.6, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (0, 0), 2),
+                ("RIGHTPADDING", (0, 0), (0, 0), 2),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (1, 0), (1, 0), 8),
+            ]
+        )
+    )
+    return table
+
+
+def _notice_box(
+    label: str,
+    text: str,
+    styles: dict[str, ParagraphStyle],
+    *,
+    background=TEAL_LIGHT,
+    border=colors.HexColor("#A7D9D2"),
+    label_color=TEAL,
+) -> Table:
+    label_style = ParagraphStyle(f"NoticeLabel-{label}", parent=styles["note_label"], textColor=label_color)
+    table = Table(
+        [[Paragraph(_safe(label), label_style)], [Paragraph(_safe(text), styles["note"])]],
+        colWidths=[CONTENT_WIDTH],
+        hAlign="LEFT",
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), background),
+                ("BOX", (0, 0), (-1, -1), 0.7, border),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    return table
 
 
 def generate_review_pdf(review: ReviewResponse, patient: PatientSummary | None = None) -> bytes:
-    """Generate a clean, beautiful clinical review PDF document."""
+    """Return an A4 PDF containing the approved summary without citations."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=LEFT_MARGIN,
+        rightMargin=RIGHT_MARGIN,
+        topMargin=21 * mm,
+        bottomMargin=19 * mm,
+        title=f"Bản tóm tắt điều trị - {review.patient_id}",
+        author="Clinical Review Copilot",
+        subject="Bản tóm tắt điều trị đã được bác sĩ phê duyệt",
+    )
+    styles = _styles()
+    story: list = []
 
-    pdf = ClinicalPDF()
-    pdf.alias_nb_pages()
-    pdf.set_margins(12, 12, 12)
-    pdf.add_page()
-    
-    font_name = "Arial" if pdf.unicode_font else "Helvetica"
+    story.append(Paragraph("BẢN TÓM TẮT ĐIỀU TRỊ", styles["title"]))
+    story.append(
+        Paragraph(
+            "Phiếu tổng hợp thông tin lâm sàng đã được bác sĩ kiểm tra và phê duyệt.",
+            styles["subtitle"],
+        )
+    )
+    story.append(Spacer(1, 5 * mm))
 
-    # Main Document Header Title
-    pdf.set_font(font_name, "B", 15)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(0, 8, "BẢN TÓM TẮT VÀ RÀ SOÁT HỒ SƠ BỆNH ÁN", new_x="LMARGIN", new_y="NEXT")
-    
-    pdf.set_font(font_name, "", 9)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 5, f"Mã rà soát: {review.review_version_id}  •  Phiên bản: v{review.version}  •  Ngày tạo: {review.generated_at[:10] if review.generated_at else 'N/A'}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(3)
-
-    # 1. Patient Demographics & Metadata Styled Card
-    card_y = pdf.get_y()
-    card_height = 34
-
-    # Background card
-    pdf.set_fill_color(248, 250, 252)  # slate-50
-    pdf.set_draw_color(226, 232, 240)  # slate-200
-    pdf.rect(12, card_y, 186, card_height, style="FD")
-
-    # Left Vertical Cyan Bar (4mm)
-    pdf.set_fill_color(8, 145, 178)  # Cyan #0891b2
-    pdf.rect(12, card_y, 3, card_height, style="F")
-
-    inner_y = card_y + 3.5
-
-    # Column 1 (Left side)
-    pdf.set_xy(18, inner_y)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(28, 4.5, "BỆNH NHÂN:")
-    pdf.set_font(font_name, "B", 9.5)
-    pdf.set_text_color(15, 23, 42)
-    p_name = patient.pseudonym if patient else review.patient_id
-    pdf.cell(60, 4.5, f"{p_name}", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_x(18)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(28, 4.5, "MÃ BỆNH NHÂN:")
-    pdf.set_font(font_name, "", 9)
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(60, 4.5, f"{review.patient_id}", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_x(18)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(28, 4.5, "TUỔI / GIỚI TÍNH:")
-    pdf.set_font(font_name, "", 9)
-    pdf.set_text_color(30, 41, 59)
-    p_age = f"{patient.age} tuổi" if patient and patient.age else "Chưa rõ"
-    p_sex = "Nam" if patient and patient.sex == "male" else ("Nữ" if patient and patient.sex == "female" else "Chưa rõ")
-    pdf.cell(60, 4.5, f"{p_age} • {p_sex}", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_x(18)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(28, 4.5, "CHẨN ĐOÁN CHÍNH:")
-    pdf.set_font(font_name, "B", 9)
-    pdf.set_text_color(15, 23, 42)
-    p_cond = (patient.primary_condition if patient else "") or "Đái tháo đường Tuýp 2 / Theo dõi lâm sàng"
-    pdf.cell(60, 4.5, f"{p_cond}", new_x="LMARGIN", new_y="NEXT")
-
-    # Column 2 (Right side)
-    pdf.set_xy(115, inner_y)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(32, 4.5, "TRẠNG THÁI RÀ SOÁT:")
-    pdf.set_font(font_name, "B", 9)
-    if review.status == "approved":
-        pdf.set_text_color(5, 150, 105)  # emerald-600
-        pdf.cell(45, 4.5, "ĐÃ DUYỆT (APPROVED)", new_x="LMARGIN", new_y="NEXT")
+    patient_name = patient.pseudonym if patient else review.patient_id
+    patient_age = f"{patient.age} tuổi" if patient and patient.age is not None else "Chưa ghi nhận"
+    if patient and patient.sex == "male":
+        patient_sex = "Nam"
+    elif patient and patient.sex == "female":
+        patient_sex = "Nữ"
+    elif patient and patient.sex == "other":
+        patient_sex = "Khác"
     else:
-        pdf.set_text_color(217, 119, 6)  # amber-600
-        pdf.cell(45, 4.5, f"{review.status.upper()}", new_x="LMARGIN", new_y="NEXT")
+        patient_sex = "Chưa ghi nhận"
+    primary_condition = _clean_claim_text(
+        (patient.primary_condition if patient else None) or "Chưa ghi nhận"
+    )
+    coverage_start = _format_date(review.coverage.start_date)
+    coverage_end = _format_date(review.coverage.end_date)
 
-    pdf.set_x(115)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(32, 4.5, "NGÀY PHÊ DUYỆT:")
-    pdf.set_font(font_name, "", 9)
-    pdf.set_text_color(30, 41, 59)
-    app_date = review.approved_at or review.updated_at or review.generated_at
-    pdf.cell(45, 4.5, f"{app_date[:10] if app_date else 'N/A'}", new_x="LMARGIN", new_y="NEXT")
+    label = styles["label"]
+    value = styles["value"]
+    value_bold = styles["value_bold"]
+    story.append(
+        _info_table(
+            [
+                [Paragraph("HỌ VÀ TÊN", label), Paragraph(_safe(patient_name), value_bold),
+                 Paragraph("MÃ BỆNH NHÂN", label), Paragraph(_safe(review.patient_id), value_bold)],
+                [Paragraph("TUỔI", label), Paragraph(_safe(patient_age), value),
+                 Paragraph("GIỚI TÍNH", label), Paragraph(_safe(patient_sex), value)],
+                [Paragraph("CHẨN ĐOÁN CHÍNH", label), Paragraph(_safe(primary_condition), value),
+                 Paragraph("TRẠNG THÁI", label),
+                 Paragraph("<font color='#0F766E'><b>ĐÃ PHÊ DUYỆT</b></font>", value)],
+                [Paragraph("KHOẢNG DỮ LIỆU", label),
+                 Paragraph(f"{_safe(coverage_start)} đến {_safe(coverage_end)}", value),
+                 Paragraph("SỐ LƯỢT KHÁM", label), Paragraph(str(review.coverage.encounter_count), value)],
+                [Paragraph("PHIÊN BẢN", label), Paragraph(f"v{review.version}", value),
+                 Paragraph("NGÀY PHÊ DUYỆT", label),
+                 Paragraph(_safe(_format_date(review.approved_at or review.updated_at)), value)],
+            ]
+        )
+    )
+    story.append(Spacer(1, 6 * mm))
 
-    pdf.set_x(115)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(32, 4.5, "DATA WATERMARK:")
-    pdf.set_font(font_name, "", 8.5)
-    pdf.set_text_color(71, 85, 105)
-    pdf.cell(45, 4.5, f"{review.data_watermark}", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_x(115)
-    pdf.set_font(font_name, "B", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(32, 4.5, "NGƯỜI PHÊ DUYỆT:")
-    pdf.set_font(font_name, "", 9)
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(45, 4.5, "BS. Lâm sàng (usr_doctor_demo)", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_y(card_y + card_height + 5)
-
-    # 2. Section Header & Claims Block
-    pdf.set_font(font_name, "B", 11.5)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(0, 6, "NỘI DUNG RÀ SOÁT LÂM SÀNG VÀ BẰNG CHỨNG Y TẾ", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-
-    section_titles_map = {
-        "patient_overview": "1. Tổng quan bệnh nhân & Lý do khám",
-        "active_conditions": "2. Vấn đề & Bệnh nền đang hoạt động",
-        "current_medications": "3. Thuốc hiện tại & Tiền sử dùng thuốc",
-        "recent_results": "4. Kết quả xét nghiệm & Cận lâm sàng gần đây",
-        "changes_to_review": "5. Thay đổi lâm sàng cần rà soát",
-        "data_gaps": "6. Dữ liệu thiếu sót / Cần bổ sung",
+    section_titles = {
+        "patient_overview": "Tổng quan diễn tiến bệnh nhân",
+        "active_conditions": "Vấn đề lâm sàng và chẩn đoán",
+        "current_medications": "Thuốc và phác đồ điều trị",
+        "recent_results": "Kết quả cận lâm sàng gần đây",
+        "changes_to_review": "Thay đổi cần theo dõi",
+        "data_gaps": "Thông tin cần bổ sung",
     }
 
-    for sec in review.sections:
-        if pdf.get_y() > 250:
-            pdf.add_page()
+    for section_number, section in enumerate(review.sections, start=1):
+        title = section_titles.get(section.section_code, section.title or "Nội dung lâm sàng")
+        opening: list = [_section_heading(section_number, title, styles), Spacer(1, 2.5 * mm)]
+        if section.clinician_text and section.clinician_text.strip():
+            opening.extend(
+                [_notice_box("Ghi chú của bác sĩ", section.clinician_text.strip(), styles), Spacer(1, 2.5 * mm)]
+            )
 
-        sec_code = sec.section_code
-        sec_display_title = section_titles_map.get(sec_code, sec.title or sec_code.replace("_", " ").title())
+        if section.claims:
+            first_claim = section.claims[0]
+            first_status = ""
+            if first_claim.status != "verified":
+                first_status = " <font color='#B45309'><b>[Cần kiểm tra]</b></font>"
+            opening.append(
+                Paragraph(f"- {_safe(_clean_claim_text(first_claim.text))}{first_status}", styles["body"])
+            )
+            story.append(KeepTogether(opening))
 
-        # Section Banner (Light Cyan/Slate Box)
-        pdf.set_fill_color(241, 245, 249)  # slate-100
-        pdf.set_draw_color(203, 213, 225)  # slate-300
-        pdf.set_font(font_name, "B", 9.5)
-        pdf.set_text_color(15, 23, 42)
-        pdf.cell(0, 6.5, f"   {sec_display_title}", fill=True, border=1, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(2)
+            for claim in section.claims[1:]:
+                status = ""
+                if claim.status != "verified":
+                    status = " <font color='#B45309'><b>[Cần kiểm tra]</b></font>"
+                story.append(Paragraph(f"- {_safe(_clean_claim_text(claim.text))}{status}", styles["body"]))
+        else:
+            opening.append(Paragraph("Chưa ghi nhận thông tin trong mục này.", styles["note"]))
+            story.append(KeepTogether(opening))
 
-        # Doctor's Edit / Note if available
-        if sec.clinician_text and sec.clinician_text.strip():
-            pdf.set_fill_color(236, 253, 245)  # emerald-50
-            pdf.set_draw_color(167, 243, 208)  # emerald-200
-            pdf.set_font(font_name, "B", 8.5)
-            pdf.set_text_color(6, 95, 70)  # emerald-800
-            
-            pdf.set_x(14)
-            pdf.cell(0, 4.5, "[📝 GHI CHÚ CHỈNH SỬA BỔ SUNG CỦA BÁC SĨ LÂM SÀNG]:", new_x="LMARGIN", new_y="NEXT")
-            pdf.set_x(14)
-            pdf.set_font(font_name, "I", 9)
-            pdf.set_text_color(4, 120, 87)
-            pdf.multi_cell(180, 4.5, sec.clinician_text, border=0, new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(2)
+        story.append(Spacer(1, 3.5 * mm))
 
-        # Claims
-        if not sec.claims:
-            pdf.set_font(font_name, "I", 8.5)
-            pdf.set_text_color(148, 163, 184)
-            pdf.set_x(16)
-            pdf.cell(0, 4.5, "Không ghi nhận dữ liệu cho mục này trong hồ sơ.", new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(2)
-            continue
+    severity_labels = {
+        "low": "thấp",
+        "moderate": "trung bình",
+        "high": "cao",
+        "unknown": "chưa xác định",
+    }
+    interaction_items = [
+        f"Tương tác thuốc - mức {severity_labels.get(item.severity, item.severity)}: {item.description}"
+        for item in review.drug_interactions
+        if item.status not in {"not_applicable", "superseded"}
+    ]
+    conflict_items = [
+        f"Mâu thuẫn dữ liệu: {item.description}" + (" (đã xử lý)" if item.status == "resolved" else "")
+        for item in review.conflicts
+    ]
+    warning_items = interaction_items + conflict_items
+    if warning_items:
+        warning_text = "<br/>".join(f"- {_safe(item)}" for item in warning_items)
+        warning_label_style = ParagraphStyle(
+            "ClinicalWarningLabel", parent=styles["note_label"], textColor=RED
+        )
+        warning_box = Table(
+            [[Paragraph("CẢNH BÁO VÀ ĐIỂM CẦN LƯU Ý", warning_label_style)],
+             [Paragraph(warning_text, styles["note"])]],
+            colWidths=[CONTENT_WIDTH],
+            hAlign="LEFT",
+        )
+        warning_box.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), RED_LIGHT),
+                    ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#FDA29B")),
+                    ("TEXTCOLOR", (0, 0), (0, 0), RED),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        story.extend([KeepTogether([warning_box]), Spacer(1, 4 * mm)])
 
-        for claim in sec.claims:
-            if pdf.get_y() > 255:
-                pdf.add_page()
+    quality_items = [item.message for item in review.data_quality_flags if item.status not in {"verified", "dismissed"}]
+    if quality_items:
+        quality_text = "\n".join(f"- {item}" for item in quality_items)
+        story.extend(
+            [
+                _notice_box(
+                    "Thông tin cần kiểm tra thêm",
+                    quality_text,
+                    styles,
+                    background=AMBER_LIGHT,
+                    border=colors.HexColor("#FED7AA"),
+                    label_color=AMBER,
+                ),
+                Spacer(1, 4 * mm),
+            ]
+        )
 
-            pdf.set_x(15)
-            
-            # Badge
-            if claim.status == "verified":
-                pdf.set_font(font_name, "B", 8)
-                pdf.set_text_color(5, 150, 105)  # emerald-600
-                pdf.write(5, "[✓ ĐÃ XÁC MINH] ")
-            else:
-                pdf.set_font(font_name, "B", 8)
-                pdf.set_text_color(217, 119, 6)  # amber-600
-                pdf.write(5, "[⚠ CẦN XÁC MINH] ")
+    approval_time = _format_date(review.approved_at or review.updated_at, include_time=True)
+    approval_content = [
+        [Paragraph("ĐÃ PHÊ DUYỆT", styles["approval"])],
+        [Paragraph(
+            "Bác sĩ lâm sàng xác nhận đã kiểm tra nội dung tóm tắt và chịu trách nhiệm chuyên môn đối với quyết định điều trị.",
+            styles["note"],
+        )],
+        [Paragraph(
+            f"Thời gian phê duyệt: <b>{_safe(approval_time)}</b><br/>"
+            f"Mã phiên bản: {_safe(review.review_version_id)}",
+            styles["small"],
+        )],
+    ]
+    approval_box = Table(approval_content, colWidths=[CONTENT_WIDTH], hAlign="LEFT")
+    approval_box.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), TEAL_LIGHT),
+                ("BOX", (0, 0), (-1, -1), 0.9, colors.HexColor("#7DD3C7")),
+                ("LINEBEFORE", (0, 0), (0, -1), 3, TEAL),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.append(KeepTogether([approval_box]))
+    story.append(Spacer(1, 2.5 * mm))
+    story.append(
+        Paragraph(
+            _safe(review.disclaimer or "Tài liệu phục vụ theo dõi và điều trị. Bác sĩ chịu trách nhiệm cho mọi quyết định chuyên môn."),
+            styles["small"],
+        )
+    )
 
-            # Claim text
-            pdf.set_font(font_name, "", 9)
-            pdf.set_text_color(15, 23, 42)
-            pdf.write(5, f"{claim.text}\n")
-
-            # Citations
-            if claim.citations:
-                pdf.set_font(font_name, "", 8)
-                for cit in claim.citations:
-                    doc_name = getattr(cit, "document_name", None) or getattr(cit, "resource_type", None) or getattr(cit, "source_record_id", None) or "Hồ sơ y tế"
-                    pg_num = getattr(cit, "page_number", None)
-                    pg_str = f" • Trang {pg_num}" if pg_num else ""
-                    cit_id = getattr(cit, "citation_id", "")
-                    raw_snip = getattr(cit, "snippet", "")
-                    clean_snip = _clean_snippet(raw_snip)
-
-                    pdf.set_x(20)
-                    pdf.set_font(font_name, "B", 7.5)
-                    pdf.set_text_color(8, 145, 178)  # Cyan #0891b2
-                    pdf.write(4, f"↳ Nguồn bằng chứng [{cit_id}]: ")
-                    
-                    pdf.set_font(font_name, "", 8)
-                    pdf.set_text_color(71, 85, 105)
-                    pdf.write(4, f"{doc_name}{pg_str}\n")
-
-                    if clean_snip:
-                        pdf.set_x(24)
-                        pdf.set_font(font_name, "I", 7.5)
-                        pdf.set_text_color(100, 116, 139)
-                        pdf.write(3.8, f"\"{clean_snip}\"\n")
-            pdf.ln(1.5)
-
-        pdf.ln(2)
-
-    # 3. Drug Interactions & Clinical Warnings section if present
-    if review.drug_interactions or review.conflicts:
-        if pdf.get_y() > 240:
-            pdf.add_page()
-
-        pdf.set_fill_color(254, 242, 242)  # red-50
-        pdf.set_draw_color(248, 113, 113)  # red-400
-        pdf.set_font(font_name, "B", 9.5)
-        pdf.set_text_color(153, 27, 27)    # red-800
-        pdf.cell(0, 6.5, "  CẢNH BÁO LÂM SÀNG & TƯƠNG TÁC THUỐC CẦN LƯU Ý", fill=True, border=1, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(2)
-
-        for di in review.drug_interactions:
-            pdf.set_x(16)
-            pdf.set_font(font_name, "B", 8.5)
-            pdf.set_text_color(185, 28, 28)
-            pdf.write(4.5, f" • Tương tác thuốc ({di.severity.upper()}): ")
-            pdf.set_font(font_name, "", 8.5)
-            pdf.set_text_color(30, 41, 59)
-            pdf.write(4.5, f"{di.description}\n")
-
-        for cfl in review.conflicts:
-            pdf.set_x(16)
-            pdf.set_font(font_name, "B", 8.5)
-            pdf.set_text_color(185, 28, 28)
-            pdf.write(4.5, f" • Mâu thuẫn dữ liệu: ")
-            pdf.set_font(font_name, "", 8.5)
-            pdf.set_text_color(30, 41, 59)
-            pdf.write(4.5, f"{cfl.description}\n")
-        pdf.ln(4)
-
-    # 4. Clinician Signature Stamp & Confirmation Block
-    if pdf.get_y() > 235:
-        pdf.add_page()
-
-    pdf.ln(4)
-    stamp_y = pdf.get_y()
-    stamp_height = 28
-
-    pdf.set_fill_color(248, 250, 252)  # slate-50
-    pdf.set_draw_color(203, 213, 225)  # slate-300
-    pdf.rect(12, stamp_y, 186, stamp_height, style="FD")
-
-    # Emerald left bar for approval confirmation
-    pdf.set_fill_color(5, 150, 105)  # emerald-600
-    pdf.rect(12, stamp_y, 3, stamp_height, style="F")
-
-    pdf.set_xy(18, stamp_y + 3)
-    pdf.set_font(font_name, "B", 9.5)
-    pdf.set_text_color(6, 95, 70)  # emerald-800
-    pdf.cell(0, 5, "XÁC NHẬN PHÊ DUYỆT CỦA BÁC SĨ LÂM SÀNG (CLINICIAN APPROVAL STAMP)", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_x(18)
-    pdf.set_font(font_name, "", 8.5)
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 4.5, "Tôi xác nhận đã kiểm tra, rà soát toàn bộ các bằng chứng y tế và đối chiếu các thông tin trong bản tóm tắt này.", new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_x(18)
-    pdf.set_font(font_name, "I", 8)
-    pdf.set_text_color(100, 116, 139)
-    disclaimer_text = review.disclaimer or "Tài liệu chỉ phục vụ rà soát lâm sàng. Bác sĩ chịu trách nhiệm cho mọi quyết định điều trị."
-    pdf.cell(0, 4.5, disclaimer_text, new_x="LMARGIN", new_y="NEXT")
-
-    pdf.set_x(18)
-    pdf.set_font(font_name, "B", 7.5)
-    pdf.set_text_color(71, 85, 105)
-    app_time_str = review.approved_at or datetime.now().isoformat()
-    pdf.cell(0, 4.5, f"Ký duyệt bởi: BS. Lâm sàng  •  Thời gian: {app_time_str}  •  Hash: sha256:{review.review_version_id}", new_x="LMARGIN", new_y="NEXT")
-
-    return bytes(pdf.output())
+    doc.build(story, onFirstPage=_page_chrome, onLaterPages=_page_chrome)
+    return buffer.getvalue()

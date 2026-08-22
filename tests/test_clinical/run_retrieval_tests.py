@@ -1,5 +1,6 @@
 from src.agents.retrieval.fusion import BaselineWeightedReranker
 
+
 class MockEvidence:
     def __init__(self, fact_type, statement, verification_status="verified"):
         self.fact_type = fact_type
@@ -8,7 +9,7 @@ class MockEvidence:
 
 def run_tests():
     reranker = BaselineWeightedReranker()
-    
+
     candidates = [
         MockEvidence("diagnosis", "Đái tháo đường típ 2"),
         MockEvidence("medication", "Metformin 1000mg"),
@@ -24,10 +25,10 @@ def run_tests():
 
     results3 = reranker.rerank("HbA1c gần nhất?", candidates)
     assert len(results3) > 0, "Should not drop evidence for 'HbA1c gần nhất?'"
-    
+
     results4 = reranker.rerank("Tình trạng hiện tại có gì đáng chú ý?", candidates)
     assert len(results4) > 0, "Should not drop evidence for 'Tình trạng hiện tại có gì đáng chú ý?'"
-    
+
     print("All tests passed! Evidence is no longer dropped purely due to lexical mismatch.")
 
 if __name__ == "__main__":

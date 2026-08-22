@@ -203,6 +203,36 @@ def test_generation_node_falls_back_when_controlled_runtime_unavailable(monkeypa
     assert result["proposed_claims"][0].text == "Chẩn đoán nguồn"
 
 
+def test_conversation_response_cannot_be_replaced_by_llm_intent_label(monkeypatch) -> None:
+    from src.agents.nodes import clinical_nodes
+
+    class LabelOnlyConversationClient:
+        def __init__(self) -> None:
+            self.claim_calls = 0
+
+        def generate_claims(self, question, evidence_packet, *, temperature=0.0):
+            self.claim_calls += 1
+            return {"summary": "Lời chào hỏi.", "claims": []}
+
+    client = LabelOnlyConversationClient()
+    monkeypatch.setattr(
+        clinical_nodes,
+        "get_llm_runtime",
+        lambda: SimpleNamespace(available=True, client=client),
+        raising=False,
+    )
+    state = _generation_state()
+    state["request"] = state["request"].model_copy(update={"question": "xin chào"})
+    state["question_type"] = {"task_type": "conversation", "retrieval_required": False}
+    state["retrieved_evidence"] = []
+
+    result = clinical_nodes.generate_grounded_node(state)
+
+    assert client.claim_calls == 0
+    assert result["proposed_claims"][0].text.startswith("Xin chào!")
+    assert "AI Co-pilot" in result["proposed_claims"][0].text
+
+
 def test_adapter_preserves_cited_current_medication_provenance() -> None:
     packet = {
         "patient_id": "PAT-001",
@@ -237,5 +267,5 @@ def test_adapter_preserves_cited_current_medication_provenance() -> None:
     )
 
     medication = next(fact for fact in request.structured_facts if fact["fact_type"] == "current_medication_backend_fact")
-    assert medication["normalized_value"]["statement"] == "Thuốc hiện tại: ExampleMed 10 mg (active)"
+    assert medication["normalized_value"]["statement"] == "Thuốc hiện tại: ExampleMed 10 mg (đang sử dụng)"
     assert medication["citations"][0]["citation_id"] == "cit_med_1"

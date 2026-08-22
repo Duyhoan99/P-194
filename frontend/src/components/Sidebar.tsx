@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, FileText, Users, BarChart3, Settings, HelpCircle, LogOut, Stethoscope } from 'lucide-react';
 import { auth, patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
@@ -10,6 +10,7 @@ import { useLanguage } from '@/lib/i18n';
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [patientList, setPatientList] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { setSelectedPatient, refreshTrigger } = useAppStore();
@@ -35,7 +36,7 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     await auth.logout();
-    window.location.href = '/login';
+    router.replace('/login');
   };
 
   return (

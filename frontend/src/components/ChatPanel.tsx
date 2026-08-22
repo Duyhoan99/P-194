@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { Send, Bot, User, Search, AlertCircle, XCircle, Trash2 } from 'lucide-react';
+import { Send, Bot, User, AlertCircle, XCircle, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 /**

@@ -14,12 +14,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      CLINICAL_BACKEND: sqlite
-      CLINICAL_DATABASE_PATH: ./data/mimic_demo.db
     volumes:
       - ./data:/app/data
-      - ./mimic-iv-clinical-database-demo-2.2:/app/mimic-iv-clinical-database-demo-2.2:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -34,7 +30,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      API_PROXY_TARGET: http://backend:8000
     volumes:
       - ./frontend:/app/frontend
       - frontend_node_modules:/app/frontend/node_modules

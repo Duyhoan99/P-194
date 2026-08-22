@@ -5,14 +5,15 @@ import os
 
 import pytest
 
-from src.agents.generation import compose_atomic_claims, compose_atomic_claims_llm as compose_atomic_claims_llm
+from src.agents.adapter import AgentRequestAdapter
+from src.agents.evidence import build_scoped_evidence, retrieve_evidence
+from src.agents.generation import compose_atomic_claims
+from src.agents.generation import compose_atomic_claims_llm as compose_atomic_claims_llm
 from src.agents.llm_client import (
     MockLLMClinicalClient,
     NullLLMClinicalClient,
     build_llm_client,
 )
-from src.agents.adapter import AgentRequestAdapter
-from src.agents.evidence import build_scoped_evidence, retrieve_evidence
 from src.clinical.demo_repository import DemoRepository
 
 
@@ -102,9 +103,8 @@ def test_build_llm_client_no_key_returns_null():
 
 def test_build_llm_client_with_key_returns_real():
     """build_llm_client with a key returns UniversalOpenAIClient."""
-    from src.agents.llm_client import UniversalOpenAIClient
-    from src.agents.llm_client import build_llm_client
-    
+    from src.agents.llm_client import UniversalOpenAIClient, build_llm_client
+
     client = build_llm_client("sk-test-key-123", "gpt-4")
     assert isinstance(client, UniversalOpenAIClient)
 
@@ -132,8 +132,8 @@ def test_openai_mode_env_var_deterministic_fallback(monkeypatch):
 
 def test_prompt_injection_in_evidence_not_forwarded_to_model():
     """Evidence with prompt injection content is filtered before sending to OpenAI."""
-    from src.agents.evidence import is_prompt_injection_content
     from src.agents.contracts import EvidenceItem, RecordCitation
+    from src.agents.evidence import is_prompt_injection_content
 
     injection_item = EvidenceItem(
         evidence_id="ev_inject_001",
@@ -155,8 +155,8 @@ def test_prompt_injection_in_evidence_not_forwarded_to_model():
 
 def test_treatment_claim_not_allowed_before_openai():
     """Treatment recommendation question is blocked before OpenAI is called."""
-    from src.agents.policy import classify_request
     from src.agents.contracts import AgentRequest
+    from src.agents.policy import classify_request
 
     request = AgentRequest(
         request_id="req_treat",

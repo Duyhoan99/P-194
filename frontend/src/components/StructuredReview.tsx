@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { reviews, patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import {
     FileSignature,
     CheckCircle,
     XCircle,
-    Clock,
     AlertTriangle,
     Download,
     RefreshCw,
@@ -46,6 +45,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
     const [showVersions, setShowVersions] = useState(false);
     const [versions, setVersions] = useState<any[]>([]);
     const [versionsLoading, setVersionsLoading] = useState(false);
+    const loadedPatientRef = useRef<string | null>(null);
 
     const getSafeError = (err: any, defaultMsg: string): string => {
         if (!err) return defaultMsg;
@@ -87,8 +87,10 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
     };
 
     useEffect(() => {
-        loadCurrentReview();
-    }, [loadCurrentReview]);
+        if (loadedPatientRef.current === patientId) return;
+        loadedPatientRef.current = patientId;
+        void loadCurrentReview();
+    }, [loadCurrentReview, patientId]);
 
     const handleCitationClick = (citOrId: any) => {
         if (typeof citOrId === 'object' && citOrId !== null) {
@@ -230,12 +232,13 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             setError('Chỉ có thể xuất file PDF sau khi bác sĩ đã ký duyệt.');
             return;
         }
+        setError('');
         try {
             const blob = await reviews.exportPdf(patientId, review.review_id, review.review_version_id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Benh_An_Lam_Sang_${patientId}.pdf`;
+            a.download = `Tom_tat_dieu_tri_${patientId}_v${review.version}.pdf`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -301,7 +304,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             <div className="p-6 bg-rose-950/20 border border-rose-900/50 rounded-xl flex flex-col items-center justify-center h-full">
                 <AlertTriangle className="w-8 h-8 text-rose-400 mb-2" />
                 <p className="text-sm text-rose-300 text-center">{typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)}</p>
-                <button onClick={loadCurrentReview} className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-200">Thử lại</button>
+                <button onClick={generateReview} className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-200">Thử lại</button>
             </div>
         );
     }
@@ -343,7 +346,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                 : 'bg-amber-500/10 text-amber-400 border-amber-500/30';
 
     return (
-        <div className="bg-slate-950/70 border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full min-h-0 backdrop-blur-xl">
+        <div className="bg-slate-950/70 border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full max-h-[calc(100dvh-13rem)] min-h-0 backdrop-blur-xl">
             {/* Header */}
             <div className="p-3.5 px-4 border-b border-white/10 bg-slate-900/90 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
@@ -400,7 +403,12 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             )}
 
             {/* Content: Clean Medical Prose without heavy box borders */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-6 chat-scrollbar pr-3">
+            <div
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-6 summary-scrollbar pr-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-teal-400/60"
+                role="region"
+                aria-label="Nội dung bản tóm tắt điều trị"
+                tabIndex={0}
+            >
                 {sections.map((section: any, idx: number) => (
                     <div
                         key={section.section_code || idx}
@@ -519,8 +527,12 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                     {/* Patient Care Plan / Voice Guide Button */}
                     <button
                         onClick={() => setShowCareGuide(true)}
-                        className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-purple-600/90 via-indigo-600/90 to-teal-600/90 hover:from-purple-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-950/40 border border-white/10"
-                        title="Tạo phiếu hướng dẫn ăn uống, vận động & dặn dò bằng giọng nói cho người bệnh"
+                        disabled={!isApproved}
+                        aria-disabled={!isApproved}
+                        className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-purple-600/90 via-indigo-600/90 to-teal-600/90 hover:from-purple-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-950/40 border border-white/10 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:from-purple-600/90 disabled:hover:to-teal-600/90"
+                        title={isApproved
+                            ? 'Tạo phiếu hướng dẫn ăn uống, vận động và dặn dò cho người bệnh'
+                            : 'Cần xử lý các điểm chưa xác minh và ký duyệt bản tóm tắt trước khi tạo hướng dẫn'}
                     >
                         <HeartPulse className="w-4 h-4 text-pink-300" />
                         <span>Hướng Dẫn Bệnh Nhân (Care Plan)</span>

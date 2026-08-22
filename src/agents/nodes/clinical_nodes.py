@@ -58,11 +58,11 @@ def classify_question_node(state: ClinicalReviewState) -> dict:
 def retrieve_evidence_node(state: ClinicalReviewState) -> dict:
     from src.agents.retrieval.conflict import detect_conflicts
     request = state["request"]
-    
+
     question_type = state["question_type"]
     if isinstance(question_type, str) and question_type == "not_allowed":
         return {"retrieved_evidence": [], "conflicts": []}
-        
+
     packet = state.get("evidence_packet", [])
     conflict_facts = [
         item for item in packet
@@ -102,7 +102,7 @@ def retrieve_evidence_node(state: ClinicalReviewState) -> dict:
         route=question_type,
         question=request.question if request.task_type == "ask_chart" else None,
     )
-    
+
     all_packet_items = [item.item for item in packet]
     detected_conflicts = detect_conflicts(all_packet_items)
     conflicts = [c.model_dump(mode="json") for c in detected_conflicts]
@@ -147,39 +147,24 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
     is_conversational = isinstance(qt, dict) and (qt.get("task_type") == "conversation" or not qt.get("retrieval_required", True))
 
     if is_conversational:
-        import re
         from src.agents.generation import ProposedClaim
         normalized_question = (request.question or "").strip().casefold()
         if isinstance(qt, dict) and qt.get("strict_intent") == "UNKNOWN":
             greeting_text = "Bạn muốn xem bệnh/chẩn đoán, chỉ số lần khám gần nhất, thuốc hay các chỉ số đang cảnh báo?"
-            conversation_intent = "clarification"
         elif isinstance(qt, dict) and qt.get("task_type") == "clarification":
             greeting_text = "Tôi chưa hiểu câu hỏi. Bạn có thể diễn đạt rõ hơn nội dung cần tra cứu không?"
-            conversation_intent = "clarification"
         elif normalized_question in {"tạm biệt", "hẹn gặp lại", "bye", "goodbye"}:
             greeting_text = "Tạm biệt! Khi cần rà soát hồ sơ, bạn cứ nhắn tôi nhé."
-            conversation_intent = "farewell"
         elif any(marker in normalized_question for marker in ("cảm ơn", "thanks", "thank you")):
             greeting_text = "Không có gì. Tôi luôn sẵn sàng hỗ trợ bạn rà sơ."
-            conversation_intent = "thanks"
         elif "bạn" in normalized_question and any(marker in normalized_question for marker in ("giúp", "hỗ trợ", "làm được", "khả năng")):
             greeting_text = "Tôi có thể tra cứu, đối chiếu và tóm tắt thông tin lâm sàng có dẫn nguồn trong hồ sơ hiện tại."
-            conversation_intent = "capability"
         else:
             greeting_text = "Xin chào! Tôi là AI Co-pilot hỗ trợ rà soát hồ sơ bệnh án. Tôi có thể giúp gì cho bạn hôm nay?"
-            conversation_intent = "greeting"
-        if runtime.available:
-            try:
-                gen_result = runtime.client.generate_claims(
-                    request.question,
-                    {"info": "conversation", "intent": conversation_intent},
-                )
-                if gen_result and gen_result.get("summary"):
-                    greeting_text = gen_result["summary"]
-                elif gen_result and gen_result.get("claims"):
-                    greeting_text = gen_result["claims"][0].get("text", greeting_text)
-            except Exception:
-                pass
+        # Retrieval-free navigation responses are server-owned. Sending these
+        # through the clinical claim generator lets provider-specific summary
+        # labels (for example "Lời chào hỏi.") replace the actual response.
+        # LLM generation remains enabled for grounded clinical questions below.
         proposed = [
             ProposedClaim(
                 claim_id="clm_greeting_1",
@@ -202,7 +187,6 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
                 stmt = item.item.normalized_value.get("statement", "")
                 if not stmt:
                     stmt = "Liều Metformin đang mâu thuẫn: FHIR ghi 500 mg, trong khi tài liệu ghi 850 mg."
-                cit_ids = [cit.citation_id for cit in item.item.citations]
                 proposed.append(ProposedClaim(
                     claim_id=f"clm_{item.item.evidence_id}",
                     text=stmt,
@@ -307,7 +291,7 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
         qt.get("task_type") == "conversation" or not qt.get("retrieval_required", True)
         or (qt.get("task_type") == "conflict_check" and not state.get("conflicts"))
     )
-    
+
     if not claims:
         if state.get("conflicts"):
             status = "conflicting"
@@ -356,7 +340,7 @@ def _deduplicate_citations(claims):
 def finalize_response_node(state: ClinicalReviewState) -> dict:
     request = state["request"]
     claims = state.get("claims", [])
-    
+
     # unsupported_claims from state must be wrapped as VerifiedClaim with status "unsupported"
     unsupported_proposed = state.get("unsupported_claims", [])
     unsupported_verified = []
@@ -390,7 +374,7 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
         qt.get("task_type") == "conversation" or not qt.get("retrieval_required", True)
         or (qt.get("task_type") == "conflict_check" and not state.get("conflicts"))
     )
-    
+
     if request.task_type == "ask_chart":
         if status in {"answered", "conflicting"}:
             q_lower = (request.question or "").strip().casefold()
@@ -406,19 +390,26 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
                 table_ans = format_comparison_table_response(facts, query=request.question)
                 if table_ans:
                     answer = table_ans
-                    target_concept = "glucose" if any(k in q_lower for k in ["đường", "glucose"]) else ("hba1c" if "hba1c" in q_lower else None)
-                    compared_dates = ["2026-01-10", "2026-06-10"] if ("sáu tháng" in q_lower or "6 tháng" in q_lower) else None
+                    from src.agents.retrieval.concepts import fold, resolve_concept
+
+                    target_concept = resolve_concept(request.question or "")
+                    answer_dates = set(re.findall(r"\b\d{4}-\d{2}-\d{2}\b", table_ans))
+                    compared_dates = set(sorted(answer_dates, reverse=True)[:2])
                     citations = []
                     for f in facts:
                         ft = str(f.get("fact_type", "")).casefold()
-                        st = str(f.get("source_time", "") or "")
                         stmt = str(f.get("normalized_value", "")).casefold() + " " + str(f.get("source_value", "")).casefold()
                         if "observation" in ft or "lab" in ft:
-                            if target_concept and target_concept not in stmt:
-                                continue
-                            if compared_dates and not any(d in st for d in compared_dates):
+                            if target_concept and not any(
+                                alias in fold(stmt) for alias in target_concept.evidence_aliases
+                            ):
                                 continue
                             for cit in f.get("citations", []):
+                                source_time = str(
+                                    cit.get("source_time") or f.get("source_time") or ""
+                                )
+                                if compared_dates and source_time[:10] not in compared_dates:
+                                    continue
                                 if cit not in citations:
                                     citations.append(cit)
             elif is_med_timeline_query:
@@ -447,7 +438,7 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
                 facts = list(request.structured_facts)
                 for item in request.note_evidence:
                     facts.append(item.model_dump() if hasattr(item, "model_dump") else item.__dict__)
-                
+
                 from src.clinical.guidelines import extract_and_evaluate_facts, format_clinical_status_response
                 warnings, goods = extract_and_evaluate_facts(facts)
                 if warnings or goods:
@@ -475,7 +466,7 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
                             norm_patterns.extend([f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}", f"{parts[2].zfill(2)}/{parts[1].zfill(2)}/{parts[0]}"])
                         else:
                             norm_patterns.extend([f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}", f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"])
-                    
+
                     has_date_match = False
                     for c in claims:
                         if any(p in c.text for p in norm_patterns):
@@ -486,7 +477,7 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
                             if any(p in st for p in norm_patterns):
                                 has_date_match = True
                                 break
-                    
+
                     if not has_date_match:
                         entity = "này"
                         for ent in ["HbA1c", "Glucose", "Creatinine", "eGFR", "Huyết áp", "nhiệt độ"]:

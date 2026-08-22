@@ -3,8 +3,9 @@
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-
+from loguru import logger
 from pydantic import BaseModel, Field
+
 from src.agents.adapter import AgentRequestAdapter
 from src.agents.graph import run_agent
 from src.api.auth_routes import DEFAULT_CLINICIAN
@@ -103,8 +104,12 @@ def get_review(
     patient_id: str,
     version: int | None = Query(default=None),
     review_version_id: str | None = Query(default=None),
+    allow_missing: bool = Query(
+        default=False,
+        description="Return 204 when no review exists; intended for optional UI lookups.",
+    ),
     repo: DemoRepository = Depends(get_demo_repository),
-) -> ReviewResponse:
+) -> ReviewResponse | Response:
     if not repo.get_patient(patient_id):
         raise HTTPException(
             status_code=404,
@@ -113,6 +118,8 @@ def get_review(
 
     rev = repo.get_review(patient_id, version, review_version_id)
     if not rev:
+        if allow_missing:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         raise HTTPException(
             status_code=404,
             detail={"code": "RESOURCE_NOT_FOUND", "message": "Chưa có bản rà soát nào cho bệnh nhân này."},
@@ -221,10 +228,30 @@ def export_pdf(
 
     patient = repo.get_patient(patient_id)
 
-    from src.clinical.pdf_generator import generate_review_pdf
-    pdf_content = generate_review_pdf(rev, patient)
+    try:
+        from src.clinical.pdf_generator import generate_review_pdf
 
-    filename = f"Clinical_Review_{patient_id}_v{rev.version}.pdf"
+        pdf_content = generate_review_pdf(rev, patient)
+    except ModuleNotFoundError as exc:
+        logger.exception("PDF export dependency is unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "PDF_SERVICE_UNAVAILABLE",
+                "message": "Dịch vụ xuất PDF chưa sẵn sàng. Vui lòng khởi động lại backend hoặc liên hệ quản trị viên.",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("PDF generation failed for review {}", review_version_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "PDF_GENERATION_FAILED",
+                "message": "Không thể tạo file PDF cho phiên bản đã duyệt. Vui lòng thử lại.",
+            },
+        ) from exc
+
+    filename = f"Tom_tat_dieu_tri_{patient_id}_v{rev.version}.pdf"
 
     headers = {
         "Content-Disposition": f'attachment; filename="{filename}"',

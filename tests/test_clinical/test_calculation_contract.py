@@ -1,12 +1,12 @@
 """Unit tests for calculation contract requirements in ARCHITECTURE.md section 14.11.1."""
 
 from decimal import Decimal
-import pytest
+
 from src.clinical.calculation import (
-    convert_unit,
-    format_display_value,
     calculate_delta,
     calculate_trend,
+    convert_unit,
+    format_display_value,
 )
 
 

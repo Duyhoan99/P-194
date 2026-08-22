@@ -1,8 +1,8 @@
 """OCR verification service and storage according to API_CONTRACT.md section 4.5."""
 
 import uuid
-from typing import Any
-from src.clinical.canonical import VerificationItem, DataQualityFlag
+
+from src.clinical.canonical import VerificationItem
 
 
 class OCRVerificationService:

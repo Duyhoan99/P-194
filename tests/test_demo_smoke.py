@@ -12,27 +12,9 @@ def _load_smoke_module():
     return module
 
 
-def test_smoke_event_format_discards_clinical_values_rows_and_secrets():
+def test_smoke_event_contains_metadata_only():
     smoke = _load_smoke_module()
-
-    output = smoke.format_safe_event(
-        "laboratory evidence",
-        {
-            "status": "SUCCESS",
-            "trace_id": "trace-123",
-            "records": [
-                {
-                    "data": {"label": "Creatinine", "valuenum": 1.2},
-                    "lineage": {"table": "labevents"},
-                }
-            ],
-            "summary": "Clinical summary text must not be printed",
-            "api_key": "never-print-this",
-        },
-    )
-
-    assert output == "laboratory evidence status=SUCCESS record_count=1 trace_id=trace-123 source_tables=labevents"
-    assert "Creatinine" not in output
-    assert "1.2" not in output
-    assert "summary" not in output
-    assert "never-print-this" not in output
+    output = smoke.format_safe_event("timeline", status=200, count=4, resource_id="PAT-001")
+    assert output == "timeline http_status=200 count=4 resource_id=PAT-001"
+    assert "HbA1c" not in output
+    assert "cookie" not in output

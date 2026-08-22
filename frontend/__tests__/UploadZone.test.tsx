@@ -57,7 +57,10 @@ test('reuses the patient created by the first file for remaining files', async (
     .mockResolvedValueOnce({ batch_id: 'batch-2', patient_id: 'PAT-NEW-ABC123', status: 'completed' });
   const { container } = render(<UploadZone />);
 
-  fireEvent.change(screen.getByLabelText('Tên bệnh nhân mới (Tùy chọn)'), {
+  fireEvent.change(screen.getByLabelText('Hồ sơ bệnh nhân đích'), {
+    target: { value: 'new' },
+  });
+  fireEvent.change(screen.getByLabelText('Tên bệnh nhân mới'), {
     target: { value: 'Nguyễn Văn A' },
   });
   chooseFiles(container);

@@ -2,9 +2,23 @@
 
 import pytest
 from fastapi.testclient import TestClient
+
+from src.api.dependencies import get_demo_repository
+from src.clinical.demo_repository import DemoRepository
 from src.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_repository(tmp_path):
+    """Every contract test starts from clean runtime review state."""
+    repo = DemoRepository(state_path=tmp_path / "review_state.json")
+    app.dependency_overrides[get_demo_repository] = lambda: repo
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_demo_repository, None)
 
 
 def test_health_check():

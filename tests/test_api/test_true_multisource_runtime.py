@@ -1,16 +1,20 @@
 """Runtime E2E: one patient, three independent clinical source documents."""
 
+# Imports below the optional dependency checks are intentional.
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import io
 import json
 from unittest import mock
+
 import pytest
 
 reportlab = pytest.importorskip("reportlab")
-from reportlab.pdfgen import canvas
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
+from reportlab.pdfgen import canvas
 
 from src.api import ingestion_routes
 from src.api.dependencies import get_demo_repository

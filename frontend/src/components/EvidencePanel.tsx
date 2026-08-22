@@ -9,8 +9,9 @@ export default function EvidencePanel() {
   const { isEvidencePanelOpen, setEvidencePanelOpen, focusedCitation } = useAppStore();
   const [viewMode, setViewMode] = useState<'snippet' | 'document'>('snippet');
 
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
   const pdfUrl = focusedCitation?.document_id
-    ? `http://localhost:8000/api/v1/documents/${focusedCitation.document_id}/raw`
+    ? `${apiBase}/api/v1/documents/${encodeURIComponent(focusedCitation.document_id)}/raw`
     : null;
 
   const isPdfSource = focusedCitation?.source_type === 'pdf';
@@ -136,7 +137,7 @@ export default function EvidencePanel() {
                         <iframe 
                           src={embeddedPdfUrl}
                           className="w-full h-full"
-                          title="PDF Document Viewer"
+                          title="Tài liệu PDF gốc"
                         />
                       </div>
                     </div>

@@ -1,8 +1,10 @@
 """Claims and Evidence REST endpoints adhering strictly to API_CONTRACT.md section 4.9."""
 
 from datetime import datetime
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
+
 from src.clinical.canonical import Citation, FhirCitation
 
 router = APIRouter(tags=["claims"])

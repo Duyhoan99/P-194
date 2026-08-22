@@ -1,7 +1,7 @@
 """Unseen final-polish tests. Keep these complete sentences out of rule code."""
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from src.agents.contracts import EvidenceItem
 from src.agents.retrieval.conflict import detect_conflicts

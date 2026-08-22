@@ -1,8 +1,9 @@
 """Script to generate EvidencePacket and AgentRequest fixtures for Member 2 and Member 3."""
 
 import json
-from pathlib import Path
 import uuid
+from pathlib import Path
+
 from src.agents.adapter import AgentRequestAdapter
 from src.clinical.demo_repository import DemoRepository
 from src.clinical.evidence_packet import EvidencePacket

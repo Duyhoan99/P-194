@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { AlertTriangle, AlertCircle, Info, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, AlertCircle } from 'lucide-react';
 
 export default function PatientAlerts() {
   const { currentReview, setFocusedCitation } = useAppStore();

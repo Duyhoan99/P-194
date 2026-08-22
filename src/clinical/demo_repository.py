@@ -1,47 +1,48 @@
 """Demo MVP v1 repository handling baseline data loading, canonical mapping, OCR items, reviews, memory, and audit logs."""
 
 import json
-from pathlib import Path
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any
+
 from src.agents.contracts import AgentResult
-from src.clinical.canonical import (
-    PatientSummary,
-    TimelineEvent,
-    TrendPoint,
-    ReviewResponse,
-    ReviewSection,
-    VerifiedClaim,
-    ConflictFlag,
-    DrugInteractionFlag,
-    DataQualityFlag,
-    Coverage,
-    PatientMemory,
-    MemoryItem,
-    VerificationItem,
-    FhirCitation,
-    DocumentCitation,
-    RecordCitation,
-    Citation,
-)
-from src.clinical.evidence_packet import EvidencePacket
 from src.clinical.calculation import (
     convert_unit,
     format_display_value,
-    calculate_delta,
-    calculate_trend,
 )
+from src.clinical.canonical import (
+    ConflictFlag,
+    Coverage,
+    DataQualityFlag,
+    DrugInteractionFlag,
+    FhirCitation,
+    MemoryItem,
+    PatientMemory,
+    PatientSummary,
+    ReviewResponse,
+    ReviewSection,
+    TimelineEvent,
+    TrendPoint,
+    VerificationItem,
+)
+from src.clinical.evidence_packet import EvidencePacket
+from src.config import get_settings
 from src.services.medication_safety import MedicationSafetyService
 
 
 class DemoRepository:
     """In-memory & JSON backed repository for demo_mvp_v1 baseline dataset."""
 
-    def __init__(self, data_dir: str | Path | None = None):
+    def __init__(
+        self,
+        data_dir: str | Path | None = None,
+        state_path: str | Path | None = None,
+    ):
         if data_dir is None:
-            data_dir = Path(__file__).parents[2] / "data" / "demo_mvp_v1"
+            data_dir = get_settings().demo_data_dir
         self.data_dir = Path(data_dir)
+        self.state_path = Path(state_path) if state_path else None
 
         self._patients: dict[str, PatientSummary] = {}
         self._bundles: dict[str, dict[str, Any]] = {}
@@ -60,13 +61,54 @@ class DemoRepository:
         self.med_safety = MedicationSafetyService()
 
         self._load_baseline()
+        self._load_review_state()
+
+    def _load_review_state(self) -> None:
+        """Restore clinician review approvals for the persistent demo runtime."""
+        if self.state_path is None or not self.state_path.is_file():
+            return
+        try:
+            payload = json.loads(self.state_path.read_text(encoding="utf-8"))
+            reviews = payload.get("reviews", {})
+            memories = payload.get("memories", {})
+            self._reviews = {
+                patient_id: [ReviewResponse.model_validate(item) for item in items]
+                for patient_id, items in reviews.items()
+                if patient_id in self._patients and isinstance(items, list)
+            }
+            self._memories = {
+                patient_id: [PatientMemory.model_validate(item) for item in items]
+                for patient_id, items in memories.items()
+                if patient_id in self._patients and isinstance(items, list)
+            }
+        except (OSError, ValueError, TypeError):
+            self._reviews = {}
+            self._memories = {}
+
+    def _persist_review_state(self) -> None:
+        if self.state_path is None:
+            return
+        self.state_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "reviews": {
+                patient_id: [review.model_dump(mode="json") for review in reviews]
+                for patient_id, reviews in self._reviews.items()
+            },
+            "memories": {
+                patient_id: [memory.model_dump(mode="json") for memory in memories]
+                for patient_id, memories in self._memories.items()
+            },
+        }
+        temporary = self.state_path.with_suffix(f"{self.state_path.suffix}.tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(self.state_path)
 
     def _load_baseline(self) -> None:
         manifest_path = self.data_dir / "dataset_manifest.json"
         if not manifest_path.exists():
             return
 
-        with open(manifest_path, "r", encoding="utf-8") as f:
+        with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
 
         for p_info in manifest.get("patients", []):
@@ -80,8 +122,10 @@ class DemoRepository:
             name = "Bệnh nhân Demo"
             gender = "female"
             age = 58
+            primary_condition: str | None = None
+            last_encounter_at: str | None = None
             if bundle_path and bundle_path.exists():
-                with open(bundle_path, "r", encoding="utf-8") as bf:
+                with open(bundle_path, encoding="utf-8") as bf:
                     b_data = json.load(bf)
                     self._bundles[p_id] = b_data
                     for entry in b_data.get("entry", []):
@@ -97,14 +141,29 @@ class DemoRepository:
                                     age = datetime.now().year - byear
                                 except Exception:
                                     pass
+                        elif res.get("resourceType") == "Condition" and primary_condition is None:
+                            clinical_codes = {
+                                str(coding.get("code", "")).casefold()
+                                for coding in res.get("clinicalStatus", {}).get("coding", [])
+                            }
+                            if not clinical_codes.intersection({"inactive", "resolved", "remission"}):
+                                codeable = res.get("code", {})
+                                codings = codeable.get("coding", [])
+                                primary_condition = codeable.get("text") or (
+                                    codings[0].get("display") if codings else None
+                                )
+                        elif res.get("resourceType") == "Encounter":
+                            started_at = res.get("period", {}).get("start")
+                            if started_at and (last_encounter_at is None or started_at > last_encounter_at):
+                                last_encounter_at = started_at
 
             self._patients[p_id] = PatientSummary(
                 patient_id=p_id,
                 pseudonym=name,
                 age=age,
                 sex=gender if gender in ("male", "female", "other", "unknown") else "unknown",
-                primary_condition="Đái tháo đường típ 2",
-                last_encounter_at="2026-08-10T12:00:00+07:00",
+                primary_condition=primary_condition or "Chưa có dữ liệu",
+                last_encounter_at=last_encounter_at,
                 latest_data_watermark=wm,
             )
 
@@ -112,7 +171,7 @@ class DemoRepository:
         gold_ocr = self.data_dir / "gold" / "ocr.json"
         if gold_ocr.exists():
             try:
-                with open(gold_ocr, "r", encoding="utf-8") as f:
+                with open(gold_ocr, encoding="utf-8") as f:
                     ocr_data = json.load(f)
                     for item in ocr_data.get("verification_items", []):
                         v_id = item["verification_item_id"]
@@ -134,14 +193,15 @@ class DemoRepository:
         gold_conflicts = self.data_dir / "gold" / "conflicts.json"
         if gold_conflicts.exists():
             try:
-                with open(gold_conflicts, "r", encoding="utf-8") as f:
+                with open(gold_conflicts, encoding="utf-8") as f:
                     c_data = json.load(f)
                     for case in c_data.get("cases", []):
                         p_id = case.get("patient_id")
                         c_id = case.get("case_id", f"CONFLICT-{p_id}")
+                        raw_status = str(case.get("status", "open"))
                         self._conflicts.setdefault(p_id, []).append({
                             "conflict_id": c_id,
-                            "type": case.get("type", "medication_dose_conflict"),
+                            "conflict_type": case.get("conflict_type") or case.get("type", "medication_dose_conflict"),
                             "description": "Liều Metformin đang mâu thuẫn: FHIR ghi 500 mg, trong khi tài liệu ghi 850 mg.",
                             "source_a": [{
                                 "citation_id": "PAT-003-MED-001",
@@ -161,7 +221,10 @@ class DemoRepository:
                                 "source_checksum": "a3db17359c3b2039946fcd1a2ad10887936de545e223a9c148e1435b0b2e7c54",
                                 "extraction_version": "1.0.0"
                             }],
-                            "status": case.get("status", "unresolved")
+                            # Gold fixtures cũ dùng ``unresolved`` trong khi contract
+                            # công khai dùng ``open``. Chuẩn hóa ngay tại biên nạp dữ
+                            # liệu để PAT-003 không bị hiểu nhầm thành lỗi patient scope.
+                            "status": "open" if raw_status == "unresolved" else raw_status,
                         })
             except Exception:
                 pass
@@ -227,10 +290,11 @@ class DemoRepository:
         self._bundles.pop(patient_id, None)
         self._reviews.pop(patient_id, None)
         self._memories.pop(patient_id, None)
+        self._persist_review_state()
         self._pdf_evidence.pop(patient_id, None)
         self._uploaded_fhir_evidence.pop(patient_id, None)
         self._watermarks.pop(patient_id, None)
-        
+
         pdf_verif = self._pdf_verification_items.pop(patient_id, [])
         for v in pdf_verif:
             v_id = v.get("verification_item_id")
@@ -568,14 +632,189 @@ class DemoRepository:
             if rev.status not in {"approved", "stale"}:
                 rev.status = "stale"  # type: ignore[assignment]
                 count += 1
+        if count:
+            self._persist_review_state()
         return count
+
+    @staticmethod
+    def _codeable_text(codeable: Any, default: str) -> str:
+        if not isinstance(codeable, dict):
+            return default
+        text = str(codeable.get("text") or "").strip()
+        if text:
+            return text
+        codings = codeable.get("coding") or []
+        if codings and isinstance(codings[0], dict):
+            return str(codings[0].get("display") or codings[0].get("code") or default)
+        return default
+
+    def _clinical_resource_records(self, patient_id: str) -> list[tuple[dict[str, Any], list[dict[str, Any]]]]:
+        """Return patient-scoped FHIR resources with their provenance citations."""
+        records: dict[tuple[str, str], tuple[dict[str, Any], list[dict[str, Any]]]] = {}
+        for entry in self._bundles.get(patient_id, {}).get("entry", []):
+            resource = entry.get("resource", {}) if isinstance(entry, dict) else {}
+            if not isinstance(resource, dict) or not resource.get("resourceType"):
+                continue
+            resource_type = str(resource["resourceType"])
+            resource_id = str(resource.get("id") or f"resource-{len(records) + 1}")
+            citation = FhirCitation(
+                citation_id=f"cit_{resource_id}",
+                document_id=f"DOC-{patient_id}-FHIR",
+                resource_type=resource_type,
+                resource_id=resource_id,
+                snippet=json.dumps(resource, ensure_ascii=False)[:200],
+                source_checksum="sha256:baseline",
+            ).model_dump(mode="json")
+            records[(resource_type, resource_id)] = (resource, [citation])
+
+        # Uploaded FHIR is already canonicalized and scope-checked. Prefer the
+        # uploaded version if it intentionally replaces a resource with the same id.
+        for item in self._uploaded_fhir_evidence.get(patient_id, []):
+            source_value = item.get("source_value", {}) if isinstance(item, dict) else {}
+            resource = source_value.get("resource", {}) if isinstance(source_value, dict) else {}
+            if not isinstance(resource, dict) or not resource.get("resourceType"):
+                continue
+            resource_type = str(resource["resourceType"])
+            resource_id = str(resource.get("id") or item.get("evidence_id") or f"upload-{len(records) + 1}")
+            citations = [dict(c) for c in item.get("citations", []) if isinstance(c, dict)]
+            records[(resource_type, resource_id)] = (resource, citations)
+        return list(records.values())
+
+    def _active_conditions(self, patient_id: str) -> list[dict[str, Any]]:
+        conditions: list[dict[str, Any]] = []
+        for resource, citations in self._clinical_resource_records(patient_id):
+            if resource.get("resourceType") != "Condition":
+                continue
+            clinical_codes = {
+                str(coding.get("code", "")).casefold()
+                for coding in resource.get("clinicalStatus", {}).get("coding", [])
+                if isinstance(coding, dict)
+            }
+            if clinical_codes.intersection({"inactive", "resolved", "remission", "entered-in-error"}):
+                continue
+            codeable = resource.get("code", {})
+            codings = codeable.get("coding", []) if isinstance(codeable, dict) else []
+            conditions.append({
+                "condition": self._codeable_text(codeable, "Chẩn đoán chưa đặt tên"),
+                "code": str(codings[0].get("code") or "") if codings else None,
+                "clinical_status": next(iter(clinical_codes), "active"),
+                "recorded_at": resource.get("recordedDate") or resource.get("onsetDateTime"),
+                "citations": citations,
+            })
+        conditions.sort(key=lambda item: str(item.get("recorded_at") or ""))
+        return conditions
+
+    def _current_medications(self, patient_id: str) -> list[dict[str, Any]]:
+        medications: list[dict[str, Any]] = []
+        active_statuses = {"active", "on-hold", "intended"}
+        for resource, citations in self._clinical_resource_records(patient_id):
+            resource_type = resource.get("resourceType")
+            if resource_type not in {"MedicationRequest", "MedicationStatement"}:
+                continue
+            status = str(resource.get("status") or "unknown").casefold()
+            if status not in active_statuses:
+                continue
+            instructions = resource.get("dosageInstruction") or resource.get("dosage") or []
+            dosage_parts: list[str] = []
+            for instruction in instructions:
+                if not isinstance(instruction, dict):
+                    continue
+                text = str(instruction.get("text") or "").strip()
+                if text:
+                    dosage_parts.append(text)
+            medications.append({
+                "medication": self._codeable_text(resource.get("medicationCodeableConcept"), "Thuốc chưa đặt tên"),
+                "status": status,
+                "dosage": "; ".join(dosage_parts) or None,
+                "recorded_at": (
+                    resource.get("authoredOn")
+                    or resource.get("effectiveDateTime")
+                    or resource.get("dateAsserted")
+                    or (resource.get("effectivePeriod") or {}).get("start")
+                ),
+                "resource_type": resource_type,
+                "citations": citations,
+            })
+        medications.sort(key=lambda item: (str(item.get("recorded_at") or ""), item["medication"]))
+        return medications
+
+    def _allergies(self, patient_id: str) -> list[dict[str, Any]]:
+        allergies: list[dict[str, Any]] = []
+        for resource, citations in self._clinical_resource_records(patient_id):
+            if resource.get("resourceType") != "AllergyIntolerance":
+                continue
+            status_codes = {
+                str(coding.get("code", "")).casefold()
+                for coding in resource.get("clinicalStatus", {}).get("coding", [])
+                if isinstance(coding, dict)
+            }
+            if status_codes.intersection({"inactive", "resolved", "entered-in-error"}):
+                continue
+            reactions = []
+            for reaction in resource.get("reaction", []):
+                for manifestation in reaction.get("manifestation", []):
+                    reactions.append(self._codeable_text(manifestation, "Phản ứng chưa mô tả"))
+            allergies.append({
+                "substance": self._codeable_text(resource.get("code"), "Dị ứng chưa đặt tên"),
+                "reactions": reactions,
+                "criticality": resource.get("criticality"),
+                "citations": citations,
+            })
+        return allergies
+
+    def _latest_observations(self, patient_id: str) -> list[dict[str, Any]]:
+        observations_by_code: dict[str, list[dict[str, Any]]] = {}
+        for resource, citations in self._clinical_resource_records(patient_id):
+            if resource.get("resourceType") != "Observation":
+                continue
+            if str(resource.get("status") or "").casefold() in {"entered-in-error", "cancelled"}:
+                continue
+            codeable = resource.get("code", {})
+            codings = codeable.get("coding", []) if isinstance(codeable, dict) else []
+            code = str(codings[0].get("code") or "") if codings else self._codeable_text(codeable, "unknown")
+            quantity = resource.get("valueQuantity") or {}
+            if quantity.get("value") is None:
+                continue
+            observations_by_code.setdefault(code, []).append({
+                "code": code,
+                "display": self._codeable_text(codeable, code),
+                "value": quantity.get("value"),
+                "unit": quantity.get("unit") or quantity.get("code") or "",
+                "observed_at": resource.get("effectiveDateTime") or resource.get("issued"),
+                "citations": citations,
+            })
+
+        latest: list[dict[str, Any]] = []
+        for points in observations_by_code.values():
+            points.sort(key=lambda item: str(item.get("observed_at") or ""))
+            current = dict(points[-1])
+            if len(points) > 1:
+                previous = points[-2]
+                current["previous_value"] = previous.get("value")
+                current["previous_observed_at"] = previous.get("observed_at")
+                try:
+                    delta = float(current["value"]) - float(previous["value"])
+                    current["trend"] = "increased" if delta > 0 else "decreased" if delta < 0 else "stable"
+                except (TypeError, ValueError):
+                    current["trend"] = "unknown"
+            latest.append(current)
+        latest.sort(key=lambda item: (str(item.get("display") or ""), str(item.get("code") or "")))
+        return latest
 
     def build_evidence_packet(self, patient_id: str) -> EvidencePacket:
         """Build the locked C1 packet consumed by the C3 agent adapter."""
         if patient_id not in self._patients:
             raise KeyError(f"Patient {patient_id} not found")
         events = self.get_timeline(patient_id)
-        _, _, hba1c_points = self.get_trends(patient_id, "4548-4")
+        # Keep the established C3-agent contract focused on the profiled HbA1c
+        # series. Care-plan personalization reads all metrics from
+        # latest_observations without inflating unrelated chat citations.
+        trend_codes = ("4548-4",)
+        lab_trends: dict[str, list[dict[str, Any]]] = {}
+        for code in trend_codes:
+            _, _, points = self.get_trends(patient_id, code)
+            if points:
+                lab_trends[code] = [point.model_dump(mode="json") for point in points]
         dates = sorted(event.occurred_at[:10] for event in events if event.occurred_at)
         pdf_evs = list(self._pdf_evidence.get(patient_id, []))
         pdf_doc_ids = list({
@@ -591,33 +830,11 @@ class DemoRepository:
             coverage_end=dates[-1] if dates else None,
             encounter_count=sum(event.event_type == "encounter" for event in events),
             timeline=[event.model_dump(mode="json") for event in events],
-            lab_trends={"4548-4": [point.model_dump(mode="json") for point in hba1c_points]},
-            active_conditions=[{
-                "condition": "Đái tháo đường Típ 2",
-                "code": "44054006",
-                "citations": [{
-                    "citation_id": "cit_baseline_cond",
-                    "source_type": "fhir",
-                    "document_id": f"DOC-{patient_id}-FHIR",
-                    "resource_type": "Condition",
-                    "resource_id": "baseline_cond",
-                    "snippet": "Đái tháo đường Típ 2",
-                    "source_checksum": "sha256:baseline"
-                }]
-            }],
-            current_medications=[{
-                "medication": "Metformin 1000mg",
-                "status": "active",
-                "citations": [{
-                    "citation_id": "cit_baseline_med",
-                    "source_type": "fhir",
-                    "document_id": f"DOC-{patient_id}-FHIR",
-                    "resource_type": "MedicationStatement",
-                    "resource_id": "baseline_med",
-                    "snippet": "Metformin 1000mg",
-                    "source_checksum": "sha256:baseline"
-                }]
-            }],
+            lab_trends=lab_trends,
+            latest_observations=self._latest_observations(patient_id),
+            active_conditions=self._active_conditions(patient_id),
+            current_medications=self._current_medications(patient_id),
+            allergies=self._allergies(patient_id),
             fhir_evidence=list(self._uploaded_fhir_evidence.get(patient_id, [])),
             conflicts=list(self._conflicts.get(patient_id, [])),
             drug_interactions=[],
@@ -696,6 +913,7 @@ class DemoRepository:
         )
 
         self._reviews.setdefault(patient_id, []).append(review)
+        self._persist_review_state()
         return review
 
     def patch_review(
@@ -710,7 +928,6 @@ class DemoRepository:
         if current.version != expected_version:
             from src.clinical.errors import ReviewPolicyError
             raise ReviewPolicyError("VERSION_CONFLICT")
-
         if current.status == "approved":
             from src.clinical.errors import ReviewPolicyError
             raise ReviewPolicyError("INVALID_TRANSITION")
@@ -720,13 +937,64 @@ class DemoRepository:
         new_rv_id = f"rv_{uuid.uuid4().hex[:8]}"
 
         updated_sections = []
+        clinician_reviewed_conflict = False
         for sec in current.sections:
             sec_dict = sec.model_dump()
             for patch_sec in sections:
                 if patch_sec.get("section_code") == sec.section_code:
                     if "clinician_text" in patch_sec:
                         sec_dict["clinician_text"] = patch_sec["clinician_text"]
+                    if "claims" in patch_sec:
+                        incoming_claims = {
+                            str(item.get("claim_id")): item
+                            for item in patch_sec.get("claims", [])
+                            if isinstance(item, dict) and item.get("claim_id")
+                        }
+                        existing_ids = {claim.claim_id for claim in sec.claims}
+                        if set(incoming_claims) - existing_ids:
+                            from src.clinical.errors import ReviewPolicyError
+                            raise ReviewPolicyError("INVALID_CLAIM_EDIT")
+                        edited_claims = []
+                        for claim in sec.claims:
+                            incoming = incoming_claims.get(claim.claim_id)
+                            if not incoming:
+                                edited_claims.append(claim)
+                                continue
+                            text = str(incoming.get("text") or "").strip()
+                            if not text or len(text) > 4000:
+                                from src.clinical.errors import ReviewPolicyError
+                                raise ReviewPolicyError("INVALID_CLAIM_EDIT")
+                            if text == claim.text.strip():
+                                edited_claims.append(claim)
+                                continue
+                            if not reason or len(reason.strip()) < 3:
+                                from src.clinical.errors import ReviewPolicyError
+                                raise ReviewPolicyError("EDIT_REASON_REQUIRED")
+                            # Bác sĩ chỉ gửi nội dung; trích dẫn gốc vẫn do server
+                            # giữ để không thể giả mạo nguồn. Trạng thái verified
+                            # dưới đây là xác nhận lâm sàng do server ghi nhận từ
+                            # thao tác có lý do, không đọc trạng thái từ client.
+                            edited_claims.append(
+                                claim.model_copy(
+                                    update={
+                                        "text": text,
+                                        "status": "verified",
+                                        "confidence": "high",
+                                        "generator_version": "clinician-verified@1.0.0",
+                                    }
+                                )
+                            )
+                            if sec.section_code == "changes_to_review" and claim.status == "needs_verification":
+                                clinician_reviewed_conflict = True
+                        sec_dict["claims"] = [claim.model_dump(mode="json") for claim in edited_claims]
             updated_sections.append(ReviewSection(**sec_dict))
+
+        updated_conflicts = [
+            conflict.model_copy(update={"status": "reviewed"})
+            if clinician_reviewed_conflict and conflict.status == "open"
+            else conflict.model_copy()
+            for conflict in current.conflicts
+        ]
 
         new_rev = current.model_copy(
             update={
@@ -735,9 +1003,11 @@ class DemoRepository:
                 "status": "edited",
                 "updated_at": now_str,
                 "sections": updated_sections,
+                "conflicts": updated_conflicts,
             }
         )
         revs.append(new_rev)
+        self._persist_review_state()
         return new_rev
 
     def approve_review(
@@ -750,6 +1020,9 @@ class DemoRepository:
 
         current = revs[-1]
         if current.version != expected_version:
+            from src.clinical.errors import ReviewPolicyError
+            raise ReviewPolicyError("VERSION_CONFLICT")
+        if current.review_version_id != review_version_id:
             from src.clinical.errors import ReviewPolicyError
             raise ReviewPolicyError("VERSION_CONFLICT")
 
@@ -771,6 +1044,7 @@ class DemoRepository:
 
         # Generate PatientMemory version
         self._create_patient_memory(patient_id, current)
+        self._persist_review_state()
         return current
 
     def reject_review(self, review_id: str, expected_version: int, reason: str) -> ReviewResponse:
@@ -786,6 +1060,7 @@ class DemoRepository:
 
         current.status = "rejected"
         current.updated_at = datetime.now().isoformat()
+        self._persist_review_state()
         return current
 
     def list_review_versions(self, review_id: str) -> list[dict[str, Any]]:

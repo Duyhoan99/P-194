@@ -45,8 +45,8 @@ $frontendProcess = $null
 $exitCode = 0
 
 try {
-    if ([string]::IsNullOrWhiteSpace($env:NEXT_PUBLIC_API_URL)) {
-        $env:NEXT_PUBLIC_API_URL = "http://localhost:8000"
+    if ([string]::IsNullOrWhiteSpace($env:API_PROXY_TARGET)) {
+        $env:API_PROXY_TARGET = "http://127.0.0.1:8000"
     }
 
     $backendProcess = Start-Process `

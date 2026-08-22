@@ -1,5 +1,5 @@
-import pytest
 from src.agents.retrieval.fusion import BaselineWeightedReranker
+
 
 class MockEvidence:
     def __init__(self, fact_type, statement, verification_status="verified"):
@@ -9,7 +9,7 @@ class MockEvidence:
 
 def test_paraphrased_queries_do_not_drop_evidence():
     reranker = BaselineWeightedReranker()
-    
+
     candidates = [
         MockEvidence("diagnosis", "Đái tháo đường típ 2"),
         MockEvidence("medication", "Metformin 1000mg"),
@@ -18,7 +18,7 @@ def test_paraphrased_queries_do_not_drop_evidence():
     ]
 
     # 1. "Bệnh nhân mắc bệnh gì?" (Paraphrase of "diagnosis" or "Đái tháo đường")
-    # Expected: should not return empty. It might just rank everything by base score + quality, 
+    # Expected: should not return empty. It might just rank everything by base score + quality,
     # but the key is that it doesn't DROP the evidence anymore.
     results1 = reranker.rerank("Bệnh nhân mắc bệnh gì?", candidates)
     assert len(results1) > 0, "Should not drop evidence for 'Bệnh nhân mắc bệnh gì?'"
@@ -30,9 +30,9 @@ def test_paraphrased_queries_do_not_drop_evidence():
     # 3. "HbA1c gần nhất?"
     results3 = reranker.rerank("HbA1c gần nhất?", candidates)
     assert len(results3) > 0, "Should not drop evidence for 'HbA1c gần nhất?'"
-    
+
     # 4. "Tình trạng hiện tại có gì đáng chú ý?" (Paraphrase for notes/conditions)
     results4 = reranker.rerank("Tình trạng hiện tại có gì đáng chú ý?", candidates)
     assert len(results4) > 0, "Should not drop evidence for 'Tình trạng hiện tại có gì đáng chú ý?'"
-    
+
     print("All tests passed! Evidence is no longer dropped purely due to lexical mismatch.")

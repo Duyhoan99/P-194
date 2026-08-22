@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { patients } from '@/lib/api';
 import { Users, Search, ArrowRight, UserPlus, Activity, Calendar, Trash2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -14,19 +14,19 @@ export default function PatientsLandingPage() {
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const { t } = useLanguage();
 
-  const loadPatients = () => {
+  const loadPatients = useCallback(() => {
     setLoading(true);
     patients.list({ page: 1, page_size: 50, search }).then(res => {
       setPatientList(res.items || []);
     }).catch(console.error).finally(() => setLoading(false));
-  };
+  }, [search]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       loadPatients();
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [search]);
+  }, [loadPatients]);
 
   const handleDelete = async (patientId: string) => {
     setDeletingId(patientId);

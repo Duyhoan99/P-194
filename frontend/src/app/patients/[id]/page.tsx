@@ -20,10 +20,8 @@ import {
   AlertTriangle,
   FileText,
   TrendingUp,
-  Calendar,
   Pill,
-  SplitSquareVertical,
-  ShieldCheck
+  SplitSquareVertical
 } from 'lucide-react';
 
 type WorkspaceTab = 'review' | 'medications' | 'conflicts' | 'metrics';
@@ -139,7 +137,9 @@ export default function PatientWorkspace() {
                   )}
                   <span className="flex items-center gap-1.5 text-slate-400">
                     <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    Tái khám gần nhất: {new Date(pData?.last_encounter_at || Date.now()).toLocaleDateString('vi-VN')}
+                    Tái khám gần nhất: {pData?.last_encounter_at
+                      ? new Date(pData.last_encounter_at).toLocaleDateString('vi-VN')
+                      : 'Chưa có dữ liệu'}
                   </span>
                   {pData?.latest_data_watermark && (
                     <span className="font-mono bg-slate-900/90 px-1.5 py-0.5 rounded text-[11px] text-slate-400 border border-slate-800">
@@ -252,7 +252,7 @@ export default function PatientWorkspace() {
                 )}
                 {activeTab === 'conflicts' && (
                   <div className="h-full min-h-0">
-                    <DataConflictsPanel patientId={patientId} />
+                    <DataConflictsPanel />
                   </div>
                 )}
                 {activeTab === 'metrics' && (

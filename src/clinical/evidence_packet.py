@@ -24,8 +24,10 @@ class EvidencePacket(BaseModel):
 
     timeline: list[dict[str, Any]] = Field(default_factory=list)
     lab_trends: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
+    latest_observations: list[dict[str, Any]] = Field(default_factory=list)
     active_conditions: list[dict[str, Any]] = Field(default_factory=list)
     current_medications: list[dict[str, Any]] = Field(default_factory=list)
+    allergies: list[dict[str, Any]] = Field(default_factory=list)
     fhir_evidence: list[dict[str, Any]] = Field(default_factory=list)
 
     conflicts: list[dict[str, Any]] = Field(default_factory=list)

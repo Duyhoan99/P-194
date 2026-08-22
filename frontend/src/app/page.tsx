@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Sparkles, ArrowRight, Award,
   FileText, Activity,
@@ -325,9 +326,11 @@ export default function LandingPage() {
 
               {/* 3D Hologram Master Image (Clean, No Overlay Bar) */}
               <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/60 group">
-                <img
+                <Image
                   src="/clinical-ai-hologram.jpg"
                   alt="3D Holographic Clinical AI Workstation"
+                  fill
+                  sizes="(min-width: 1024px) 50vw, 100vw"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
 
@@ -341,8 +344,8 @@ export default function LandingPage() {
               {/* 3D Mascot Cards Row (To lớn nổi bật, không có chữ P-194) */}
               <div className="grid grid-cols-2 gap-4 pt-1">
                 <div className="p-5 sm:p-6 rounded-2xl oura-glass-card border border-white/10 flex items-center gap-5 hover:border-teal-500/40 transition-all">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-white/10 shrink-0 border border-white/15 shadow-lg flex items-center justify-center">
-                    <img src="/doctor-3d.png" alt="Bác sĩ" className="w-full h-full object-cover scale-110" />
+                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-white/10 shrink-0 border border-white/15 shadow-lg flex items-center justify-center">
+                    <Image src="/doctor-3d.png" alt="Bác sĩ" fill sizes="112px" className="object-cover scale-110" />
                   </div>
                   <div>
                     <h4 className="text-base sm:text-lg font-semibold text-slate-100">Bác Sĩ Trưởng Khoa</h4>
@@ -351,8 +354,8 @@ export default function LandingPage() {
                 </div>
 
                 <div className="p-5 sm:p-6 rounded-2xl oura-glass-card border border-white/10 flex items-center gap-5 hover:border-teal-500/40 transition-all">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-white/10 shrink-0 border border-white/15 shadow-lg flex items-center justify-center">
-                    <img src="/hero-3d.png" alt="Robot AI" className="w-full h-full object-cover scale-110" />
+                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-white/10 shrink-0 border border-white/15 shadow-lg flex items-center justify-center">
+                    <Image src="/hero-3d.png" alt="Robot AI" fill sizes="112px" className="object-cover scale-110" />
                   </div>
                   <div>
                     <h4 className="text-base sm:text-lg font-semibold text-slate-100">AI Co-pilot</h4>
@@ -388,9 +391,11 @@ export default function LandingPage() {
             {/* 3D OCR Scanner Visual (5 cols) */}
             <div className="lg:col-span-5 rounded-3xl oura-glass p-4 border border-white/10 overflow-hidden shadow-2xl">
               <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10">
-                <img
+                <Image
                   src="/ocr-bounding-box-3d.jpg"
                   alt="3D Holographic OCR Document Scanner"
+                  fill
+                  sizes="(min-width: 1024px) 42vw, 100vw"
                   className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute top-3 left-3 px-3 py-1 rounded-full oura-glass text-xs font-mono text-teal-300 border border-teal-500/30">

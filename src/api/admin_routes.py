@@ -5,6 +5,7 @@ from typing import Literal
 
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, Query
+
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field
 
@@ -18,12 +19,12 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 class AssignmentRequest(BaseModel):
-    subject_id: int = Field(gt=0)
+    patient_id: str = Field(min_length=1, max_length=128)
 
 
 class AssignmentHistoryResponse(BaseModel):
-    subject_reference: str
-    action: Literal["ASSIGN_CLINICAL_SUBJECT", "REVOKE_CLINICAL_SUBJECT"]
+    patient_id: str
+    action: Literal["ASSIGN_PATIENT", "REVOKE_PATIENT"]
     actor: str
     timestamp: datetime
 
@@ -44,7 +45,7 @@ class UsersResponse(BaseModel):
 class AuditEntryResponse(BaseModel):
     actor: str
     action: AuditAction
-    subject_reference: str
+    patient_id: str
     timestamp: datetime
     result: AuditResult
     trace_id: str
@@ -58,10 +59,6 @@ class AuditResponse(BaseModel):
 def _require_role(context: AccessContext, *roles: str) -> None:
     if context.role not in roles:
         raise ClinicalAccessDenied
-
-
-def _subject_reference(subject_id: int) -> str:
-    return f"subject-{subject_id}"
 
 
 def _parse_audit_time(value: str | None) -> datetime | None:
@@ -82,10 +79,10 @@ def _user_response(user: OperationalUser) -> UserResponse:
         user_id=user.user_id,
         role=user.role,
         state=user.state,
-        assignments=[_subject_reference(subject_id) for subject_id in sorted(user.assigned_subject_ids)],
+        assignments=sorted(user.assigned_patient_ids),
         assignment_history=[
             AssignmentHistoryResponse(
-                subject_reference=_subject_reference(entry.subject_id),
+                patient_id=entry.patient_id,
                 action=entry.action,
                 actor=entry.actor_id,
                 timestamp=entry.timestamp,
@@ -114,7 +111,7 @@ def grant_assignment(
     _require_role(context, "ADMIN")
     try:
         user = store.change_assignment(
-            user_id, payload.subject_id, context.user_id, context.trace_id, "ASSIGN_CLINICAL_SUBJECT"
+            user_id, payload.patient_id, context.user_id, context.trace_id, "ASSIGN_PATIENT"
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail="Assignments may only target doctor accounts.") from error
@@ -123,19 +120,19 @@ def grant_assignment(
     return _user_response(user)
 
 
-@router.delete("/users/{user_id}/assignments/{subject_id}", response_model=UserResponse)
+@router.delete("/users/{user_id}/assignments/{patient_id}", response_model=UserResponse)
 def revoke_assignment(
     user_id: str,
-    subject_id: int,
+    patient_id: str,
     context: AccessContext = Depends(get_access_context),
     store: OperationalStore = Depends(get_operational_store),
 ) -> UserResponse:
     _require_role(context, "ADMIN")
-    if subject_id <= 0:
-        raise HTTPException(status_code=422, detail="Subject reference is invalid.")
+    if not patient_id.strip():
+        raise HTTPException(status_code=422, detail="Patient ID is invalid.")
     try:
         user = store.change_assignment(
-            user_id, subject_id, context.user_id, context.trace_id, "REVOKE_CLINICAL_SUBJECT"
+            user_id, patient_id, context.user_id, context.trace_id, "REVOKE_PATIENT"
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail="Assignments may only target doctor accounts.") from error
@@ -173,7 +170,7 @@ def list_audit_events(
             AuditEntryResponse(
                 actor=event.user_id,
                 action=event.action,
-                subject_reference=_subject_reference(event.subject_id),
+                patient_id=event.patient_id,
                 timestamp=event.timestamp,
                 result=event.result,
                 trace_id=event.trace_id,
