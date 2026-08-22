@@ -39,13 +39,19 @@ _SECTION_BY_FACT_TYPE: tuple[tuple[str, SectionCode], ...] = (
 def _statement(evidence: ScopedEvidence) -> str | None:
     value = evidence.item.normalized_value
     if isinstance(value, dict):
-        for key in ("statement", "public_text", "answer"):
+        for key in ("statement", "public_text", "answer", "display_name", "name", "concept"):
             statement = value.get(key)
             if isinstance(statement, str) and statement.strip():
                 return statement.strip()
-        return None
-    if isinstance(value, str) and value.strip():
+    elif isinstance(value, str) and value.strip():
         return value.strip()
+    source = evidence.item.source_value
+    if isinstance(source, dict):
+        summary = source.get("summary") or source.get("title")
+        if isinstance(summary, str) and summary.strip():
+            return summary.strip()
+    elif isinstance(source, str) and source.strip():
+        return source.strip()
     return None
 
 
@@ -98,37 +104,61 @@ def compose_comparison_claims(evidence_packet: list[ScopedEvidence]) -> list[Pro
     groups: dict[str, list[ScopedEvidence]] = {}
     for evidence in evidence_packet:
         source = evidence.item.source_value
-        if not isinstance(source, dict):
-            continue
-        title = re.sub(r"^(xét nghiệm|lab)\s*:\s*", "", str(source.get("title", "")).casefold()).strip()
-        if title:
-            groups.setdefault(title, []).append(evidence)
+        nv = evidence.item.normalized_value
+        text = ""
+        if isinstance(source, dict):
+            text += " " + " ".join(str(v) for v in source.values())
+        else:
+            text += " " + str(source)
+        if isinstance(nv, dict):
+            text += " " + " ".join(str(v) for v in nv.values())
+        else:
+            text += " " + str(nv)
+        resolved = resolve_concept(text)
+        concept = resolved.canonical if resolved else "Xét nghiệm"
+        groups.setdefault(concept, []).append(evidence)
+
     claims: list[ProposedClaim] = []
     for concept, items in groups.items():
         items.sort(key=lambda item: item.item.source_time or "")
-        if len(items) < 2:
+        points: list[tuple[float, str, str, ScopedEvidence]] = []
+        for it in items:
+            date_str = (it.item.source_time or "")[:10]
+            val = None
+            unit = ""
+            nv = it.item.normalized_value
+            sv = it.item.source_value
+            if isinstance(nv, dict) and "value" in nv:
+                try:
+                    val = float(nv["value"])
+                    unit = str(nv.get("unit", "")).strip()
+                except (ValueError, TypeError):
+                    pass
+            if val is None:
+                search_str = f"{sv} {nv}"
+                m = re.search(r"(\d+(?:[.,]\d+)?)", search_str)
+                if m:
+                    try:
+                        val = float(m.group(1).replace(",", "."))
+                        unit_m = re.search(r"(%|mmol/L|mg/dL|µmol/L|mL/min)", search_str, re.IGNORECASE)
+                        unit = unit_m.group(1).strip() if unit_m else ""
+                    except ValueError:
+                        pass
+            if val is not None:
+                points.append((val, unit, date_str, it))
+        if len(points) < 2:
             continue
-        first, last = items[0], items[-1]
-        first_summary = str(first.item.source_value.get("summary", ""))
-        last_summary = str(last.item.source_value.get("summary", ""))
-        first_num = re.search(r"-?\d+(?:[.,]\d+)?", first_summary)
-        last_num = re.search(r"-?\d+(?:[.,]\d+)?", last_summary)
-        if not first_num or not last_num:
-            continue
-        before = float(first_num.group().replace(",", "."))
-        after = float(last_num.group().replace(",", "."))
+        first, last = points[0], points[-1]
+        before, after = first[0], last[0]
         direction = "tăng" if after > before else "giảm" if after < before else "không đổi"
-        unit = first_summary[first_num.end():].strip()
-        date_a, date_b = (first.item.source_time or "")[:10], (last.item.source_time or "")[:10]
         delta = abs(after - before)
-        text = (
-            f"{concept}: {before:g} {unit} ({date_a}) → {after:g} {unit} ({date_b}), "
-            f"{direction} {delta:g} {unit}."
-        ).replace("  ", " ")
-        claim_id = str(uuid5(NAMESPACE_URL, f"clinical-comparison:{first.item.evidence_id}:{last.item.evidence_id}"))
+        unit = last[1] or first[1]
+        date_a, date_b = first[2], last[2]
+        text = f"{concept}: {before:g} {unit} ({date_a}) → {after:g} {unit} ({date_b}), {direction} {delta:g} {unit}."
+        claim_id = str(uuid5(NAMESPACE_URL, f"clinical-comparison:{first[3].item.evidence_id}:{last[3].item.evidence_id}"))
         claims.append(ProposedClaim(
             claim_id=f"clm_{claim_id}", text=text,
-            evidence_ids=[first.item.evidence_id, last.item.evidence_id],
+            evidence_ids=[first[3].item.evidence_id, last[3].item.evidence_id],
             section_code="recent_results",
         ))
     return claims
@@ -139,43 +169,81 @@ def compose_trend_claims(evidence_packet: list[ScopedEvidence]) -> list[Proposed
     observation_groups: dict[str, list[ScopedEvidence]] = {}
     medication_groups: dict[str, list[ScopedEvidence]] = {}
     for evidence in evidence_packet:
-        source = evidence.item.source_value
-        if not isinstance(source, dict):
+        ft = evidence.item.fact_type.casefold()
+        eid = evidence.item.evidence_id.casefold()
+        if "trend" in ft or "trend" in eid:
             continue
-        fact_type = evidence.item.fact_type.casefold()
-        title = str(source.get("title", "")).strip()
-        if "observation" in fact_type and title:
-            raw_concept = re.sub(r"^(xét nghiệm|lab)\s*:\s*", "", title, flags=re.IGNORECASE).strip()
-            resolved = resolve_concept(raw_concept)
-            concept = resolved.canonical if resolved else raw_concept
+
+        source = evidence.item.source_value
+        nv = evidence.item.normalized_value
+
+        text_content = ""
+        if isinstance(source, dict):
+            text_content += " " + " ".join(str(v) for v in source.values())
+        else:
+            text_content += " " + str(source)
+            
+        if isinstance(nv, dict):
+            text_content += " " + " ".join(str(v) for v in nv.values())
+        else:
+            text_content += " " + str(nv)
+
+        if "observation" in ft or "lab" in ft:
+            resolved = resolve_concept(text_content)
+            concept = resolved.canonical if resolved else "Xét nghiệm"
             observation_groups.setdefault(concept, []).append(evidence)
-        elif "medication" in fact_type and title:
-            label = re.sub(r"^(thuốc|medication)\s*:\s*", "", title, flags=re.IGNORECASE).strip()
-            medication = re.sub(r"\s+\d+(?:[.,]\d+)?\s*(?:mg|mcg|g|ml)\b.*$", "", label, flags=re.IGNORECASE).strip()
+        elif "medication" in ft:
+            resolved = resolve_concept(text_content)
+            medication = resolved.canonical if resolved else "Thuốc"
             medication_groups.setdefault(medication, []).append(evidence)
 
     claims: list[ProposedClaim] = []
+
     for concept, items in observation_groups.items():
         items.sort(key=lambda item: item.item.source_time or "")
         points: list[tuple[float, str, str, ScopedEvidence]] = []
         for item in items:
-            summary = str(item.item.source_value.get("summary", ""))
-            match = re.search(r"-?\d+(?:[.,]\d+)?", summary)
-            if not match:
-                continue
-            points.append((
-                float(match.group().replace(",", ".")),
-                summary[match.end():].strip(),
-                (item.item.source_time or "")[:10],
-                item,
-            ))
+            date_str = (item.item.source_time or "")[:10]
+            val = None
+            unit = ""
+            nv = item.item.normalized_value
+            sv = item.item.source_value
+            if isinstance(nv, dict) and "value" in nv:
+                try:
+                    val = float(nv["value"])
+                    unit = str(nv.get("unit", "")).strip()
+                except (ValueError, TypeError):
+                    pass
+            if val is None:
+                search_str = f"{sv} {nv}"
+                m = re.search(r"kết quả\s*:\s*(\d+(?:[.,]\d+)?)", search_str, re.IGNORECASE)
+                if not m:
+                    m = re.search(r"(\d+(?:[.,]\d+)?)\s*(%|mmol/L|mg/dL|µmol/L|mL/min)", search_str, re.IGNORECASE)
+                if m:
+                    try:
+                        val = float(m.group(1).replace(",", "."))
+                        unit = m.group(2).strip() if m.lastindex >= 2 and m.group(2) else ""
+                    except (ValueError, IndexError):
+                        pass
+            if val is not None:
+                points.append((val, unit, date_str, item))
+
         if len(points) < 2:
+            if points:
+                p = points[-1]
+                claims.append(ProposedClaim(
+                    claim_id=f"clm_{uuid5(NAMESPACE_URL, f'trend-single:{p[3].item.evidence_id}')}",
+                    text=f"{concept}: {p[0]:g} {p[1]} ({p[2]}).",
+                    evidence_ids=[p[3].item.evidence_id],
+                    section_code="recent_results",
+                ))
             continue
+
         values = [point[0] for point in points]
         increasing = all(left <= right for left, right in zip(values, values[1:])) and values[0] != values[-1]
         decreasing = all(left >= right for left, right in zip(values, values[1:])) and values[0] != values[-1]
         direction = "tăng" if increasing else "giảm" if decreasing else "dao động"
-        sequence = " → ".join(f"{value:g} {unit} ({date})" for value, unit, date, _ in points)
+        sequence = " → ".join(f"{value:g} {unit} ({date})".strip() for value, unit, date, _ in points)
         delta = values[-1] - values[0]
         conclusion = f"xu hướng {direction}; thay đổi tổng {delta:+g} {points[-1][1]}"
         evidence_ids = [point[3].item.evidence_id for point in points]

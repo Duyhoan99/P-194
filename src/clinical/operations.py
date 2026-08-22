@@ -45,6 +45,7 @@ class OperationalStore:
         demo_subjects = self._load_demo_subjects()
         self._users: dict[str, OperationalUser] = {
             "doctor-1": OperationalUser("doctor-1", "DOCTOR", assigned_subject_ids=demo_subjects),
+            "usr_doctor_demo": OperationalUser("usr_doctor_demo", "DOCTOR", assigned_subject_ids=demo_subjects),
             "doctor-2": OperationalUser("doctor-2", "DOCTOR"),
             "admin-1": OperationalUser("admin-1", "ADMIN"),
             "steward-1": OperationalUser("steward-1", "DATA_STEWARD"),

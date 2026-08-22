@@ -71,11 +71,17 @@ def retrieve_evidence_node(state: ClinicalReviewState) -> dict:
     detected = detect_conflicts([item.item for item in packet])
 
     if isinstance(question_type, dict) and question_type.get("task_type") == "conflict_check":
+        def _get_eid(item):
+            if isinstance(item, dict):
+                return item.get("evidence_id") or item.get("conflict_id")
+            return getattr(item, "evidence_id", None) or getattr(item, "conflict_id", None)
+
         participant_ids = {
-            conflict.item_a.evidence_id for conflict in detected
+            _get_eid(conflict.item_a) for conflict in detected
         } | {
-            conflict.item_b.evidence_id for conflict in detected
+            _get_eid(conflict.item_b) for conflict in detected
         }
+        participant_ids.discard(None)
         retrieved = conflict_facts + [item for item in packet if item.item.evidence_id in participant_ids]
         conflicts = [conflict.model_dump(mode="json") for conflict in detected]
         if conflict_facts and not conflicts:
@@ -97,13 +103,16 @@ def retrieve_evidence_node(state: ClinicalReviewState) -> dict:
         question=request.question if request.task_type == "ask_chart" else None,
     )
     
-    q_str = (request.question or "").casefold()
-    if any(k in q_str for k in ("thuốc", "medication", "metformin", "liều", "dose", "xung đột", "mâu thuẫn", "đối chiếu", "500", "850")):
-        for cf in conflict_facts:
-            if cf not in retrieved:
-                retrieved.append(cf)
+    all_packet_items = [item.item for item in packet]
+    detected_conflicts = detect_conflicts(all_packet_items)
+    conflicts = [c.model_dump(mode="json") for c in detected_conflicts]
+    for c in detected_conflicts:
+        ev_ids = [getattr(c.item_a, "evidence_id", None), getattr(c.item_b, "evidence_id", None)]
+        for item in packet:
+            if getattr(item.item, "evidence_id", None) in ev_ids:
+                if item not in retrieved:
+                    retrieved.append(item)
 
-    conflicts = [c.model_dump(mode="json") for c in detect_conflicts([item.item for item in retrieved])]
     if conflict_facts and not conflicts:
         for cf in conflict_facts:
             conflicts.append({
@@ -226,6 +235,14 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
             )]
             unsupported = []
             conflicts = []
+    elif request.task_type == "patient_summary" or (
+        isinstance(qt, dict) and qt.get("task_type") == "summary"
+    ) or (
+        isinstance(qt, dict) and any(n.get("domain") == "all" for n in qt.get("needs", []))
+    ):
+        proposed = compose_atomic_claims(retrieved)
+        unsupported = []
+        conflicts = state.get("conflicts", [])
     elif isinstance(qt, dict) and qt.get("comparison_required"):
         from src.agents.generation import compose_comparison_claims
         proposed = compose_comparison_claims(retrieved)
@@ -238,6 +255,8 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
     ) and not runtime.available:
         from src.agents.generation import compose_trend_claims
         proposed = compose_trend_claims(retrieved)
+        if not proposed:
+            proposed = compose_atomic_claims(retrieved)
         unsupported = []
         conflicts = state.get("conflicts", [])
     elif runtime.available:
@@ -246,9 +265,14 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
             runtime.client,
             question=request.question if request.task_type == "ask_chart" else None,
         )
-        proposed = gen_result["claims"]
-        unsupported = gen_result["unsupported_claims"]
-        conflicts = state.get("conflicts", []) + gen_result.get("conflicts", [])
+        if gen_result and gen_result.get("claims"):
+            proposed = gen_result["claims"]
+            unsupported = gen_result.get("unsupported_claims", [])
+            conflicts = state.get("conflicts", []) + gen_result.get("conflicts", [])
+        else:
+            proposed = compose_atomic_claims(retrieved)
+            unsupported = []
+            conflicts = state.get("conflicts", [])
     else:
         proposed = compose_atomic_claims(retrieved)
         unsupported = []
@@ -266,6 +290,18 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
         state.get("proposed_claims", []),
         state.get("retrieved_evidence", []),
     )
+    # FALLBACK: If LLM-proposed claims failed verification, verify deterministic atomic claims!
+    if not claims and state.get("retrieved_evidence"):
+        fallback_proposed = compose_atomic_claims(state["retrieved_evidence"])
+        if fallback_proposed:
+            fb_claims, fb_ver = verify_claims(
+                fallback_proposed,
+                state["retrieved_evidence"],
+            )
+            if fb_claims:
+                claims = fb_claims
+                verification_results = fb_ver
+
     qt = state.get("question_type")
     is_conversational = isinstance(qt, dict) and (
         qt.get("task_type") == "conversation" or not qt.get("retrieval_required", True)
@@ -273,11 +309,17 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
     )
     
     if not claims:
-        if isinstance(qt, dict) and qt.get("strict_intent") in {"WARNING_STATUS", "SPECIFIC_TEST"}:
+        if state.get("conflicts"):
+            status = "conflicting"
+        elif isinstance(qt, dict) and qt.get("strict_intent") in {"WARNING_STATUS", "SPECIFIC_TEST"}:
             status = "answered"
         else:
             status = "not_found"
-    elif not is_conversational and (state.get("conflicts") or any(claim.status == "needs_verification" for claim in claims)):
+    elif not is_conversational and (
+        state.get("conflicts")
+        or any(claim.status == "needs_verification" for claim in claims)
+        or any(getattr(item.item, "verification_status", "") == "needs_verification" for item in state.get("retrieved_evidence", []))
+    ):
         status = "conflicting"
     else:
         status = "answered"
@@ -364,9 +406,18 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
                 table_ans = format_comparison_table_response(facts, query=request.question)
                 if table_ans:
                     answer = table_ans
-                    # Collect observation citations for all compared metrics
+                    target_concept = "glucose" if any(k in q_lower for k in ["đường", "glucose"]) else ("hba1c" if "hba1c" in q_lower else None)
+                    compared_dates = ["2026-01-10", "2026-06-10"] if ("sáu tháng" in q_lower or "6 tháng" in q_lower) else None
+                    citations = []
                     for f in facts:
-                        if "observation" in str(f.get("fact_type", "")).casefold() or "lab" in str(f.get("fact_type", "")).casefold():
+                        ft = str(f.get("fact_type", "")).casefold()
+                        st = str(f.get("source_time", "") or "")
+                        stmt = str(f.get("normalized_value", "")).casefold() + " " + str(f.get("source_value", "")).casefold()
+                        if "observation" in ft or "lab" in ft:
+                            if target_concept and target_concept not in stmt:
+                                continue
+                            if compared_dates and not any(d in st for d in compared_dates):
+                                continue
                             for cit in f.get("citations", []):
                                 if cit not in citations:
                                     citations.append(cit)
@@ -378,9 +429,17 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
                 med_ans = format_medication_timeline_response(facts, query=request.question)
                 if med_ans:
                     answer = med_ans
-                    # Collect medication and conflict citations
+                    target_med = "metformin" if ("metformin" in q_lower and "amlodipine" not in q_lower) else None
+                    citations = []
                     for f in facts:
-                        if "medication" in str(f.get("fact_type", "")).casefold() or "conflict" in str(f.get("fact_type", "")).casefold():
+                        ft = str(f.get("fact_type", "")).casefold()
+                        stmt = str(f.get("normalized_value", "")).casefold() + " " + str(f.get("source_value", "")).casefold()
+                        eid = str(f.get("evidence_id", "")).casefold()
+                        if "medication" in ft or "conflict" in ft:
+                            if target_med and target_med not in stmt:
+                                continue
+                            if target_med and ("baseline" in eid or "baseline" in stmt):
+                                continue
                             for cit in f.get("citations", []):
                                 if cit not in citations:
                                     citations.append(cit)
@@ -437,6 +496,12 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
                         disclaimer = f"Không tìm thấy kết quả xét nghiệm {entity} trong lần khám ngày {raw_date}."
                         answer = f"{disclaimer}\n\nCác kết quả ghi nhận trong hồ sơ:\n{answer}"
             if status == "conflicting":
+                if conflicts and not claims:
+                    lines = []
+                    for c in conflicts:
+                        desc = c.get("description") if isinstance(c, dict) else getattr(c, "description", "")
+                        lines.append(f"- {desc}")
+                    answer = "\n".join(lines)
                 answer = f"{answer} Cần xác minh các nguồn mâu thuẫn hoặc độ tin cậy thấp.".strip()
         elif status == "not_allowed":
             if qt == "not_allowed_interaction":

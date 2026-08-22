@@ -123,6 +123,7 @@ def run_agent(
         "patient_id": validated.patient_id,
         "request_id": validated.request_id,
     }
+    trace_id = str(uuid.uuid4())
     try:
         state = clinical_agent.invoke(
             {
@@ -137,7 +138,6 @@ def run_agent(
         if isinstance(result, AgentResult):
             return result
     except Exception as e:
-        trace_id = str(uuid.uuid4())
         logger.exception(
             "Agent execution failed",
             extra={

@@ -28,8 +28,10 @@ def _candidate_text(candidate: "RetrievalCandidate") -> str:
     return _fold(f"{item.fact_type} {item.normalized_value} {item.source_value} {snippets}")
 
 
+from src.agents.retrieval.concepts import fold as _fold, get_concept, resolve_concept
+
 def _entity_aliases(entity: str) -> tuple[str, ...]:
-    concept = get_concept(entity)
+    concept = get_concept(entity) or resolve_concept(entity)
     if concept:
         return concept.evidence_aliases
     folded = _fold(entity)
@@ -38,7 +40,7 @@ def _entity_aliases(entity: str) -> tuple[str, ...]:
 
 
 def _is_known_entity(entity: str) -> bool:
-    return get_concept(entity) is not None
+    return (get_concept(entity) or resolve_concept(entity)) is not None
 
 
 @dataclass
@@ -94,7 +96,7 @@ class SafeTool:
             return any(marker in source_text for marker in vital_markers)
         markers = {
             "diagnosis": ("diagnosis", "condition", "chẩn đoán", "bệnh", "tình trạng"),
-            "medication": ("medication", "drug", "thuốc"),
+            "medication": ("medication", "drug", "thuốc", "tuân thủ"),
             "lab": ("lab", "observation", "result", "xét nghiệm", "chỉ số", "canonical_unit_backend_fact"),
             "vital": ("vital", "huyết áp", "mạch"),
             "encounter": ("encounter", "lượt khám", "tái khám"),
@@ -104,7 +106,9 @@ class SafeTool:
         }
         if domain == "note" and origin == "note":
             return True
-        return any(marker in fact_type for marker in markers.get(domain, (domain,)))
+        matched_in_fact_type = any(marker in fact_type for marker in markers.get(domain, (domain,)))
+        matched_in_source = any(marker in source_text for marker in markers.get(domain, (domain,)))
+        return matched_in_fact_type or matched_in_source
 
     def execute(self, domain: str) -> list[RetrievalCandidate]:
         return [candidate for candidate in self.packet if self._matches(candidate, domain)]

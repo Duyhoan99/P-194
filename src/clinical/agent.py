@@ -179,9 +179,13 @@ class ClinicalAgent:
         context = state["context"]
         query = state["query"]
         
-        planner = QueryPlanner()
-        plan = planner.plan(query.text)
-        domains = {need.domain for need in plan.needs}
+        query_text = getattr(query, "text", "") or ""
+        if query_text:
+            planner = QueryPlanner()
+            plan = planner.plan(query_text)
+            domains = {need.domain for need in plan.needs}
+        else:
+            domains = {"all"}
         
         responses_list = []
         

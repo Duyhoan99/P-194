@@ -32,6 +32,11 @@ CONCEPTS = (
     ),
     ClinicalConcept("Metformin", "medication", ("metformin",), ("metformin",)),
     ClinicalConcept("Amlodipine", "medication", ("amlodipine",), ("amlodipine",)),
+    ClinicalConcept(
+        "Adherence", "medication",
+        ("adherence", "tuan thu", "quen thuoc", "quen uong", "hay quen"),
+        ("tuan thu", "quen", "uong thuoc", "adherence", "compliance"),
+    ),
 )
 
 

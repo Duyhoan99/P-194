@@ -16,6 +16,8 @@ class ConflictResult(BaseModel):
 
 
 def _field(item: Any, name: str, default: Any = None) -> Any:
+    if hasattr(item, "item"):
+        item = item.item
     return item.get(name, default) if isinstance(item, dict) else getattr(item, name, default)
 
 
@@ -73,7 +75,7 @@ def detect_conflicts(evidence_items: list[Any]) -> list[ConflictResult]:
                 continue
             conflicts.append(ConflictResult(
                 conflict_type="incompatible_values",
-                description=f"Incompatible values for {concept_a} on {time_a[:10]}",
+                description=f"Incompatible values for {concept_a} on {time_a[:10]}: {value_a} vs {value_b}",
                 item_a=item_a,
                 item_b=item_b,
             ))

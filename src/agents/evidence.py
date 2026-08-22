@@ -446,6 +446,11 @@ def retrieve_evidence(
                     dom_items = [c.scoped.item for c in dom_cands]
                     filtered_dom_items = filter_temporal(dom_items, t_query)
                     filtered_ids = {id(it) for it in filtered_dom_items}
+                    if not start_t and not end_t:
+                        filtered_ids.update(
+                            id(c.scoped.item) for c in dom_cands
+                            if not getattr(c.scoped.item, "source_time", None) or getattr(c.scoped, "origin", "") == "note"
+                        )
                     if intent == "trend":
                         filtered_ids.update(
                             id(it) for it in dom_items

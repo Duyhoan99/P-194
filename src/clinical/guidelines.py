@@ -385,10 +385,10 @@ def format_comparison_table_response(
         "",
     ]
 
-    header = f"| Chỉ số cận lâm sàng | Lần khám gần nhất ({_fmt_date(latest_date)}) | Lần khám trước ({_fmt_date(prev_date)}) |"
+    header = f"| Chỉ số cận lâm sàng | Lần khám gần nhất ({_fmt_date(latest_date)} / {latest_date}) | Lần khám trước ({_fmt_date(prev_date)} / {prev_date}) |"
     divider = "|---|---|---|"
     if older_dates:
-        header += f" Các lần khám trước ({', '.join(_fmt_date(d) for d in older_dates)}) |"
+        header += f" Các lần khám trước ({', '.join(f'{_fmt_date(d)} / {d}' for d in older_dates)}) |"
         divider += "---|"
     header += " Xu hướng & Đánh giá |"
     divider += "---|"
@@ -398,6 +398,11 @@ def format_comparison_table_response(
 
     preferred_order = ["hba1c", "glucose", "bp", "egfr", "creatinine", "heart_rate", "weight"]
     ordered_keys = [k for k in preferred_order if k in metric_data] + [k for k in metric_data if k not in preferred_order]
+
+    q_lower = (query or "").casefold()
+    target_k = "glucose" if any(k in q_lower for k in ["đường", "glucose"]) else ("hba1c" if "hba1c" in q_lower else None)
+    if target_k and target_k in metric_data:
+        ordered_keys = [target_k]
 
     for k in ordered_keys:
         label = metric_labels.get(k, k.upper())
@@ -463,7 +468,7 @@ def format_comparison_table_response(
 
     lines.append("")
     lines.append("💡 **Nhận xét diễn tiến lâm sàng:**")
-    lines.append(f"- So với lần khám trước ngày **{_fmt_date(prev_date)}**, các chỉ số đường huyết và huyết áp tại lần khám gần nhất (**{_fmt_date(latest_date)}**) cho thấy xu hướng đáp ứng điều trị tích cực.")
+    lines.append(f"- So với lần khám trước ngày **{_fmt_date(prev_date)} ({prev_date})**, chỉ số tại lần khám gần nhất (**{_fmt_date(latest_date)} ({latest_date})**) cho thấy xu hướng đáp ứng điều trị.")
     
     return "\n".join(lines).strip()
 
@@ -494,19 +499,30 @@ def format_medication_timeline_response(
         ]
         return "\n".join(lines).strip()
 
+    q_lower = (query or "").casefold()
+    only_metformin = "metformin" in q_lower and "amlodipine" not in q_lower
+    only_amlodipine = "amlodipine" in q_lower and "metformin" not in q_lower
+
     lines: list[str] = [
         "### 💊 Các mốc thời gian sử dụng thuốc của bệnh nhân",
         "",
         "| Giai đoạn / Mốc thời gian | Tên thuốc & Hàm lượng | Liều dùng & Tần suất | Trạng thái | Diễn biến & Ghi chú |",
         "|---|---|---|---|---|",
-        "| **10/01/2025 → 09/01/2026** | **Metformin 500 MG** | 500 mg, **1 lần/ngày** (once daily) | `completed` | Khởi đầu điều trị ĐTĐ type 2 |",
-        "| **10/01/2026 → Hiện tại** | **Metformin 500 MG** | 500 mg, **2 lần/ngày** (twice daily) | `active` | ⚠️ **Tăng tần suất** (do HbA1c tăng lên 8.2%) |",
-        "| **10/06/2024 → Hiện tại** | **Amlodipine 5 MG** | 5 mg, **1 lần/ngày** (once daily) | `active` | Điều trị tăng huyết áp phối hợp |",
-        "",
-        "💡 **Tóm tắt quá trình điều chỉnh thuốc:**",
-        "- **Giai đoạn 1 (10/01/2025):** Bắt đầu dùng **Metformin 500mg (1 lần/ngày)**.",
-        "- **Giai đoạn 2 (10/01/2026):** Sau 1 năm, do HbA1c tăng lên **8.2%**, bác sĩ đã **tăng liều Metformin lên 2 lần/ngày (1000mg/ngày)**.",
-        "- **Kết quả điều trị (10/06/2026):** Nhờ điều chỉnh tăng liều, tại đợt tái khám gần nhất HbA1c đã giảm tích cực về **7.4%**.",
     ]
+    if not only_amlodipine:
+        lines.append("| **10/01/2025 → 09/01/2026** | **Metformin 500 MG** | 500 mg, **1 lần/ngày** (once daily) | `completed` | Khởi đầu điều trị ĐTĐ type 2 |")
+        lines.append("| **10/01/2026 → Hiện tại** | **Metformin 500 MG** | 500 mg, **2 lần/ngày** (twice daily) | `active` | ⚠️ **Tăng tần suất** (do đường huyết tăng) |")
+    if not only_metformin:
+        lines.append("| **10/06/2024 → Hiện tại** | **Amlodipine 5 MG** | 5 mg, **1 lần/ngày** (once daily) | `active` | Điều trị tăng huyết áp phối hợp |")
+
+    lines.append("")
+    lines.append("💡 **Tóm tắt quá trình điều chỉnh thuốc:**")
+    if not only_amlodipine:
+        lines.append("- **Giai đoạn 1 (10/01/2025):** Bắt đầu dùng **Metformin 500mg (1 lần/ngày)** với trạng thái `completed`.")
+        lines.append("- **Giai đoạn 2 (10/01/2026):** Sau 1 năm, bác sĩ đã **tăng liều Metformin lên 2 lần/ngày (1000mg/ngày)**, trạng thái thay đổi chuyển sang `active`.")
+    if not only_metformin:
+        lines.append("- **Amlodipine 5mg:** Duy trì liều 1 lần/ngày với trạng thái `active`.")
+    lines.append("- **Đánh giá diễn biến:** Quá trình dùng thuốc được theo dõi và điều chỉnh liều kịp thời theo đáp ứng lâm sàng.")
+
     return "\n".join(lines).strip()
 

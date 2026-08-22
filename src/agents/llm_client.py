@@ -269,7 +269,6 @@ class UniversalOpenAIClient(LLMClinicalClientBase):
             response = client.chat.completions.create(
                 model=self._model_name,
                 temperature=temperature,
-                store=False,
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": user_content},
@@ -341,7 +340,6 @@ Output a JSON matching this exact schema:
             response = client.chat.completions.create(
                 model=self._model_name,
                 temperature=temperature,
-                store=False,
                 messages=[
                     {"role": "system", "content": _ENTAILMENT_SYSTEM_PROMPT},
                     {
