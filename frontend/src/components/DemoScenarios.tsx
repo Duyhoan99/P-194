@@ -8,11 +8,7 @@ import {
   ShieldCheck,
   Search,
   CheckCircle2,
-  Sparkles,
-  Zap,
-  UserCheck,
-  ChevronRight,
-  HelpCircle
+  UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -134,8 +130,6 @@ export default function DemoScenarios({
 
   const scenario = DEMO_SCENARIOS[activeTab];
   const isTargetPatient = currentPatientId === scenario.patientId;
-  const Icon = scenario.icon;
-
   return (
     <div className="bg-slate-900/95 border border-slate-800 rounded-xl p-3 shadow-xl backdrop-blur-md flex flex-col gap-2.5">
       

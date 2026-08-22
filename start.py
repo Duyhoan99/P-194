@@ -26,7 +26,7 @@ def main():
     print("Dang khoi dong Frontend (cong 3000)...")
     # Khởi động Next.js
     env = os.environ.copy()
-    env["NEXT_PUBLIC_API_URL"] = "http://localhost:8000"
+    env["API_PROXY_TARGET"] = "http://127.0.0.1:8000"
     frontend = subprocess.Popen("npm --prefix frontend run dev", shell=True, env=env)
     
     print("Doi 5 giay de may chu khoi dong xong...")

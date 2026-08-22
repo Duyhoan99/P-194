@@ -98,6 +98,7 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
           );
           targetPid = targetPid || result.patient_id || '';
           if (!targetPid) throw new Error('Backend did not return the patient created for this upload.');
+          targetName = undefined;
 
           const initialStatus = result.status as UploadStatus;
           updateItem(item.id, {

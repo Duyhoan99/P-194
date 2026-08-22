@@ -24,10 +24,8 @@ from src.clinical.ingestion import (
 )
 from src.clinical.pdf_canonicalizer import canonicalize_extraction
 from src.clinical.pdf_extractor import (
-    GeminiOcrExtractor,
     TextLayerExtractor,
     UniversalVisionExtractor,
-    detect_has_text_layer,
 )
 from src.config import get_settings
 
@@ -35,9 +33,14 @@ router = APIRouter(tags=["ingestion"])
 
 _ingestion_service = IngestionService()
 _text_layer_extractor = TextLayerExtractor()
+# Backward-compatible injection point used by deterministic OCR tests and
+# local demos. None means construct the configured universal extractor.
+_gemini_ocr_extractor: UniversalVisionExtractor | None = None
 
 
 def _get_vision_extractor() -> UniversalVisionExtractor:
+    if _gemini_ocr_extractor is not None:
+        return _gemini_ocr_extractor
     settings = get_settings()
     return UniversalVisionExtractor(
         api_key=settings.llm_api_key,
@@ -104,8 +107,13 @@ async def ingest_file(
     # ------------------------------------------------------------------
     # 2. Extract text / OCR / Markdown
     # ------------------------------------------------------------------
-    is_json = (client_filename or "").lower().endswith(".json") or "json" in (content_type or "").lower()
-    detected_format = "fhir_r4" if is_json else "pdf"
+    normalized_filename = (client_filename or "").lower()
+    normalized_content_type = (content_type or "").lower()
+    is_json = normalized_filename.endswith(".json") or "json" in normalized_content_type
+    is_image = normalized_content_type.startswith("image/") or normalized_filename.endswith(
+        (".png", ".jpg", ".jpeg")
+    )
+    detected_format = "fhir_r4" if is_json else ("image" if is_image else "pdf")
     import uuid
     temp_doc_id = f"doc_{uuid.uuid4().hex[:12]}"
     extraction = None
@@ -114,11 +122,16 @@ async def ingest_file(
 
     if not is_json:
         try:
-            vision_extractor = _get_vision_extractor()
-            extraction = vision_extractor.extract(content, temp_doc_id)
+            extraction = (
+                _get_vision_extractor().extract(content, temp_doc_id)
+                if is_image
+                else _text_layer_extractor.extract(content, temp_doc_id)
+            )
+            if not extraction.has_text_layer:
+                extraction = _get_vision_extractor().extract(content, temp_doc_id)
             full_markdown = "\n\n".join(p.full_text for p in extraction.pages if p.full_text)
             parsed_doc = parse_clinical_markdown(full_markdown)
-        except Exception as exc:
+        except Exception:
             pass
 
     # ------------------------------------------------------------------
@@ -183,6 +196,16 @@ async def ingest_file(
         idempotency_key=idempotency_key,
     )
 
+    # Extraction may run before patient matching with a temporary id. Rebind
+    # provenance to the immutable document-store id before canonicalization.
+    if extraction is not None and extraction.document_id != stored_doc.document_id:
+        previous_document_id = extraction.document_id
+        extraction.document_id = stored_doc.document_id
+        for page in extraction.pages:
+            for block in page.blocks:
+                if block.block_id:
+                    block.block_id = block.block_id.replace(previous_document_id, stored_doc.document_id)
+
     # If idempotency key matched same content, batch is already completed
     if batch.status in {"completed", "completed_with_warnings"}:
         return batch
@@ -213,8 +236,13 @@ async def ingest_file(
     else:
         if extraction is None or not extraction.pages:
             try:
-                vision_extractor = _get_vision_extractor()
-                extraction = vision_extractor.extract(content, stored_doc.document_id)
+                extraction = (
+                    _get_vision_extractor().extract(content, stored_doc.document_id)
+                    if is_image
+                    else _text_layer_extractor.extract(content, stored_doc.document_id)
+                )
+                if not extraction.has_text_layer:
+                    extraction = _get_vision_extractor().extract(content, stored_doc.document_id)
                 full_markdown = "\n\n".join(p.full_text for p in extraction.pages if p.full_text)
                 if not parsed_doc:
                     parsed_doc = parse_clinical_markdown(full_markdown)

@@ -57,7 +57,7 @@ export default function AnalyticsPage() {
           avgTime: `${time}s`,
           loading: false
         });
-      } catch (err) {
+      } catch {
         setStats(s => ({ ...s, loading: false }));
       }
     };

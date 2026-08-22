@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: p194-care-guide
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: AGENT_GENERATION_BACKEND
+        value: deterministic
+      - key: DEMO_DATA_DIR
+        value: ./data/demo_mvp_v1
+      - key: DATABASE_URL
+        sync: false
+      - key: CARE_PLAN_SHARE_TTL_SECONDS
+        value: 7776000
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: http://localhost:3000

@@ -115,6 +115,52 @@ def _section_for_event(event_type: str) -> str:
     }.get(event_type.casefold(), "patient_overview")
 
 
+_CLINICAL_TERM_REPLACEMENTS = (
+    ("Đái tháo đường type 2", "Đái tháo đường típ 2"),
+    ("Type 2 diabetes mellitus", "Đái tháo đường típ 2"),
+    ("Chronic kidney disease", "Bệnh thận mạn"),
+    ("Hypertension", "Tăng huyết áp"),
+    ("Obesity", "Béo phì"),
+    ("Systolic blood pressure", "Huyết áp tâm thu"),
+    ("Diastolic blood pressure", "Huyết áp tâm trương"),
+    ("Hemoglobin A1c", "HbA1c"),
+    ("Glucose", "Đường huyết"),
+    ("Lượt khám Tái khám", "Lần tái khám"),
+)
+
+_FHIR_STATUS_LABELS = {
+    "entered-in-error": "ghi nhận sai",
+    "on-hold": "tạm ngưng",
+    "completed": "đã hoàn thành",
+    "finished": "đã hoàn thành",
+    "inactive": "không còn hiệu lực",
+    "active": "đang sử dụng",
+    "intended": "dự kiến",
+    "stopped": "đã ngừng",
+    "cancelled": "đã hủy",
+    "unknown": "chưa xác định",
+}
+
+
+def _localize_clinical_text(value: Any) -> str:
+    """Translate technical FHIR display values before they reach the UI."""
+    text = str(value or "").strip()
+    for source, target in _CLINICAL_TERM_REPLACEMENTS:
+        if text.casefold() == source.casefold():
+            text = target
+            break
+        text = re.sub(
+            rf"\s*\({re.escape(source)}\)",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(re.escape(source), target, text, flags=re.IGNORECASE)
+    for status, label in _FHIR_STATUS_LABELS.items():
+        text = re.sub(rf"(?<![\w-]){re.escape(status)}(?![\w-])", label, text, flags=re.IGNORECASE)
+    return text
+
+
 def _timeline_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
     facts: list[dict[str, Any]] = []
     patient_id = str(packet["patient_id"])
@@ -127,8 +173,8 @@ def _timeline_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, An
         event_type = str(event.get("event_type", "event"))
         occurred_at = str(event.get("occurred_at", ""))
         date = occurred_at[:10] if occurred_at else ""
-        title = str(event.get("title", "")).strip()
-        summary = str(event.get("summary", "")).strip()
+        title = _localize_clinical_text(event.get("title", ""))
+        summary = _localize_clinical_text(event.get("summary", ""))
         statement = f"{title} ngày {date}: {summary}" if date else f"{title}: {summary}"
         record_status = event.get("record_status") or event.get("status")
         if record_status is None and any("entered-in-error" in str(citation.get("snippet", "")).casefold() for citation in citations):
@@ -178,7 +224,7 @@ def _trend_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]
                     seen_citations.add(citation_id)
                     citations.append(citation)
         display = display_by_code.get(str(code), str(code))
-        statement = f"{display} theo các kết quả nguồn: {'; '.join(entries)}."
+        statement = f"Diễn tiến {display}: {'; '.join(entries)}."
         safe_code = re.sub(r"[^A-Za-z0-9]+", "-", str(code)).strip("-")
         facts.append(
             {
@@ -254,7 +300,7 @@ def _condition_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, A
     patient_id = str(packet["patient_id"])
     for raw_cond in packet.get("active_conditions", []):
         cond = _mapping(raw_cond)
-        condition_name = str(cond.get("condition") or cond.get("name") or "Chẩn đoán")
+        condition_name = _localize_clinical_text(cond.get("condition") or cond.get("name") or "Chẩn đoán")
         source_time = cond.get("source_time")
         dated_condition = (
             f"Chẩn đoán/Tình trạng bệnh: {condition_name} (ghi nhận {str(source_time)[:10]})"
@@ -291,7 +337,7 @@ def _current_medication_facts(packet: dict[str, Any], tenant_id: str) -> list[di
         if not citations:
             continue
         name = str(medication.get("medication") or medication.get("name") or "Thuốc")
-        status = str(medication.get("status") or "active")
+        status = _localize_clinical_text(medication.get("status") or "active")
         source_time = medication.get("source_time")
         medication_statement = f"Thuốc hiện tại: {name} ({status})"
         if source_time:

@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from datetime import datetime, timezone
 from pathlib import Path
 
 import fitz
@@ -22,7 +21,6 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "demo_mvp_v1"

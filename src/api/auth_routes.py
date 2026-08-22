@@ -2,15 +2,16 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
+
+from src.api.dependencies import get_access_context
 from src.clinical.canonical import UserMe
 from src.clinical.demo_auth import (
     DEMO_SESSION_COOKIE,
     authenticate_demo_credentials,
     create_demo_session,
 )
-from src.api.dependencies import get_access_context
-from src.clinical.schemas import AccessContext
 from src.clinical.operations import operational_store
+from src.clinical.schemas import AccessContext
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -54,19 +55,19 @@ def _get_user_me(username: str) -> UserMe:
         user = operational_store.get_user(username)
     except KeyError:
         return DEFAULT_CLINICIAN
-    
+
     role_map = {
         "DOCTOR": "clinician",
-        "ADMIN": "admin",
-        "DATA_STEWARD": "steward",
-        "COMPLIANCE": "compliance"
+        "ADMIN": "administrator",
+        "DATA_STEWARD": "auditor",
+        "COMPLIANCE": "auditor",
     }
-    
+
     return UserMe(
         user_id=user.user_id,
         display_name=f"User {user.user_id}",
         tenant_id="ten_demo",
-        roles=[role_map.get(user.role, "user")],
+        roles=[role_map.get(user.role, "clinician")],
         permissions=DEFAULT_CLINICIAN.permissions,
     )
 
@@ -110,7 +111,7 @@ def demo_login(payload: DemoLoginRequest, response: Response) -> Response:
         session, max_age = create_demo_session(username)
     except Exception:
         raise HTTPException(status_code=503, detail="Demo authentication is unavailable.")
-    
+
     resp = Response(status_code=status.HTTP_204_NO_CONTENT)
     resp.set_cookie(
         key=DEMO_SESSION_COOKIE,

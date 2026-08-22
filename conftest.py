@@ -8,6 +8,11 @@ from pathlib import Path
 
 import pytest
 
+# The repository may be configured for a live LLM in a developer's ignored
+# .env file.  Test collection must stay deterministic and must never make
+# network calls merely because that local file is present.
+os.environ.setdefault("AGENT_GENERATION_BACKEND", "deterministic")
+
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
@@ -21,4 +26,6 @@ def pytest_configure(config):
         except (OSError, subprocess.SubprocessError):
             pass
     safe_user = re.sub(r"[^A-Za-z0-9_.-]+", "-", identity)
-    config.option.basetemp = str(Path(__file__).resolve().parent / f".pytest-tmp-{safe_user}")
+    config.option.basetemp = str(
+        Path(__file__).resolve().parent / f".pytest-tmp-{safe_user}-{os.getpid()}"
+    )

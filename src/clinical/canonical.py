@@ -1,9 +1,8 @@
 """Canonical domain models, citations, and provenance schemas according to API_CONTRACT.md."""
 
-from datetime import datetime
 from typing import Any, Literal
+
 from pydantic import BaseModel, Field
-from src.clinical.calculation import CalculationProvenance
 
 
 class SourceReference(BaseModel):

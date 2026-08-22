@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { admin, type UserResponse, type AuditEntry } from '@/lib/api';
@@ -29,12 +29,7 @@ export default function AdminPage() {
     if (!authLoading && user && user.role !== 'ADMIN') router.replace('/dashboard');
   }, [user, authLoading, router]);
 
-  useEffect(() => {
-    if (!user || user.role !== 'ADMIN') return;
-    loadData();
-  }, [user, activeTab]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -50,13 +45,18 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'ADMIN') return;
+    void loadData();
+  }, [user, loadData]);
 
   const handleAssign = async () => {
     if (!assignUserId || !assignSubjectId) return;
     setAssignLoading(true);
     try {
-      await admin.grantAssignment(assignUserId, Number(assignSubjectId));
+      await admin.grantAssignment(assignUserId, assignSubjectId);
       setAssignUserId('');
       setAssignSubjectId('');
       loadData();
@@ -67,9 +67,9 @@ export default function AdminPage() {
     }
   };
 
-  const handleRevoke = async (userId: string, subjectId: number) => {
+  const handleRevoke = async (userId: string, patientId: string) => {
     try {
-      await admin.revokeAssignment(userId, subjectId);
+      await admin.revokeAssignment(userId, patientId);
       loadData();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Không thể thu hồi phân công');
@@ -119,11 +119,10 @@ export default function AdminPage() {
                     />
                   </div>
                   <div className="input-group" style={{ flex: 1 }}>
-                    <label className="input-label">Subject ID</label>
+                    <label className="input-label">Patient ID</label>
                     <input
                       className="input-field"
-                      type="number"
-                      placeholder="VD: 10000032"
+                      placeholder="VD: PAT-001"
                       value={assignSubjectId}
                       onChange={(e) => setAssignSubjectId(e.target.value)}
                     />
@@ -176,20 +175,17 @@ export default function AdminPage() {
                             <td>
                               {u.role === 'DOCTOR' && u.assignments.length > 0 && (
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  {u.assignments.map((a) => {
-                                    const sid = parseInt(a.replace('subject-', ''));
-                                    return (
+                                  {u.assignments.map((a) => (
                                       <button
                                         key={a}
                                         className="btn btn-danger btn-sm"
                                         style={{ fontSize: 11, padding: '3px 8px' }}
-                                        onClick={() => handleRevoke(u.user_id, sid)}
+                                        onClick={() => handleRevoke(u.user_id, a)}
                                         title={`Thu hồi ${a}`}
                                       >
-                                        ✕ {a.replace('subject-', '#')}
+                                        ✕ {a}
                                       </button>
-                                    );
-                                  })}
+                                  ))}
                                 </div>
                               )}
                             </td>
@@ -242,7 +238,7 @@ export default function AdminPage() {
                               {entry.action.replace(/_/g, ' ')}
                             </span>
                           </td>
-                          <td>{entry.subject_reference}</td>
+                          <td>{entry.patient_id || '—'}</td>
                           <td><StatusBadge status={entry.result} size="sm" /></td>
                           <td style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
                             {entry.trace_id.slice(0, 8)}...

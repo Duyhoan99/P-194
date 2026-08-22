@@ -26,44 +26,22 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
-    # Database
+    # Runtime data
+    demo_data_dir: str = "./data/demo_mvp_v1"
     database_url: str = "sqlite:///./data/app.db"
-    summary_database_path: str = "./data/clinical_summaries.db"
-    summary_backend: Literal["sqlite", "postgresql"] = "sqlite"
-    summary_agent_backend: Literal["deterministic", "langgraph"] = "deterministic"
     agent_generation_backend: Literal["deterministic", "openai", "llm"] = "deterministic"
-    summary_postgres_dsn: str = ""
-    clinical_database_path: str = "./data/mimic_demo.db"
-    clinical_backend: Literal["sqlite", "postgresql"] = "sqlite"
-    clinical_postgres_dsn: str = ""
-    clinical_pool_size: int = Field(default=5, ge=1, le=50)
-    clinical_source_dataset: str = "MIMIC-IV"
-    clinical_source_version: str = "3.1"
-    clinical_source_profile: str = "mimic-iv-3.1"
-    clinical_query_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
-    clinical_max_limit: int = Field(default=1000, ge=1, le=5000)
-    clinical_cursor_secret: str = ""
-    clinical_cursor_ttl_seconds: int = Field(default=900, ge=60, le=86400)
-    mimic_demo_source_dir: str = "./mimic-iv-clinical-database-demo-2.2"
-    mimic_demo_subjects_file: str = "./mimic-iv-clinical-database-demo-2.2/demo_subject_id.csv"
-    mimic_demo_subject_limit: int = Field(default=3, ge=1, le=100)
+    session_secret: str = "local-development-only-change-me"
+    session_ttl_seconds: int = Field(default=900, ge=60, le=86400)
+    care_plan_public_base_url: str = "http://localhost:8000"
+    care_plan_share_ttl_seconds: int = Field(default=7776000, ge=3600, le=31536000)
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"
 
     @model_validator(mode="after")
-    def validate_production_clinical_configuration(self) -> "Settings":
-        if self.app_env == "production":
-            if self.summary_backend != "postgresql":
-                raise ValueError("production summary backend must be explicitly set to postgresql")
-            if not self.summary_postgres_dsn:
-                raise ValueError("production summary PostgreSQL DSN is required")
-            if self.clinical_backend != "postgresql":
-                raise ValueError("production clinical backend must be explicitly set to postgresql")
-            if not self.clinical_postgres_dsn:
-                raise ValueError("production PostgreSQL DSN is required")
-            if len(self.clinical_cursor_secret) < 32:
-                raise ValueError("production cursor secret must contain at least 32 characters")
+    def validate_production_configuration(self) -> "Settings":
+        if self.app_env == "production" and len(self.session_secret) < 32:
+            raise ValueError("production session secret must contain at least 32 characters")
         return self
 
 

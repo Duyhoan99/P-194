@@ -53,11 +53,11 @@ class DemoSessionProvider:
         identity = operational_store.session_identity(user_id)
         if identity is None:
             raise ClinicalAuthNotConfigured("Demo clinical session is invalid")
-        role, assigned_subject_ids = identity
+        role, assigned_patient_ids = identity
         return AccessContext(
             user_id=user_id,
             role=role,
-            assigned_subject_ids=assigned_subject_ids,
+            assigned_patient_ids=assigned_patient_ids,
             trace_id=getattr(request.state, "clinical_trace_id"),
         )
 
@@ -71,7 +71,7 @@ def create_demo_session(username: str, settings: Settings | None = None) -> tupl
     if operational_store.session_identity(username) is None:
         raise ClinicalAuthNotConfigured("Demo credentials are invalid")
     now = datetime.now(UTC)
-    expires_at = now + timedelta(seconds=configured.clinical_cursor_ttl_seconds)
+    expires_at = now + timedelta(seconds=configured.session_ttl_seconds)
     payload = {
         "expires_at": int(expires_at.timestamp()),
         "issued_at": int(now.timestamp()),
@@ -79,7 +79,7 @@ def create_demo_session(username: str, settings: Settings | None = None) -> tupl
     }
     body = _canonical_json(payload)
     signature = hmac.new(_session_secret(configured), body, hashlib.sha256).digest()
-    return f"{_b64encode(body)}.{_b64encode(signature)}", configured.clinical_cursor_ttl_seconds
+    return f"{_b64encode(body)}.{_b64encode(signature)}", configured.session_ttl_seconds
 
 
 def _verify_session(token: str, settings: Settings) -> dict[str, object]:
@@ -111,7 +111,7 @@ def _require_demo_environment(settings: Settings) -> None:
 
 
 def _session_secret(settings: Settings) -> bytes:
-    secret = settings.clinical_cursor_secret.encode("utf-8")
+    secret = settings.session_secret.encode("utf-8")
     if len(secret) < 32:
         raise ClinicalAuthNotConfigured("A demo session secret is required")
     return secret

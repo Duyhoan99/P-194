@@ -1,10 +1,11 @@
 """Medication safety service enforcing drug interaction rules strictly via configuration."""
 
 import json
-from pathlib import Path
 import uuid
+from pathlib import Path
 from typing import Any
-from src.clinical.canonical import DrugInteractionFlag, Citation, DocumentCitation, FhirCitation, RecordCitation
+
+from src.clinical.canonical import Citation, DrugInteractionFlag
 
 
 def canonical_pair(ingredient_a: str, ingredient_b: str) -> tuple[str, str]:
@@ -19,7 +20,7 @@ class MedicationSafetyService:
     def __init__(self, config_path: str | Path | None = None):
         if config_path is None:
             config_path = Path(__file__).parents[2] / "configs" / "drug_interactions" / "drug_interactions.json"
-        
+
         self.rules: list[dict[str, Any]] = []
         self.version = "1.0.0"
         self.load_rules(config_path)
@@ -27,7 +28,7 @@ class MedicationSafetyService:
     def load_rules(self, path: str | Path) -> None:
         p = Path(path)
         if p.exists():
-            with open(p, "r", encoding="utf-8") as f:
+            with open(p, encoding="utf-8") as f:
                 data = json.load(f)
                 self.version = data.get("version", "1.0.0")
                 self.rules = data.get("rules", [])

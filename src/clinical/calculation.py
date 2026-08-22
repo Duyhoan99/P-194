@@ -1,9 +1,9 @@
 """Calculation contract implementation strictly obeying ARCHITECTURE.md section 14.11.1."""
 
-from decimal import Decimal, ROUND_HALF_EVEN
-from typing import Any, Literal
-from dataclasses import dataclass, field
 import uuid
+from dataclasses import dataclass, field
+from decimal import ROUND_HALF_EVEN, Decimal
+from typing import Any, Literal
 
 
 @dataclass

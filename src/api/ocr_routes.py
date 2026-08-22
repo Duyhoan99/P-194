@@ -1,18 +1,62 @@
 """OCR verification REST endpoints adhering strictly to API_CONTRACT.md section 4.5."""
 
+import json
 import pathlib
+from functools import lru_cache
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+
 from src.api.dependencies import get_demo_repository
 from src.clinical.canonical import VerificationItem
 from src.clinical.demo_repository import DemoRepository
-from src.clinical.ingestion import IngestionService
 
 router = APIRouter(tags=["ocr"])
 
 # Reference to the same IngestionService used by ingestion_routes
 # (imported lazily to avoid circular imports)
-_DEMO_DOCS_DIR = pathlib.Path(__file__).resolve().parents[2] / "data" / "demo_mvp_v1" / "documents"
+_DEMO_DATA_DIR = pathlib.Path(__file__).resolve().parents[2] / "data" / "demo_mvp_v1"
+_DEMO_DOCS_DIR = _DEMO_DATA_DIR / "documents"
+_DEMO_MANIFEST = _DEMO_DATA_DIR / "dataset_manifest.json"
+
+
+@lru_cache(maxsize=1)
+def _demo_document_index() -> dict[str, pathlib.Path]:
+    """Resolve stable demo document IDs from the authoritative manifest."""
+    if not _DEMO_MANIFEST.is_file():
+        return {}
+    try:
+        manifest = json.loads(_DEMO_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    data_root = _DEMO_DATA_DIR.resolve()
+    index: dict[str, pathlib.Path] = {}
+    for item in manifest.get("documents", []):
+        if not isinstance(item, dict):
+            continue
+        document_id = str(item.get("document_id") or "").strip()
+        relative_file = str(item.get("file") or "").strip()
+        if not document_id or not relative_file:
+            continue
+        file_path = (_DEMO_DATA_DIR / relative_file).resolve()
+        if data_root not in file_path.parents or not file_path.is_file():
+            continue
+        index[document_id.casefold()] = file_path
+    return index
+
+
+def _inline_file_response(file_path: pathlib.Path) -> Response:
+    media_type = "application/pdf" if file_path.suffix.casefold() == ".pdf" else "application/octet-stream"
+    return Response(
+        content=file_path.read_bytes(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{file_path.name}"',
+            "Cache-Control": "public, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 class VerificationListResponse(BaseModel):
@@ -99,7 +143,7 @@ def get_document_page(
 @router.get("/documents/{document_id}/raw", response_model=None)
 def get_document_raw(document_id: str) -> Response:
     """Serve the raw PDF file for in-browser viewing.
-    
+
     First checks the in-memory IngestionService DocumentStore.
     Falls back to demo files on disk matching the document_id pattern.
     """
@@ -115,7 +159,7 @@ def get_document_raw(document_id: str) -> Response:
             media_type = "image/jpeg"
         elif name_lower.endswith(".json"):
             media_type = "application/json"
-            
+
         return Response(
             content=stored.content,
             media_type=media_type,
@@ -125,37 +169,19 @@ def get_document_raw(document_id: str) -> Response:
             },
         )
 
-    # 2. Fallback: try to find a matching demo PDF on disk
-    # document_id patterns: "DOC-PAT-001-lab_report", "DOC-PAT-001-FHIR", etc.
-    # Demo file patterns: "PAT-001_lab_report.pdf", "PAT-001_followup_note.pdf"
+    # 2. Resolve fixture documents by their stable manifest ID. Do not select
+    # the first file sharing a patient prefix: that can display the wrong source.
+    manifest_file = _demo_document_index().get(document_id.casefold())
+    if manifest_file:
+        return _inline_file_response(manifest_file)
+
+    # 3. Compatibility fallback for a legacy ID that is already the exact file
+    # stem. This remains exact-only and cannot escape the demo document folder.
     if _DEMO_DOCS_DIR.is_dir():
-        # Extract patient ID from document_id
-        # e.g. "DOC-PAT-001-lab_report" -> try "PAT-001_lab_report.pdf"
-        cleaned = document_id.replace("DOC-", "").replace("-", "_")
+        cleaned = document_id.removeprefix("DOC-")
         for pdf_file in _DEMO_DOCS_DIR.glob("*.pdf"):
-            # Try exact match first
-            if pdf_file.stem == cleaned:
-                return Response(
-                    content=pdf_file.read_bytes(),
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'inline; filename="{pdf_file.name}"',
-                        "Cache-Control": "public, max-age=3600",
-                    },
-                )
-        # Try partial match: find any PDF whose name contains the patient ID
-        parts = document_id.split("-")
-        if len(parts) >= 3:
-            patient_id_part = f"{parts[1]}-{parts[2]}"  # e.g. "PAT-001"
-            for pdf_file in _DEMO_DOCS_DIR.glob(f"{patient_id_part}*.pdf"):
-                return Response(
-                    content=pdf_file.read_bytes(),
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'inline; filename="{pdf_file.name}"',
-                        "Cache-Control": "public, max-age=3600",
-                    },
-                )
+            if pdf_file.stem.casefold() == cleaned.casefold():
+                return _inline_file_response(pdf_file)
 
     raise HTTPException(
         status_code=404,

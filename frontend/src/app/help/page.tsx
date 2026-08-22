@@ -1,6 +1,5 @@
 'use client';
-import { HelpCircle, Book, MessageSquare, Phone, ExternalLink, Search, Mail } from 'lucide-react';
-import Link from 'next/link';
+import { HelpCircle, Book, MessageSquare, ExternalLink, Search, Mail } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 
 export default function HelpPage() {

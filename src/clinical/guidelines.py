@@ -304,7 +304,7 @@ def format_comparison_table_response(
         "heart_rate": "Nhịp tim (Heart rate)",
         "weight": "Cân nặng (Body weight)",
     }
-    
+
     systolic_by_date: dict[str, float] = {}
     diastolic_by_date: dict[str, float] = {}
     all_dates: set[str] = set()
@@ -314,7 +314,7 @@ def format_comparison_table_response(
         if not raw_time:
             continue
         date_str = str(raw_time)[:10]
-        
+
         sv = f.get("source_value")
         title = ""
         summary = ""
@@ -329,7 +329,7 @@ def format_comparison_table_response(
             stmt = str(f["normalized_value"]).casefold()
             title = stmt
             summary = stmt
-            
+
         m_num = re.search(r"(\d+(?:\.\d+)?)", summary)
         if not m_num:
             continue
@@ -407,10 +407,10 @@ def format_comparison_table_response(
     for k in ordered_keys:
         label = metric_labels.get(k, k.upper())
         by_date = metric_data[k]
-        
+
         latest_val = by_date.get(latest_date, (None, 0.0, ""))[0] or "—"
         prev_val = by_date.get(prev_date, (None, 0.0, ""))[0] or "—"
-        
+
         older_vals_list = []
         for od in older_dates:
             if od in by_date:
@@ -423,7 +423,7 @@ def format_comparison_table_response(
             cur_num = by_date[latest_date][1]
             prev_num = by_date[prev_date][1]
             delta = cur_num - prev_num
-            
+
             if k == "hba1c":
                 if delta < 0:
                     eval_str = f"📉 Giảm {abs(delta):.1f}% (Kiểm soát tốt hơn)"
@@ -469,7 +469,7 @@ def format_comparison_table_response(
     lines.append("")
     lines.append("💡 **Nhận xét diễn tiến lâm sàng:**")
     lines.append(f"- So với lần khám trước ngày **{_fmt_date(prev_date)} ({prev_date})**, chỉ số tại lần khám gần nhất (**{_fmt_date(latest_date)} ({latest_date})**) cho thấy xu hướng đáp ứng điều trị.")
-    
+
     return "\n".join(lines).strip()
 
 

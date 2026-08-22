@@ -14,13 +14,12 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from src.clinical.structured_fact import StructuredFact
-
 from src.clinical.pdf_extractor import (
     OCR_CONFIDENCE_THRESHOLD,
     BlockExtraction,
     DocumentExtraction,
 )
+from src.clinical.structured_fact import StructuredFact
 
 CANONICALIZER_VERSION = "pdf-canonicalizer@1.0.0"
 

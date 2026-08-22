@@ -205,7 +205,7 @@ class IngestionService:
         is_pdf_by_mime = content_type and "pdf" in content_type.lower()
         is_img_by_ext = client_filename and client_filename.lower().endswith((".png", ".jpg", ".jpeg"))
         is_img_by_mime = content_type and "image" in content_type.lower()
-        
+
         if is_pdf_by_ext or is_pdf_by_mime:
             if not content.startswith(_PDF_MAGIC):
                 raise ValidationError(

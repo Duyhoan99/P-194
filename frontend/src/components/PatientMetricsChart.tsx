@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import {
   AreaChart,
   Area,
@@ -144,7 +144,7 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
     return selectedMetric.threshold;
   }, [selectedMetric, trendInfo]);
 
-  const loadMetric = (metric: MetricOption) => {
+  const loadMetric = useCallback((metric: MetricOption) => {
     setLoading(true);
     setError('');
     patients.getTrends(patientId, metric.code)
@@ -180,11 +180,11 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
         setData([]);
       })
       .finally(() => setLoading(false));
-  };
+  }, [patientId]);
 
   useEffect(() => {
     loadMetric(selectedMetric);
-  }, [patientId, selectedMetric]);
+  }, [selectedMetric, loadMetric]);
 
   const handleMetricChange = (metric: MetricOption) => {
     setSelectedMetric(metric);
@@ -196,8 +196,6 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
     : null;
 
   const latestPoint = data.length > 0 ? data[data.length - 1] : null;
-  const hasWarningPoints = data.some((d) => d.isWarning);
-
   // Compute dynamic Y-axis domain symmetric around activeThreshold so the threshold line is vertically centered ("cắt đều trên và dưới")
   const yDomain = useMemo<[number, number]>(() => {
     if (data.length === 0) {

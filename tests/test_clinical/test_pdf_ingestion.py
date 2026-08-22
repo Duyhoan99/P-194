@@ -6,25 +6,23 @@ No real OpenAI calls; all LLM usage is mocked.
 
 from __future__ import annotations
 
-import io
 import hashlib
+import io
+from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
 
+from src.api.dependencies import get_demo_repository
 from src.clinical.demo_repository import DemoRepository
 from src.clinical.ingestion import IngestionService, ValidationError
 from src.clinical.pdf_canonicalizer import canonicalize_extraction
 from src.clinical.pdf_extractor import (
-    MockOcrExtractor,
     OCR_CONFIDENCE_THRESHOLD,
+    MockOcrExtractor,
     TextLayerExtractor,
-    detect_has_text_layer,
 )
 from src.main import app
-from src.api.dependencies import get_demo_repository
-from unittest import mock
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -509,8 +507,8 @@ def test_prompt_injection_in_pdf_not_treated_as_instruction():
 
 def test_entered_in_error_excluded_from_evidence():
     """Evidence items marked entered-in-error must not appear as verified facts."""
-    from src.agents.evidence import retrieve_evidence, build_scoped_evidence
     from src.agents.adapter import AgentRequestAdapter
+    from src.agents.evidence import build_scoped_evidence, retrieve_evidence
 
     repo = DemoRepository()
     # Build packet and confirm entered-in-error items are excluded from retrieval
@@ -616,7 +614,7 @@ def test_review_becomes_stale_after_new_data():
         assert reviews_before[-1].status in {"generated", "under_review", "edited"}
 
     # Now add new PDF evidence to trigger stale
-    marked = repo.mark_reviews_stale("PAT-001")
+    repo.mark_reviews_stale("PAT-001")
     reviews_after = repo._reviews.get("PAT-001", [])
     for rev in reviews_after:
         if rev.status not in {"approved"}:
@@ -722,7 +720,8 @@ def test_openai_error_deterministic_fallback():
     """When OpenAI client raises an exception, deterministic generation is used."""
     from src.agents.adapter import AgentRequestAdapter
     from src.agents.evidence import build_scoped_evidence, retrieve_evidence
-    from src.agents.generation import compose_atomic_claims, compose_atomic_claims_llm as compose_atomic_claims_llm
+    from src.agents.generation import compose_atomic_claims
+    from src.agents.generation import compose_atomic_claims_llm as compose_atomic_claims_llm
     from src.agents.llm_client import MockLLMClinicalClient
 
     repo = DemoRepository()
@@ -754,10 +753,11 @@ def test_openai_error_deterministic_fallback():
 
 def test_no_api_key_deterministic_fallback():
     """When OPENAI_API_KEY is absent, NullClient returns None → deterministic fallback."""
-    from src.agents.generation import compose_atomic_claims, compose_atomic_claims_llm as compose_atomic_claims_llm
-    from src.agents.llm_client import NullLLMClinicalClient
     from src.agents.adapter import AgentRequestAdapter
     from src.agents.evidence import build_scoped_evidence, retrieve_evidence
+    from src.agents.generation import compose_atomic_claims
+    from src.agents.generation import compose_atomic_claims_llm as compose_atomic_claims_llm
+    from src.agents.llm_client import NullLLMClinicalClient
 
     repo = DemoRepository()
     packet = repo.build_evidence_packet("PAT-001")
@@ -906,7 +906,6 @@ def test_e2e_upload_pdf_ask_review_citation_watermark_isolation(mock_index_evide
 @mock.patch("src.agents.retrieval.vector.index_evidence")
 def test_ingestion_with_real_demo_pdf(mock_index_evidence):
     """Upload the actual PAT-001_lab_report.pdf from demo_mvp_v1 dataset."""
-    import os
     from pathlib import Path
 
     pdf_path = Path("data/demo_mvp_v1/documents/PAT-001_lab_report.pdf")

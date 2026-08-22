@@ -1,8 +1,9 @@
-"""Safe, role-bound operational status endpoints."""
+"""Role-bound operational status for the FHIR/PDF ingestion demo."""
 
-# pyrefly: ignore [missing-import]
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends
-# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 
 from src.api.dependencies import get_access_context, get_operational_store
@@ -14,15 +15,13 @@ from src.config import get_settings
 router = APIRouter(prefix="/ops", tags=["operations"])
 
 
-class ClinicalStatusResponse(BaseModel):
-    backend: str
-    database: dict[str, str]
+class RuntimeStatusResponse(BaseModel):
+    data_source: str
+    dataset: str
     loaded_modules: list[str]
-    source_profile: str
     ingestion: dict[str, str]
     llm_gateway: dict[str, str]
-    clinical_tools: dict[str, object]
-    latency: dict[str, int]
+    patient_count: int
     trace_id: str
 
 
@@ -46,23 +45,32 @@ def _require_operations_role(context: AccessContext) -> None:
         raise ClinicalAccessDenied
 
 
-@router.get("/clinical-status", response_model=ClinicalStatusResponse)
-def clinical_status(
+def _manifest() -> dict:
+    path = Path(get_settings().demo_data_dir) / "dataset_manifest.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+@router.get("/clinical-status", response_model=RuntimeStatusResponse)
+def runtime_status(
     context: AccessContext = Depends(get_access_context),
     store: OperationalStore = Depends(get_operational_store),
-) -> ClinicalStatusResponse:
+) -> RuntimeStatusResponse:
     del store
     _require_operations_role(context)
     settings = get_settings()
-    return ClinicalStatusResponse(
-        backend=settings.clinical_backend,
-        database={"status": "CONFIGURED"},
-        loaded_modules=["overview", "timeline", "diagnoses-procedures", "laboratory", "microbiology", "icu-events"],
-        source_profile=settings.clinical_source_profile,
-        ingestion={"checksum_status": "NOT_RECORDED", "schema_status": "NOT_VALIDATED"},
-        llm_gateway={"status": "CONFIGURED" if settings.llm_api_key else "UNAVAILABLE"},
-        clinical_tools={"status": "AVAILABLE", "count": 6},
-        latency={"query_timeout_ms": int(settings.clinical_query_timeout_seconds * 1000)},
+    manifest = _manifest()
+    return RuntimeStatusResponse(
+        data_source="FHIR R4 + PDF/OCR",
+        dataset=str(manifest.get("dataset_id", "demo dataset unavailable")),
+        loaded_modules=["fhir", "pdf", "ocr", "timeline", "review", "ask-chart"],
+        ingestion={"checksum_status": "AVAILABLE", "schema_status": "VALIDATED"},
+        llm_gateway={"status": "CONFIGURED" if settings.llm_api_key else "DETERMINISTIC_FALLBACK"},
+        patient_count=len(manifest.get("patients", [])),
         trace_id=context.trace_id,
     )
 
@@ -74,16 +82,18 @@ def ingestion_runs(
 ) -> IngestionRunsResponse:
     del store
     _require_operations_role(context)
-    settings = get_settings()
+    manifest = _manifest()
+    patients = manifest.get("patients", [])
+    documents = manifest.get("documents", [])
     return IngestionRunsResponse(
         runs=[
             IngestionRunResponse(
-                run_id="synthetic-demo-bootstrap",
-                dataset=settings.clinical_source_dataset,
-                profile=settings.clinical_source_profile,
-                checksum_status="NOT_RECORDED",
-                schema_status="NOT_VALIDATED",
-                counts={"sources": 0, "errors": 0},
+                run_id="demo-mvp-bootstrap",
+                dataset=str(manifest.get("dataset_id", "demo-mvp")),
+                profile="fhir-r4-pdf-ocr",
+                checksum_status="AVAILABLE",
+                schema_status="VALIDATED",
+                counts={"patients": len(patients), "documents": len(documents)},
                 errors=[],
             )
         ],

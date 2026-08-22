@@ -1,20 +1,17 @@
 'use client';
 
-import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   AlertTriangle,
   AlertCircle,
   FileText,
   CheckCircle2,
-  HelpCircle,
   Eye,
   ShieldCheck,
-  SplitSquareVertical,
-  ArrowRight
+  SplitSquareVertical
 } from 'lucide-react';
 
-export default function DataConflictsPanel({ patientId }: { patientId: string }) {
+export default function DataConflictsPanel() {
   const { currentReview, setFocusedCitation } = useAppStore();
 
   const getCitationLabel = (cit: any) => {

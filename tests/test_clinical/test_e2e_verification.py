@@ -1,15 +1,12 @@
+
 import pytest
-import os
-from unittest.mock import patch
-from typing import Any
 from fastapi.testclient import TestClient
 
-from src.main import app
-from src.clinical.demo_repository import DemoRepository
-from src.api.dependencies import get_demo_repository
-from src.agents.contracts import AgentResult
 from src.agents.evidence import ScopedEvidence
-from src.agents.retrieval.vector import index_evidence, SemanticRetriever
+from src.api.dependencies import get_demo_repository
+from src.clinical.demo_repository import DemoRepository
+from src.main import app
+
 
 @pytest.fixture
 def repo():
@@ -68,7 +65,7 @@ def test_narrative_retrieval_e2e(client, repo):
         }]
     }]
     repo.add_pdf_evidence("PAT-001", "DOC-NOTE-1", mock_pdf)
-    
+
     response = client.post("/api/v1/patients/PAT-001/ask", json={"question": "Bệnh nhân có báo cáo hay quên uống thuốc không?"})
     assert response.status_code == 200
     data = response.json()
@@ -111,7 +108,7 @@ def test_mixed_retrieval_e2e(client, repo):
         }]
     }]
     repo.add_pdf_evidence("PAT-001", "DOC-NOTE-2", mock_pdf)
-    
+
     response = client.post("/api/v1/patients/PAT-001/ask", json={"question": "Sau thay đổi điều trị, HbA1c thay đổi thế nào và có vấn đề tuân thủ thuốc không?"})
     assert response.status_code == 200
     data = response.json()
@@ -160,7 +157,7 @@ def test_conflict_detection_e2e(client, repo):
         }
     ]
     repo.add_pdf_evidence("PAT-001", "DOC-CONF-1", conflicting_pdf)
-    
+
     response = client.post("/api/v1/patients/PAT-001/ask", json={"question": "Huyết áp của bệnh nhân là bao nhiêu?"})
     assert response.status_code == 200
     data = response.json()
@@ -192,10 +189,10 @@ def test_cross_patient_vector_security(client, repo):
         }]
     }]
     repo.add_pdf_evidence("PAT-002", "DOC-B-1", mock_pdf_b)
-    
+
     # Pre-index PAT-002 to Chroma (Simulate cross-pollution)
     # The agent index_evidence actually scopes to the patient it's processing, but let's see what happens on search
-    
+
     # Query PAT-001
     response = client.post("/api/v1/patients/PAT-001/ask", json={"question": "Bệnh nhân có bị lây nhiễm không?"})
     assert response.status_code == 200
@@ -222,12 +219,10 @@ def test_fabricated_citation_grounding(client):
             section_code="recent_results"
         )
     ]
-    
+
     # Since agent_generation_backend might be deterministic in test, we force LLM mock by directly testing the verification
-    from src.agents.verification import verify_claims
-    from src.agents.evidence import ScopedEvidence
     from src.agents.contracts import EvidenceItem
-    
+
     # Valid retrieved evidence
     valid_ev = [
         ScopedEvidence(
@@ -245,7 +240,7 @@ def test_fabricated_citation_grounding(client):
             tenant_id="ten_demo"
         )
     ]
-    
+
     claims, results = verify_claims(fake_claims, valid_ev)
     assert len(claims) == 0
     assert len(results) == 1

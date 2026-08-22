@@ -5,13 +5,9 @@ import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import {
   Pill,
-  Clock,
   AlertTriangle,
-  CheckCircle2,
   RefreshCw,
-  ArrowRight,
   ShieldAlert,
-  FileText,
   Activity,
   Calendar
 } from 'lucide-react';

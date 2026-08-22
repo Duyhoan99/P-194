@@ -32,6 +32,8 @@ Thumbs.db
 data/*
 !data/demo_mvp_v1/
 !data/demo_mvp_v1/**
+# Runtime QR snapshots can contain signed patient instructions and token hashes.
+data/demo_mvp_v1/.runtime/
 *.db
 *.sqlite3
 mimic-iv-clinical-database-demo-2.2/

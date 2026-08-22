@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Clinical Review Copilot API",
-    "description": "Backend API for Clinical Review Copilot platform",
+    "title": "Clinical Review Copilot API (P-194)",
+    "description": "Backend API for Clinical Review Copilot platform — FHIR R4 & PDF/OCR Ingestion",
     "version": "1.0.0"
   },
   "paths": {
@@ -68,7 +68,7 @@
           "auth"
         ],
         "summary": "Login",
-        "description": "Authenticates doctor email/password, sets HttpOnly session cookie, and returns UserMe.",
+        "description": "Authenticates email/password, sets HttpOnly session cookie, and returns UserMe.",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -466,12 +466,89 @@
         }
       }
     },
+    "/api/v1/patients/{patient_id}": {
+      "delete": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Delete Patient",
+        "operationId": "delete_patient_api_v1_patients__patient_id__delete",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/patients/{patient_id}/care-plan": {
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Generate Patient Care Plan",
+        "description": "Generate dynamic patient home care plan using Clinical LLM Agent & Medical RAG.",
+        "operationId": "generate_patient_care_plan_api_v1_patients__patient_id__care_plan_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ingestions": {
       "post": {
         "tags": [
           "ingestion"
         ],
         "summary": "Ingest File",
+        "description": "Ingest a PDF, Image, or JSON document for a patient.\n\nIf patient_id is not provided, AI will parse the document to match an existing patient,\nor automatically create a new patient with extracted demographic data.",
         "operationId": "ingest_file_api_v1_ingestions_post",
         "parameters": [
           {
@@ -523,6 +600,74 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "List Ingestions",
+        "description": "List recent ingestion batches.",
+        "operationId": "list_ingestions_api_v1_ingestions_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IngestionBatch"
+                  },
+                  "title": "Response List Ingestions Api V1 Ingestions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ingestions/quota": {
+      "get": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "Get Quota",
+        "description": "Get storage quota usage.",
+        "operationId": "get_quota_api_v1_ingestions_quota_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/ingestions/{batch_id}": {
@@ -530,8 +675,8 @@
         "tags": [
           "ingestion"
         ],
-        "summary": "Get Ingestion Batch",
-        "operationId": "get_ingestion_batch_api_v1_ingestions__batch_id__get",
+        "summary": "Get Ingestion Status",
+        "operationId": "get_ingestion_status_api_v1_ingestions__batch_id__get",
         "parameters": [
           {
             "name": "batch_id",
@@ -786,6 +931,47 @@
               "type": "string",
               "default": "image",
               "title": "Representation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/raw": {
+      "get": {
+        "tags": [
+          "ocr"
+        ],
+        "summary": "Get Document Raw",
+        "description": "Serve the raw PDF file for in-browser viewing.\n\nFirst checks the in-memory IngestionService DocumentStore.\nFalls back to demo files on disk matching the document_id pattern.",
+        "operationId": "get_document_raw_api_v1_documents__document_id__raw_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
             }
           }
         ],
@@ -1360,6 +1546,49 @@
         }
       }
     },
+    "/api/v1/tts": {
+      "get": {
+        "tags": [
+          "TTS"
+        ],
+        "summary": "Get Tts Audio",
+        "description": "Fetch natural Vietnamese TTS audio mp3 stream.",
+        "operationId": "get_tts_audio_api_v1_tts_get",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000,
+              "title": "Text"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/users": {
       "get": {
         "tags": [
@@ -1433,13 +1662,13 @@
         }
       }
     },
-    "/api/v1/admin/users/{user_id}/assignments/{subject_id}": {
+    "/api/v1/admin/users/{user_id}/assignments/{patient_id}": {
       "delete": {
         "tags": [
           "admin"
         ],
         "summary": "Revoke Assignment",
-        "operationId": "revoke_assignment_api_v1_admin_users__user_id__assignments__subject_id__delete",
+        "operationId": "revoke_assignment_api_v1_admin_users__user_id__assignments__patient_id__delete",
         "parameters": [
           {
             "name": "user_id",
@@ -1451,12 +1680,12 @@
             }
           },
           {
-            "name": "subject_id",
+            "name": "patient_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Subject Id"
+              "type": "string",
+              "title": "Patient Id"
             }
           }
         ],
@@ -1519,22 +1748,14 @@
                   "enum": [
                     "VIEW_PATIENT_OVERVIEW",
                     "VIEW_ENCOUNTER_TIMELINE",
-                    "VIEW_DIAGNOSES_AND_PROCEDURES",
-                    "VIEW_LABS",
-                    "VIEW_LABORATORY_RESULTS",
-                    "VIEW_MICROBIOLOGY",
-                    "VIEW_MICROBIOLOGY_RESULTS",
-                    "VIEW_MEDICATIONS",
-                    "VIEW_PATIENT_METRICS",
-                    "VIEW_ICU_EVENTS",
-                    "GENERATE_CLINICAL_SUMMARY",
-                    "EDIT_CLINICAL_SUMMARY",
-                    "REJECT_CLINICAL_SUMMARY",
-                    "APPROVE_CLINICAL_SUMMARY",
-                    "EXPORT_CLINICAL_SUMMARY",
-                    "RESOLVE_CLINICAL_CONFLICT",
-                    "ASSIGN_CLINICAL_SUBJECT",
-                    "REVOKE_CLINICAL_SUBJECT"
+                    "GENERATE_REVIEW",
+                    "EDIT_REVIEW",
+                    "REJECT_REVIEW",
+                    "APPROVE_REVIEW",
+                    "EXPORT_REVIEW",
+                    "ASSIGN_PATIENT",
+                    "REVOKE_PATIENT",
+                    "DELETE_PATIENT"
                   ],
                   "type": "string"
                 },
@@ -1689,15 +1910,15 @@
         "tags": [
           "operations"
         ],
-        "summary": "Clinical Status",
-        "operationId": "clinical_status_api_v1_ops_clinical_status_get",
+        "summary": "Runtime Status",
+        "operationId": "runtime_status_api_v1_ops_clinical_status_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClinicalStatusResponse"
+                  "$ref": "#/components/schemas/RuntimeStatusResponse"
                 }
               }
             }
@@ -1719,1351 +1940,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IngestionRunsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients": {
-      "get": {
-        "tags": [
-          "clinical-summaries"
-        ],
-        "summary": "Get Assigned Patients",
-        "description": "Return only server-authorized patient identifiers from the signed context.",
-        "operationId": "get_assigned_patients_api_v1_clinical_patients_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssignedPatientsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/summaries/current": {
-      "get": {
-        "tags": [
-          "clinical-summaries"
-        ],
-        "summary": "Get Current Summary",
-        "description": "Return a subject's current persisted summary only after assignment authorization.",
-        "operationId": "get_current_summary_api_v1_clinical_patients__subject_id__summaries_current_get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SummaryVersion"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/summaries": {
-      "post": {
-        "tags": [
-          "clinical-summaries"
-        ],
-        "summary": "Generate Summary",
-        "operationId": "generate_summary_api_v1_clinical_patients__subject_id__summaries_post",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/GenerateSummaryRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SummaryVersion"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/summaries/{summary_id}": {
-      "get": {
-        "tags": [
-          "clinical-summaries"
-        ],
-        "summary": "Get Summary",
-        "operationId": "get_summary_api_v1_clinical_summaries__summary_id__get",
-        "parameters": [
-          {
-            "name": "summary_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Summary Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SummaryVersion"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "clinical-summaries"
-        ],
-        "summary": "Edit Summary",
-        "operationId": "edit_summary_api_v1_clinical_summaries__summary_id__patch",
-        "parameters": [
-          {
-            "name": "summary_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Summary Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditSummaryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SummaryVersion"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/summaries/{summary_id}/versions": {
-      "get": {
-        "tags": [
-          "clinical-summaries"
-        ],
-        "summary": "List Summary Versions",
-        "operationId": "list_summary_versions_api_v1_clinical_summaries__summary_id__versions_get",
-        "parameters": [
-          {
-            "name": "summary_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Summary Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SummaryVersion"
-                  },
-                  "title": "Response List Summary Versions Api V1 Clinical Summaries  Summary Id  Versions Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/summaries/{summary_id}/export": {
-      "post": {
-        "tags": [
-          "clinical-summaries"
-        ],
-        "summary": "Export Summary",
-        "operationId": "export_summary_api_v1_clinical_summaries__summary_id__export_post",
-        "parameters": [
-          {
-            "name": "summary_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Summary Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/summaries/{summary_id}/reject": {
-      "post": {
-        "tags": [
-          "clinical-summary-review"
-        ],
-        "summary": "Reject Summary",
-        "operationId": "reject_summary_api_v1_clinical_summaries__summary_id__reject_post",
-        "parameters": [
-          {
-            "name": "summary_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Summary Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RejectSummaryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SummaryVersion"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/summaries/{summary_id}/approve": {
-      "post": {
-        "tags": [
-          "clinical-summary-review"
-        ],
-        "summary": "Approve Summary",
-        "operationId": "approve_summary_api_v1_clinical_summaries__summary_id__approve_post",
-        "parameters": [
-          {
-            "name": "summary_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Summary Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReviewChecklist"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SummaryVersion"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}": {
-      "get": {
-        "tags": [
-          "clinical"
-        ],
-        "summary": "Get Patient Overview",
-        "operationId": "get_patient_overview_api_v1_clinical_patients__subject_id__get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          },
-          {
-            "name": "hadm_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Hadm Id"
-            }
-          },
-          {
-            "name": "stay_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stay Id"
-            }
-          },
-          {
-            "name": "from_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From Time"
-            }
-          },
-          {
-            "name": "to_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To Time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClinicalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/timeline": {
-      "get": {
-        "tags": [
-          "clinical"
-        ],
-        "summary": "Get Encounter Timeline",
-        "operationId": "get_encounter_timeline_api_v1_clinical_patients__subject_id__timeline_get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          },
-          {
-            "name": "hadm_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Hadm Id"
-            }
-          },
-          {
-            "name": "stay_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stay Id"
-            }
-          },
-          {
-            "name": "from_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From Time"
-            }
-          },
-          {
-            "name": "to_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To Time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClinicalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/diagnoses-procedures": {
-      "get": {
-        "tags": [
-          "clinical"
-        ],
-        "summary": "Get Diagnoses And Procedures",
-        "operationId": "get_diagnoses_and_procedures_api_v1_clinical_patients__subject_id__diagnoses_procedures_get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          },
-          {
-            "name": "hadm_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Hadm Id"
-            }
-          },
-          {
-            "name": "stay_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stay Id"
-            }
-          },
-          {
-            "name": "from_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From Time"
-            }
-          },
-          {
-            "name": "to_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To Time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClinicalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/labs": {
-      "get": {
-        "tags": [
-          "clinical"
-        ],
-        "summary": "Get Laboratory Results",
-        "operationId": "get_laboratory_results_api_v1_clinical_patients__subject_id__labs_get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          },
-          {
-            "name": "hadm_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Hadm Id"
-            }
-          },
-          {
-            "name": "stay_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stay Id"
-            }
-          },
-          {
-            "name": "from_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From Time"
-            }
-          },
-          {
-            "name": "to_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To Time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClinicalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/microbiology": {
-      "get": {
-        "tags": [
-          "clinical"
-        ],
-        "summary": "Get Microbiology Results",
-        "operationId": "get_microbiology_results_api_v1_clinical_patients__subject_id__microbiology_get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          },
-          {
-            "name": "hadm_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Hadm Id"
-            }
-          },
-          {
-            "name": "stay_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stay Id"
-            }
-          },
-          {
-            "name": "from_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From Time"
-            }
-          },
-          {
-            "name": "to_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To Time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClinicalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/medications": {
-      "get": {
-        "tags": [
-          "clinical"
-        ],
-        "summary": "Get Medications",
-        "operationId": "get_medications_api_v1_clinical_patients__subject_id__medications_get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          },
-          {
-            "name": "hadm_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Hadm Id"
-            }
-          },
-          {
-            "name": "stay_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stay Id"
-            }
-          },
-          {
-            "name": "from_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From Time"
-            }
-          },
-          {
-            "name": "to_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To Time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClinicalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/clinical/patients/{subject_id}/icu-events": {
-      "get": {
-        "tags": [
-          "clinical"
-        ],
-        "summary": "Get Icu Events",
-        "operationId": "get_icu_events_api_v1_clinical_patients__subject_id__icu_events_get",
-        "parameters": [
-          {
-            "name": "subject_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Subject Id"
-            }
-          },
-          {
-            "name": "hadm_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Hadm Id"
-            }
-          },
-          {
-            "name": "stay_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Stay Id"
-            }
-          },
-          {
-            "name": "from_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From Time"
-            }
-          },
-          {
-            "name": "to_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To Time"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClinicalResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3140,6 +2016,12 @@
         "properties": {
           "status": {
             "type": "string",
+            "enum": [
+              "answered",
+              "not_found",
+              "conflicting",
+              "not_allowed"
+            ],
             "title": "Status"
           },
           "answer": {
@@ -3149,7 +2031,12 @@
           "confidence": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
               },
               {
                 "type": "null"
@@ -3188,38 +2075,17 @@
         ],
         "title": "AskResponse"
       },
-      "AssignedPatientsResponse": {
-        "properties": {
-          "patients": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Patients"
-          },
-          "trace_id": {
-            "type": "string",
-            "title": "Trace Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "patients",
-          "trace_id"
-        ],
-        "title": "AssignedPatientsResponse"
-      },
       "AssignmentHistoryResponse": {
         "properties": {
-          "subject_reference": {
+          "patient_id": {
             "type": "string",
-            "title": "Subject Reference"
+            "title": "Patient Id"
           },
           "action": {
             "type": "string",
             "enum": [
-              "ASSIGN_CLINICAL_SUBJECT",
-              "REVOKE_CLINICAL_SUBJECT"
+              "ASSIGN_PATIENT",
+              "REVOKE_PATIENT"
             ],
             "title": "Action"
           },
@@ -3235,7 +2101,7 @@
         },
         "type": "object",
         "required": [
-          "subject_reference",
+          "patient_id",
           "action",
           "actor",
           "timestamp"
@@ -3244,15 +2110,16 @@
       },
       "AssignmentRequest": {
         "properties": {
-          "subject_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Subject Id"
+          "patient_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Patient Id"
           }
         },
         "type": "object",
         "required": [
-          "subject_id"
+          "patient_id"
         ],
         "title": "AssignmentRequest"
       },
@@ -3267,28 +2134,20 @@
             "enum": [
               "VIEW_PATIENT_OVERVIEW",
               "VIEW_ENCOUNTER_TIMELINE",
-              "VIEW_DIAGNOSES_AND_PROCEDURES",
-              "VIEW_LABS",
-              "VIEW_LABORATORY_RESULTS",
-              "VIEW_MICROBIOLOGY",
-              "VIEW_MICROBIOLOGY_RESULTS",
-              "VIEW_MEDICATIONS",
-              "VIEW_PATIENT_METRICS",
-              "VIEW_ICU_EVENTS",
-              "GENERATE_CLINICAL_SUMMARY",
-              "EDIT_CLINICAL_SUMMARY",
-              "REJECT_CLINICAL_SUMMARY",
-              "APPROVE_CLINICAL_SUMMARY",
-              "EXPORT_CLINICAL_SUMMARY",
-              "RESOLVE_CLINICAL_CONFLICT",
-              "ASSIGN_CLINICAL_SUBJECT",
-              "REVOKE_CLINICAL_SUBJECT"
+              "GENERATE_REVIEW",
+              "EDIT_REVIEW",
+              "REJECT_REVIEW",
+              "APPROVE_REVIEW",
+              "EXPORT_REVIEW",
+              "ASSIGN_PATIENT",
+              "REVOKE_PATIENT",
+              "DELETE_PATIENT"
             ],
             "title": "Action"
           },
-          "subject_reference": {
+          "patient_id": {
             "type": "string",
-            "title": "Subject Reference"
+            "title": "Patient Id"
           },
           "timestamp": {
             "type": "string",
@@ -3316,7 +2175,7 @@
         "required": [
           "actor",
           "action",
-          "subject_reference",
+          "patient_id",
           "timestamp",
           "result",
           "trace_id"
@@ -3464,6 +2323,17 @@
             ],
             "title": "Patient Id"
           },
+          "new_patient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Patient Name"
+          },
           "format": {
             "type": "string",
             "title": "Format",
@@ -3512,70 +2382,6 @@
         ],
         "title": "ChatResponse"
       },
-      "Citation": {
-        "properties": {
-          "citation_id": {
-            "type": "string",
-            "title": "Citation Id"
-          },
-          "lineage": {
-            "$ref": "#/components/schemas/SourceLineage"
-          },
-          "supported_fields": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Supported Fields"
-          }
-        },
-        "type": "object",
-        "required": [
-          "citation_id",
-          "lineage"
-        ],
-        "title": "Citation"
-      },
-      "Claim": {
-        "properties": {
-          "claim_id": {
-            "type": "string",
-            "title": "Claim Id"
-          },
-          "section": {
-            "type": "string",
-            "title": "Section"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "citation_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Citation Ids"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "VALID",
-              "INVALID",
-              "UNSUPPORTED"
-            ],
-            "title": "Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "claim_id",
-          "section",
-          "text",
-          "status"
-        ],
-        "title": "Claim"
-      },
       "ClaimEvidenceResponse": {
         "properties": {
           "claim_id": {
@@ -3615,303 +2421,6 @@
           "claim_status"
         ],
         "title": "ClaimEvidenceResponse"
-      },
-      "ClinicalPage": {
-        "properties": {
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          },
-          "has_more": {
-            "type": "boolean",
-            "title": "Has More",
-            "default": false
-          }
-        },
-        "type": "object",
-        "title": "ClinicalPage"
-      },
-      "ClinicalResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "SUCCESS",
-              "PARTIAL",
-              "EMPTY",
-              "DENIED",
-              "NOT_LOADED"
-            ],
-            "title": "Status"
-          },
-          "records": {
-            "items": {
-              "$ref": "#/components/schemas/EvidenceRecord"
-            },
-            "type": "array",
-            "title": "Records"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Warnings"
-          },
-          "limitations": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Limitations"
-          },
-          "trace_id": {
-            "type": "string",
-            "title": "Trace Id"
-          },
-          "page": {
-            "$ref": "#/components/schemas/ClinicalPage"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status",
-          "records",
-          "trace_id"
-        ],
-        "title": "ClinicalResponse"
-      },
-      "ClinicalStatusResponse": {
-        "properties": {
-          "backend": {
-            "type": "string",
-            "title": "Backend"
-          },
-          "database": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Database"
-          },
-          "loaded_modules": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Loaded Modules"
-          },
-          "source_profile": {
-            "type": "string",
-            "title": "Source Profile"
-          },
-          "ingestion": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Ingestion"
-          },
-          "llm_gateway": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Llm Gateway"
-          },
-          "clinical_tools": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Clinical Tools"
-          },
-          "latency": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "Latency"
-          },
-          "trace_id": {
-            "type": "string",
-            "title": "Trace Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "backend",
-          "database",
-          "loaded_modules",
-          "source_profile",
-          "ingestion",
-          "llm_gateway",
-          "clinical_tools",
-          "latency",
-          "trace_id"
-        ],
-        "title": "ClinicalStatusResponse"
-      },
-      "ClinicalSummaryDraft": {
-        "properties": {
-          "summary_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Summary Id"
-          },
-          "subject_id": {
-            "type": "integer",
-            "title": "Subject Id"
-          },
-          "hadm_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hadm Id"
-          },
-          "stay_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stay Id"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "NEEDS_REVISION",
-              "REJECTED",
-              "APPROVED",
-              "EXPORTED"
-            ],
-            "title": "Status"
-          },
-          "sections": {
-            "additionalProperties": {
-              "items": {
-                "$ref": "#/components/schemas/Claim"
-              },
-              "type": "array"
-            },
-            "type": "object",
-            "title": "Sections"
-          },
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/Citation"
-            },
-            "type": "array",
-            "title": "Citations"
-          },
-          "conflicts": {
-            "items": {
-              "$ref": "#/components/schemas/Conflict"
-            },
-            "type": "array",
-            "title": "Conflicts"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Warnings"
-          },
-          "limitations": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Limitations"
-          },
-          "trace_id": {
-            "type": "string",
-            "title": "Trace Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "summary_id",
-          "subject_id",
-          "status",
-          "sections",
-          "citations",
-          "conflicts",
-          "limitations",
-          "trace_id"
-        ],
-        "title": "ClinicalSummaryDraft"
-      },
-      "Conflict": {
-        "properties": {
-          "conflict_id": {
-            "type": "string",
-            "title": "Conflict Id"
-          },
-          "topic": {
-            "type": "string",
-            "title": "Topic"
-          },
-          "evidence_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Evidence Ids"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "UNRESOLVED",
-              "RESOLVED"
-            ],
-            "title": "Status"
-          },
-          "resolution_note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolution Note"
-          },
-          "resolved_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolved By"
-          }
-        },
-        "type": "object",
-        "required": [
-          "conflict_id",
-          "topic",
-          "status"
-        ],
-        "title": "Conflict"
       },
       "ConflictFlag": {
         "properties": {
@@ -4299,59 +2808,6 @@
         ],
         "title": "DrugInteractionListResponse"
       },
-      "EditSummaryRequest": {
-        "properties": {
-          "draft": {
-            "$ref": "#/components/schemas/ClinicalSummaryDraft"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          }
-        },
-        "type": "object",
-        "required": [
-          "draft"
-        ],
-        "title": "EditSummaryRequest"
-      },
-      "EvidenceRecord": {
-        "properties": {
-          "record_type": {
-            "type": "string",
-            "title": "Record Type"
-          },
-          "data": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Data"
-          },
-          "lineage": {
-            "$ref": "#/components/schemas/SourceLineage"
-          },
-          "related_sources": {
-            "items": {
-              "$ref": "#/components/schemas/SourceLineage"
-            },
-            "type": "array",
-            "title": "Related Sources"
-          }
-        },
-        "type": "object",
-        "required": [
-          "record_type",
-          "data",
-          "lineage"
-        ],
-        "title": "EvidenceRecord"
-      },
       "FeedbackRequest": {
         "properties": {
           "rating": {
@@ -4477,34 +2933,6 @@
         "type": "object",
         "title": "GenerateReviewRequest"
       },
-      "GenerateSummaryRequest": {
-        "properties": {
-          "hadm_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hadm Id"
-          },
-          "stay_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stay Id"
-          }
-        },
-        "type": "object",
-        "title": "GenerateSummaryRequest"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4535,6 +2963,17 @@
           "source_document_id": {
             "type": "string",
             "title": "Source Document Id"
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id"
           },
           "source_checksum": {
             "type": "string",
@@ -4734,6 +3173,11 @@
           },
           "unit": {
             "type": "string",
+            "enum": [
+              "day",
+              "month",
+              "year"
+            ],
             "title": "Unit"
           }
         },
@@ -5036,6 +3480,24 @@
         ],
         "title": "ProcessPatientResponse"
       },
+      "QuotaResponse": {
+        "properties": {
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes"
+          },
+          "total_bytes": {
+            "type": "integer",
+            "title": "Total Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "used_bytes",
+          "total_bytes"
+        ],
+        "title": "QuotaResponse"
+      },
       "RecordCitation": {
         "properties": {
           "citation_id": {
@@ -5140,48 +3602,6 @@
           "reason"
         ],
         "title": "RejectReviewRequest"
-      },
-      "RejectSummaryRequest": {
-        "properties": {
-          "reason": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Reason"
-          }
-        },
-        "type": "object",
-        "required": [
-          "reason"
-        ],
-        "title": "RejectSummaryRequest"
-      },
-      "ReviewChecklist": {
-        "properties": {
-          "reviewed_summary": {
-            "type": "boolean",
-            "title": "Reviewed Summary"
-          },
-          "checked_critical_evidence": {
-            "type": "boolean",
-            "title": "Checked Critical Evidence"
-          },
-          "understands_ai_limitations": {
-            "type": "boolean",
-            "title": "Understands Ai Limitations"
-          },
-          "confirms_edits": {
-            "type": "boolean",
-            "title": "Confirms Edits"
-          }
-        },
-        "type": "object",
-        "required": [
-          "reviewed_summary",
-          "checked_critical_evidence",
-          "understands_ai_limitations",
-          "confirms_edits"
-        ],
-        "title": "ReviewChecklist"
       },
       "ReviewResponse": {
         "properties": {
@@ -5365,147 +3785,57 @@
         ],
         "title": "ReviewSection"
       },
-      "SourceLineage": {
+      "RuntimeStatusResponse": {
         "properties": {
+          "data_source": {
+            "type": "string",
+            "title": "Data Source"
+          },
           "dataset": {
             "type": "string",
-            "const": "MIMIC-IV",
-            "title": "Dataset",
-            "default": "MIMIC-IV"
+            "title": "Dataset"
           },
-          "version": {
-            "type": "string",
-            "const": "3.1",
-            "title": "Version",
-            "default": "3.1"
+          "loaded_modules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Loaded Modules"
           },
-          "module": {
-            "type": "string",
-            "enum": [
-              "hosp",
-              "icu"
-            ],
-            "title": "Module"
+          "ingestion": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Ingestion"
           },
-          "table": {
-            "type": "string",
-            "title": "Table"
+          "llm_gateway": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Llm Gateway"
           },
-          "source_row_key": {
-            "type": "string",
-            "title": "Source Row Key"
-          },
-          "subject_id": {
+          "patient_count": {
             "type": "integer",
-            "title": "Subject Id"
+            "title": "Patient Count"
           },
-          "hadm_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hadm Id"
-          },
-          "stay_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stay Id"
-          },
-          "event_time": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Time"
+          "trace_id": {
+            "type": "string",
+            "title": "Trace Id"
           }
         },
         "type": "object",
         "required": [
-          "module",
-          "table",
-          "source_row_key",
-          "subject_id"
+          "data_source",
+          "dataset",
+          "loaded_modules",
+          "ingestion",
+          "llm_gateway",
+          "patient_count",
+          "trace_id"
         ],
-        "title": "SourceLineage"
-      },
-      "SummaryVersion": {
-        "properties": {
-          "version_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Version Id"
-          },
-          "summary_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Summary Id"
-          },
-          "version_number": {
-            "type": "integer",
-            "title": "Version Number"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "NEEDS_REVISION",
-              "REJECTED",
-              "APPROVED",
-              "EXPORTED"
-            ],
-            "title": "Status"
-          },
-          "actor_id": {
-            "type": "string",
-            "title": "Actor Id"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "draft": {
-            "$ref": "#/components/schemas/ClinicalSummaryDraft"
-          }
-        },
-        "type": "object",
-        "required": [
-          "version_id",
-          "summary_id",
-          "version_number",
-          "status",
-          "actor_id",
-          "reason",
-          "created_at",
-          "draft"
-        ],
-        "title": "SummaryVersion"
+        "title": "RuntimeStatusResponse"
       },
       "TimelineEvent": {
         "properties": {

@@ -1,13 +1,12 @@
 """Hold-out behavior tests; sentences in this module must not enter rule code."""
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from src.api.dependencies import get_demo_repository
 from src.clinical.demo_repository import DemoRepository
 from src.config import get_settings
 from src.main import app
-
 
 ASK = "/api/v1/patients/PAT-001/ask"
 

@@ -60,6 +60,36 @@ body {
   box-shadow: none !important;
 }
 
+/* Scroll only inside the clinical summary body; header and actions stay visible. */
+.summary-scrollbar {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(45, 212, 191, 0.5) rgba(15, 23, 42, 0.35);
+}
+
+.summary-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.summary-scrollbar::-webkit-scrollbar-track {
+  margin-block: 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.summary-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(45, 212, 191, 0.5);
+  background-clip: padding-box;
+}
+
+.summary-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(45, 212, 191, 0.78);
+  background-clip: padding-box;
+}
+
 /* ---- Oura Ring Editorial & Science Design Tokens ---- */
 .font-serif {
   font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif;

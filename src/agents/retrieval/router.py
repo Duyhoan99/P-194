@@ -155,7 +155,9 @@ class PlanValidator:
         for need in plan.needs:
             if need.entity:
                 c = resolve_concept(need.entity)
-                if c and need.domain != "all" and need.domain != c.domain:
+                # A narrative note can mention a structured concept (for
+                # example medication adherence) while remaining note evidence.
+                if c and need.domain not in {"all", "note"} and need.domain != c.domain:
                     need.domain = c.domain
 
         q_lower = question.casefold()
@@ -287,7 +289,7 @@ class PlanValidator:
                 relative_months=relative_months,
             ),
         )]
-        if entity and entity not in _MEDICATION_ENTITIES and any(
+        if concept and concept.domain == "lab" and entity not in _MEDICATION_ENTITIES and any(
             marker in q for marker in ("thuốc", "medication", "tuân thủ")
         ):
             needs = [

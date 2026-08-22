@@ -3,23 +3,25 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from loguru import logger
 
 from src.api.admin_routes import router as admin_router
+from src.api.ask_routes import router as ask_router
 from src.api.auth_routes import router as auth_router
-from src.api.clinical_routes import register_clinical_error_handlers
-from src.api.clinical_routes import router as clinical_router
-from src.api.ops_routes import router as ops_router
-from src.api.review_routes import router as review_router
-from src.api.routes import router
-from src.api.summary_routes import router as summary_router
-from src.api.patient_routes import router as patient_router
+from src.api.claim_routes import router as claim_router
 from src.api.ingestion_routes import router as ingestion_router
 from src.api.ocr_routes import router as ocr_router
+from src.api.ops_routes import router as ops_router
+from src.api.patient_routes import router as patient_router
 from src.api.review_v1_routes import router as review_v1_router
-from src.api.claim_routes import router as claim_router
-from src.api.ask_routes import router as ask_router
+from src.api.routes import router
 from src.api.tts_routes import router as tts_router
+from src.clinical.errors import (
+    ClinicalAccessDenied,
+    ClinicalAuthNotConfigured,
+    ClinicalDatabaseUnavailable,
+)
 from src.config import get_settings
 from src.logger import setup_logging
 
@@ -33,9 +35,6 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Shutting down...")
 
-
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
 
 SWAGGER_DARK_STYLE = """
 <style>
@@ -109,6 +108,32 @@ async def custom_swagger_ui_html():
     )
 
 settings = get_settings()
+
+
+@app.exception_handler(ClinicalAccessDenied)
+async def access_denied_handler(request: Request, _error: ClinicalAccessDenied) -> JSONResponse:
+    return JSONResponse(
+        status_code=403,
+        content={"detail": "Access denied.", "trace_id": getattr(request.state, "clinical_trace_id", None)},
+    )
+
+
+@app.exception_handler(ClinicalAuthNotConfigured)
+async def auth_unavailable_handler(request: Request, _error: ClinicalAuthNotConfigured) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={"detail": "Authentication is required.", "trace_id": getattr(request.state, "clinical_trace_id", None)},
+    )
+
+
+@app.exception_handler(ClinicalDatabaseUnavailable)
+async def runtime_unavailable_handler(request: Request, _error: ClinicalDatabaseUnavailable) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Runtime service is unavailable.", "trace_id": getattr(request.state, "clinical_trace_id", None)},
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -128,10 +153,6 @@ app.include_router(ask_router, prefix="/api/v1")
 app.include_router(tts_router)
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(ops_router, prefix="/api/v1")
-app.include_router(summary_router, prefix="/api/v1")
-app.include_router(review_router, prefix="/api/v1")
-app.include_router(clinical_router, prefix="/api/v1")
-register_clinical_error_handlers(app)
 
 
 @app.middleware("http")

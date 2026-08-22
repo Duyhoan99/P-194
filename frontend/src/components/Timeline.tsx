@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { Calendar, Stethoscope, Pill, FlaskConical, FileText, AlertTriangle, Heart, ChevronDown, RefreshCw } from 'lucide-react';
+import { Calendar, Stethoscope, Pill, FlaskConical, FileText, AlertTriangle, Heart, RefreshCw } from 'lucide-react';
 
 const EVENT_CONFIG: Record<string, { icon: typeof Calendar; color: string; bg: string; border: string }> = {
   encounter:   { icon: Stethoscope,   color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20' },
@@ -36,7 +36,6 @@ export default function Timeline({ patientId }: { patientId: string }) {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [expanded, setExpanded] = useState(true);
   const { setFocusedCitation } = useAppStore();
 
   useEffect(() => {

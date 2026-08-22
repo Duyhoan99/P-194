@@ -7,7 +7,7 @@ from src.config import get_settings
 async def test_demo_login_sets_http_only_signed_session_cookie(client, monkeypatch):
     """Dropping cookie authentication would let callers forge clinical identities with headers."""
     monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("CLINICAL_CURSOR_SECRET", "s" * 32)
+    monkeypatch.setenv("SESSION_SECRET", "s" * 32)
     get_settings.cache_clear()
 
     response = await client.post(
@@ -26,7 +26,7 @@ async def test_demo_login_sets_http_only_signed_session_cookie(client, monkeypat
 async def test_demo_logout_clears_session_cookie(client, monkeypatch):
     """Leaving a session cookie intact after logout would retain clinical access."""
     monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("CLINICAL_CURSOR_SECRET", "s" * 32)
+    monkeypatch.setenv("SESSION_SECRET", "s" * 32)
     get_settings.cache_clear()
     await client.post(
         "/api/v1/auth/demo-login",
@@ -44,11 +44,7 @@ async def test_demo_logout_clears_session_cookie(client, monkeypatch):
 async def test_demo_login_is_rejected_in_production(client, monkeypatch):
     """Enabling demo credentials in production would bypass organization authentication."""
     monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("CLINICAL_CURSOR_SECRET", "s" * 32)
-    monkeypatch.setenv("CLINICAL_BACKEND", "postgresql")
-    monkeypatch.setenv("CLINICAL_POSTGRES_DSN", "postgresql://clinical")
-    monkeypatch.setenv("SUMMARY_BACKEND", "postgresql")
-    monkeypatch.setenv("SUMMARY_POSTGRES_DSN", "postgresql://summary")
+    monkeypatch.setenv("SESSION_SECRET", "s" * 32)
     get_settings.cache_clear()
 
     response = await client.post(

@@ -128,6 +128,7 @@ pandas==3.0.1
 patchright==1.61.2
 pdfminer.six==20260107
 pdfplumber==0.11.10
+reportlab==5.0.0
 pillow==12.3.0
 playwright==1.60.0
 playwright-stealth==2.0.3

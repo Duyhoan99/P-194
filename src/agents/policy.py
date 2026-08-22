@@ -6,7 +6,7 @@ import re
 from typing import Literal
 
 from src.agents.contracts import AgentRequest
-from src.agents.retrieval.router import QueryPlanner
+from src.agents.retrieval.router import DomainNeed, QueryPlanner, RetrievalPlan
 
 QuestionType = Literal["structured", "notes", "hybrid", "not_allowed", "not_allowed_interaction", "narrative", "temporal", "mixed"]
 
@@ -64,11 +64,19 @@ def _normalize_patient_token(token: str) -> str:
 def classify_request(request: AgentRequest) -> QuestionType | dict:
     """Classify without allowing model/user text to change the locked scope."""
     if request.task_type == "review_generation":
-        # Return a generic summary plan
-        planner = QueryPlanner()
-        plan = planner.plan("tóm tắt cho tôi")
-        return plan.model_dump()
-        
+        # Review generation is a server-owned workflow, not a user chat turn.
+        # Keep it deterministic so an unavailable planner can never turn a
+        # clarification/greeting into a persisted SOAP summary.
+        return RetrievalPlan(
+            task_type="summary",
+            needs=[DomainNeed(domain="all")],
+            use_structured=True,
+            use_semantic=False,
+            use_lexical=False,
+            retrieval_required=True,
+            strict_intent="NONE",
+        ).model_dump()
+
     question = (request.question or "").strip().casefold()
     mentioned_patients = {_normalize_patient_token(token) for token in _PATIENT_TOKEN.findall(question)}
     if mentioned_patients - {request.patient_id.upper()}:
@@ -79,13 +87,13 @@ def classify_request(request: AgentRequest) -> QuestionType | dict:
         return "not_allowed"
     if any(term in question for term in _INTERACTION_REQUESTS):
         return "not_allowed_interaction"
-        
+
     # Use QueryPlanner to get the validated RetrievalPlan
     planner = QueryPlanner()
     plan = planner.plan(request.question or "")
-    
+
     # If the plan is out of scope, return not_allowed
     if plan.task_type == "out_of_scope":
         return "not_allowed"
-        
+
     return plan.model_dump()
