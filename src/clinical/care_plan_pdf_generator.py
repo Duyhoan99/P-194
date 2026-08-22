@@ -570,4 +570,6 @@ def build_care_plan_pdf(
     story.extend([Spacer(1, 2 * mm), KeepTogether([signature])])
 
     document.build(story, onFirstPage=_page_footer, onLaterPages=_page_footer)
-    return buffer.getvalue()
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    return pdf_content

@@ -565,4 +565,6 @@ def generate_review_pdf(review: ReviewResponse, patient: PatientSummary | None =
     )
 
     doc.build(story, onFirstPage=_page_chrome, onLaterPages=_page_chrome)
-    return buffer.getvalue()
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    return pdf_content
