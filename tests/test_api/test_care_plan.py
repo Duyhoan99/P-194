@@ -1,4 +1,5 @@
 import io
+import json
 import re
 
 import pdfplumber
@@ -6,7 +7,9 @@ import pytest
 from pypdf import PdfReader
 
 from src.api.dependencies import get_demo_repository
-from src.clinical.care_plan_agent import care_plan_agent
+import src.clinical.care_plan_agent as care_plan_module
+from src.clinical.canonical import PatientMemory
+from src.clinical.care_plan_agent import CarePlanDraft, care_plan_agent
 from src.clinical.care_plan_share import care_plan_share_store
 from src.clinical.demo_repository import DemoRepository
 from src.main import app
@@ -407,3 +410,90 @@ async def test_clinician_can_resolve_pat003_conflict_then_generate_plan(client) 
     care_plan = await client.post("/api/v1/patients/PAT-003/care-plan")
     assert care_plan.status_code == 200
     assert "Metformin 850 mg" in care_plan.json()["plan"]["medication_note"]
+
+
+@pytest.mark.anyio
+async def test_llm_rewrite_requests_only_editable_narrative_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "diet_good": "An dung bua va uu tien rau xanh.",
+                                    "diet_bad": "Han che duong va thuc pham che bien san.",
+                                    "exercise": "Van dong vua suc moi ngay.",
+                                    "emergency_warning": "Kham ngay khi co dau hieu bat thuong.",
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args) -> None:
+            return None
+
+        async def post(self, _url: str, **kwargs):
+            captured.update(kwargs)
+            return FakeResponse()
+
+    base_plan = CarePlanDraft(
+        doctor_greeting="Loi dan cua bac si.",
+        personalization_summary="Tom tat ca nhan hoa.",
+        medication_need="yes",
+        medication_assessment="Can tiep tuc dieu tri.",
+        medication_recommendation="Bac si ra soat lieu.",
+        morning_meds="Metformin 500 mg.",
+        evening_meds="Theo don da duyet.",
+        medication_note="Khong tu thay doi thuoc.",
+        diet_good="Noi dung an uong goc.",
+        diet_bad="Noi dung kieng cu goc.",
+        exercise="Noi dung van dong goc.",
+        emergency_warning="Noi dung canh bao goc.",
+        follow_up="Tai kham theo lich.",
+        guideline_citation="Can cu thu nghiem.",
+    )
+    memory = PatientMemory(
+        memory_version_id="mem-1",
+        version=1,
+        patient_id="PAT-001",
+        source_review_version_id="rv-1",
+        approved_by="doctor-1",
+        approved_at="2026-08-22T10:00:00+07:00",
+    )
+
+    monkeypatch.setattr(care_plan_module.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(care_plan_agent.settings, "agent_generation_backend", "llm")
+    monkeypatch.setattr(care_plan_agent.settings, "llm_api_key", "test-key")
+    monkeypatch.setattr(care_plan_agent.settings, "llm_base_url", "https://example.test/v1")
+
+    result = await care_plan_agent._try_llm_rewrite(base_plan, memory, "Guideline test")
+
+    assert result is not None
+    request_body = json.loads(captured["json"]["messages"][1]["content"])
+    assert set(request_body["noi_dung_co_the_bien_tap"]) == {
+        "diet_good",
+        "diet_bad",
+        "exercise",
+        "emergency_warning",
+    }
+    assert "ban_nhap" not in request_body
+    assert captured["json"]["max_tokens"] == 1000
+    assert result.morning_meds == base_plan.morning_meds
+    assert result.medication_recommendation == base_plan.medication_recommendation
+    assert result.diet_good == "An dung bua va uu tien rau xanh."

@@ -43,6 +43,15 @@ class CarePlanDraft(BaseModel):
     guideline_citation: str
 
 
+class CarePlanNarrativeRewrite(BaseModel):
+    """Only the patient-facing prose that the LLM may rewrite."""
+
+    diet_good: str
+    diet_bad: str
+    exercise: str
+    emergency_warning: str
+
+
 class CarePlanDataSummary(BaseModel):
     conditions: list[str] = Field(default_factory=list)
     medications: list[str] = Field(default_factory=list)
@@ -758,6 +767,12 @@ class ClinicalCarePlanAgent:
         if not api_key:
             return None
 
+        editable_draft = CarePlanNarrativeRewrite(
+            diet_good=base_plan.diet_good,
+            diet_bad=base_plan.diet_bad,
+            exercise=base_plan.exercise,
+            emergency_warning=base_plan.emergency_warning,
+        )
         payload: dict[str, Any] = {
             "model": self.settings.llm_model_name or "mistral-small-latest",
             "messages": [
@@ -766,7 +781,7 @@ class ClinicalCarePlanAgent:
                     "content": (
                         "Bạn là agent hỗ trợ bệnh lý cho bác sĩ. Chỉ dùng BẢN TÓM TẮT ĐÃ KÝ DUYỆT và GUIDELINE. "
                         "Viết ngắn gọn, dễ hiểu, hoàn toàn bằng tiếng Việt; mỗi mục tối đa hai câu. Không thêm thuốc, liều, chẩn đoán, "
-                        "chỉ số hoặc lịch tái khám mới. Trả duy nhất JSON đúng cấu trúc BẢN NHÁP."
+                        "chỉ số hoặc lịch tái khám mới. Chỉ trả JSON gồm đúng bốn khóa: diet_good, diet_bad, exercise, emergency_warning."
                     ),
                 },
                 {
@@ -778,14 +793,14 @@ class ClinicalCarePlanAgent:
                                 for item in memory.items
                             ],
                             "guideline": guideline_context,
-                            "ban_nhap": base_plan.model_dump(mode="json"),
+                            "noi_dung_co_the_bien_tap": editable_draft.model_dump(mode="json"),
                         },
                         ensure_ascii=False,
                     ),
                 },
             ],
             "temperature": 0.1,
-            "max_tokens": 2600,
+            "max_tokens": 1000,
             "response_format": {"type": "json_object"},
         }
         try:
@@ -800,27 +815,12 @@ class ClinicalCarePlanAgent:
             if raw.startswith("```"):
                 raw = raw.split("```", 2)[1]
                 raw = re.sub(r"^json\s*", "", raw).strip()
-            candidate = CarePlanDraft.model_validate(json.loads(raw))
+            rewrite = CarePlanNarrativeRewrite.model_validate(json.loads(raw))
         except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError, ValidationError) as exc:
             logger.warning("Không thể biên tập phác đồ bằng LLM: {}", exc)
             return None
 
-        # Thuốc, lời dặn, tái khám và thông tin guideline không cho LLM ghi đè.
-        candidate.doctor_greeting = base_plan.doctor_greeting
-        candidate.personalization_summary = base_plan.personalization_summary
-        candidate.medication_need = base_plan.medication_need
-        candidate.medication_assessment = base_plan.medication_assessment
-        candidate.medication_recommendation = base_plan.medication_recommendation
-        candidate.medication_basis_ids = base_plan.medication_basis_ids
-        candidate.morning_meds = base_plan.morning_meds
-        candidate.evening_meds = base_plan.evening_meds
-        candidate.medication_note = base_plan.medication_note
-        candidate.diet_basis_ids = base_plan.diet_basis_ids
-        candidate.exercise_basis_ids = base_plan.exercise_basis_ids
-        candidate.warning_basis_ids = base_plan.warning_basis_ids
-        candidate.follow_up = base_plan.follow_up
-        candidate.follow_up_days = None
-        candidate.guideline_citation = base_plan.guideline_citation
+        candidate = base_plan.model_copy(deep=True)
         limits = {
             "diet_good": 320,
             "diet_bad": 320,
@@ -828,8 +828,9 @@ class ClinicalCarePlanAgent:
             "emergency_warning": 450,
         }
         for field_name, limit in limits.items():
-            if not self._acceptable_vietnamese(getattr(candidate, field_name), limit):
-                setattr(candidate, field_name, getattr(base_plan, field_name))
+            rewritten_value = getattr(rewrite, field_name)
+            if self._acceptable_vietnamese(rewritten_value, limit):
+                setattr(candidate, field_name, rewritten_value)
         return candidate
 
     @staticmethod
