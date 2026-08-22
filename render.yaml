@@ -18,6 +18,8 @@ services:
         sync: false
       - key: CARE_PLAN_SHARE_TTL_SECONDS
         value: 7776000
+      - key: CARE_PLAN_PUBLIC_BASE_URL
+        value: https://p194-care-guide.onrender.com
       - key: SESSION_SECRET
         generateValue: true
       - key: CORS_ORIGINS

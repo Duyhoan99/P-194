@@ -42,24 +42,11 @@ mimic-iv-clinical-database-demo-2.2/
 logs/
 *.log
 
-# Test coverage
+# Test coverage & Pytest temp
 .pytest_cache/
 .pytest-tmp-*/
-htmlcov/
-.coverage
-coverage.xml
-
-# Docker
-docker-compose.override.yml
-
-# Node (frontend)
-node_modules/
-.next/
-out/
-.nuxt/
-
-# Build
-*.pyc
+.pytest_temp/
+.pytest*
 htmlcov/
 .coverage
 coverage.xml
