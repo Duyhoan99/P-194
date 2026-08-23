@@ -68,13 +68,13 @@ export default function AnalyticsPage() {
   return (
     <div className="page-content space-y-8 flex-1 h-full overflow-y-auto">
       {/* Page Header */}
-      <div className="flex items-center justify-between border-b border-white/5 pb-6">
+      <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-white/10 pb-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30 shadow-[0_0_20px_rgba(168,85,247,0.2)]">
             <BarChart3 className="w-6 h-6 text-purple-400" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-100 tracking-wide">{t('an.title')}</h1>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-wide">{t('an.title')}</h1>
             <p className="text-slate-400 text-sm mt-1">{t('an.subtitle')}</p>
           </div>
         </div>
@@ -103,11 +103,11 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Chart Mock */}
-        <div className="lg:col-span-2 bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl p-6 flex flex-col">
+        <div className="lg:col-span-2 bg-white dark:bg-[#112240] border border-slate-200/80 dark:border-teal-500/20 shadow-sm rounded-2xl shadow-2xl p-6 flex flex-col">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-slate-200">{t('an.volume')}</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">{t('an.volume')}</h2>
           </div>
-          <div className="flex-1 flex items-end justify-between gap-2 h-64 pt-4 border-b border-white/10 relative">
+          <div className="flex-1 flex items-end justify-between gap-2 h-64 pt-4 border-b border-slate-200/80 dark:border-white/10 relative">
             {/* Y-axis labels */}
             <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-xs text-slate-500 pb-6">
               <span>{Math.max(10, stats.documentsProcessed)}</span>
@@ -128,8 +128,8 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Secondary Info */}
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl p-6 flex flex-col">
-          <h2 className="text-lg font-bold text-slate-200 mb-6">{t('an.types')}</h2>
+        <div className="bg-white dark:bg-[#112240] border border-slate-200/80 dark:border-teal-500/20 shadow-sm rounded-2xl shadow-2xl p-6 flex flex-col">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6">{t('an.types')}</h2>
           <div className="flex-1 flex flex-col justify-center gap-6">
             <DocTypeRow label={t('an.lab')} percentage={45} color="bg-cyan-400" />
             <DocTypeRow label={t('an.clinical')} percentage={30} color="bg-purple-400" />
@@ -151,7 +151,7 @@ function KpiCard({ title, value, change, isPositive, icon: Icon, color }: any) {
   };
   
   return (
-    <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
+    <div className="bg-white dark:bg-[#112240] border border-slate-200/80 dark:border-teal-500/20 shadow-sm rounded-2xl p-5 shadow-xl relative overflow-hidden group">
       <div className="flex justify-between items-start mb-4">
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorStyles[color]}`}>
           <Icon className="w-5 h-5" />
@@ -163,7 +163,7 @@ function KpiCard({ title, value, change, isPositive, icon: Icon, color }: any) {
       </div>
       <div>
         <h3 className="text-slate-400 text-sm font-medium mb-1">{title}</h3>
-        <p className="text-3xl font-bold text-slate-100">{value}</p>
+        <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
       </div>
       <div className={`absolute -bottom-6 -right-6 w-24 h-24 rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity ${colorStyles[color].split(' ')[1]}`}></div>
     </div>

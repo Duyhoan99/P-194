@@ -307,7 +307,7 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
   }, [yDomain, activeThreshold]);
 
   return (
-    <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl mb-6 relative overflow-hidden">
+    <div className="clinical-card p-6 mb-6 relative overflow-hidden">
       {/* Ambient background glow */}
       <div className="absolute top-0 right-1/4 w-96 h-32 bg-cyan-500/5 blur-3xl pointer-events-none -z-10" />
       <div className="absolute bottom-0 left-1/4 w-96 h-32 bg-rose-500/5 blur-3xl pointer-events-none -z-10" />
@@ -320,19 +320,19 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-100">Diễn tiến Chỉ số & Ngưỡng Lâm sàng</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-extrabold">Diễn tiến Chỉ số & Ngưỡng Lâm sàng</h3>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-white/5 font-mono">
                 {selectedMetric.label}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">{selectedMetric.fullName}</p>
+            <p className="text-xs text-slate-600 dark:text-slate-700 dark:text-slate-300 text-xs font-semibold mt-0.5">{selectedMetric.fullName}</p>
           </div>
         </div>
 
         {/* Right side controls: Metric pills & Latest Status */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Metric Selector Pills */}
-          <div className="flex gap-1 bg-slate-950/60 p-1 rounded-xl border border-white/5 shadow-inner">
+          <div className="flex gap-1 clinical-subcard p-1 rounded-xl">
             {METRIC_OPTIONS.map((m) => {
               const isSelected = selectedMetric.code === m.code;
               return (
@@ -341,8 +341,8 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                   onClick={() => handleMetricChange(m)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.15)]'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                      ? 'bg-teal-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
                   {m.label}
@@ -476,21 +476,21 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                 </linearGradient>
               </defs>
 
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-card)" vertical={false} />
 
               {/* X Axis */}
               <XAxis
                 dataKey="date"
-                stroke="#64748b"
+                stroke="var(--text-muted)"
                 fontSize={11}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                axisLine={{ stroke: 'var(--border-card)' }}
               />
 
               {/* Y Axis: Ascending order with highlighted Threshold Tick */}
               <YAxis
                 width={38}
-                stroke="#64748b"
+                stroke="var(--text-muted)"
                 tickLine={false}
                 axisLine={false}
                 domain={yDomain}
@@ -582,7 +582,7 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
 
                       <div className="flex items-baseline justify-between mb-1.5">
                         <span className="text-xs text-slate-400">{selectedMetric.label}:</span>
-                        <span className="text-base font-bold font-mono text-slate-100">
+                        <span className="text-base font-bold font-mono text-slate-900 dark:text-slate-100 font-extrabold">
                           {pt.value} <span className="text-xs font-normal text-slate-400">{activeUnit}</span>
                         </span>
                       </div>

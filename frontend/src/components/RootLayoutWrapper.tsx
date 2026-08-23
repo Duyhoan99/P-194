@@ -12,11 +12,13 @@ export function RootLayoutWrapper({ children }: { children: React.ReactNode }) {
   const { darkMode, compactView } = useAppStore();
 
   useEffect(() => {
-    // Apply dark mode class to html (this typically interacts with a real theme system)
+    // Apply dark / light mode class to html
     if (darkMode) {
       document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
     }
   }, [darkMode]);
 

@@ -21,7 +21,8 @@ import {
   BookOpen,
   ChevronUp,
   UserCheck,
-  Sparkles
+  Sparkles,
+  Clock
 } from 'lucide-react';
 
 interface PatientCareGuideModalProps {
@@ -184,7 +185,7 @@ export default function PatientCareGuideModal({
     list.push(`${followUp} Khi cần hỗ trợ y tế khẩn cấp, người nhà vui lòng gọi 115.`);
     list.push(`Kính chúc bác ${patientName} luôn dồi dào sức khỏe và bình an!`);
 
-    return list.filter(s => s && s.trim().length > 0);
+    return list.filter((s) => s && s.trim().length > 0);
   };
 
   // Cleanup audio
@@ -195,6 +196,91 @@ export default function PatientCareGuideModal({
       }
     };
   }, []);
+
+  // Helper to format medication recommendation with clear structured bullet points
+  const renderMedicationRecommendation = (raw: string) => {
+    if (!raw || !raw.trim()) return null;
+
+    let header = 'Đề xuất theo phác đồ';
+    let badge = 'Chờ bác sĩ duyệt';
+    let body = raw;
+
+    // Detect prefix like "ĐỀ XUẤT THEO PHÁC ĐỒ – CHỜ BÁC SĨ DUYỆT:"
+    const prefixMatch = body.match(/^(ĐỀ XUẤT [^:–-]+)(?:[–-]\s*([^:]+))?:\s*/i);
+    if (prefixMatch) {
+      header = prefixMatch[1].trim();
+      if (prefixMatch[2]) {
+        badge = prefixMatch[2].trim();
+      }
+      body = body.slice(prefixMatch[0].length).trim();
+    }
+
+    // Extract "Thuốc đang ghi nhận: ..." or similar footnote
+    let recordedMed = '';
+    const recordedMatch = body.match(/(?:Thuốc đang ghi nhận|Thuốc hiện tại):\s*([^.]+)\.?/i);
+    if (recordedMatch) {
+      recordedMed = recordedMatch[1].trim();
+      body = body.replace(recordedMatch[0], '').trim();
+    }
+
+    // Split remaining recommendations by semicolon or newline
+    const rawPoints = body
+      .split(/[;\n]+/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0 && p !== '.');
+
+    const points = rawPoints
+      .map((p) => {
+        let clean = p.replace(/^[•\-\*\s]+/, '').replace(/\.+$/, '').trim();
+        if (clean.length > 0) {
+          clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+        }
+        return clean;
+      })
+      .filter(Boolean);
+
+    return (
+      <div className="no-print print:hidden rounded-xl border border-purple-500/30 bg-purple-950/30 p-3.5 space-y-3 shadow-sm">
+        {/* Header & Status Badge */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-purple-500/20">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300">
+            <Stethoscope className="w-4 h-4 text-purple-400 shrink-0" />
+            <span className="tracking-wide uppercase text-[11px]">{header}</span>
+          </div>
+          {badge && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 print:bg-amber-100 print:text-amber-900 print:border-amber-300">
+              <Clock className="w-3 h-3 text-amber-400 print:text-amber-700 shrink-0" />
+              {badge}
+            </span>
+          )}
+        </div>
+
+        {/* List of distinct points / items with clear line breaks */}
+        {points.length > 0 ? (
+          <ul className="space-y-2 text-xs">
+            {points.map((point, idx) => (
+              <li key={idx} className="flex items-start gap-2 text-slate-200 print:text-slate-800 leading-snug">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0 print:bg-purple-700" />
+                <span className="flex-1 text-[11.5px] leading-relaxed">{point}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-200 print:text-slate-800 leading-relaxed">{body}</p>
+        )}
+
+        {/* Recorded Medication Tag */}
+        {recordedMed && (
+          <div className="pt-2 border-t border-purple-500/15 flex items-center gap-2 text-[11px] text-purple-200/90 print:text-slate-700">
+            <Pill className="w-3.5 h-3.5 text-purple-400 shrink-0 print:text-purple-700" />
+            <span>
+              <strong className="text-purple-300 print:text-purple-900">Thuốc đang ghi nhận:</strong> {recordedMed}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const playSentencesWithAudio = (index: number, sentencesList: string[]) => {
     if (index >= sentencesList.length) {
@@ -822,11 +908,7 @@ export default function PatientCareGuideModal({
                   </div>
                 )}
 
-                {medicationRecommendation && (
-                  <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-3 text-[11px] leading-relaxed text-purple-100 print:bg-white print:text-slate-900 print:border-slate-300">
-                    {medicationRecommendation}
-                  </div>
-                )}
+                {medicationRecommendation && renderMedicationRecommendation(medicationRecommendation)}
 
                 {isEditing ? (
                   <div className="space-y-2.5">

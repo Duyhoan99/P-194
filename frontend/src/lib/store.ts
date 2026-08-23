@@ -17,7 +17,7 @@ interface AppState {
   setSelectedPatient: (patient: Patient | null) => void;
   
   // Evidence/Citation Panel State
-  focusedCitation: any | null; // Detailed citation object
+  focusedCitation: any | null;
   setFocusedCitation: (citation: any | null) => void;
   isEvidencePanelOpen: boolean;
   setEvidencePanelOpen: (isOpen: boolean) => void;
@@ -36,6 +36,16 @@ interface AppState {
   setDarkMode: (value: boolean) => void;
   compactView: boolean;
   setCompactView: (value: boolean) => void;
+  
+  // Clinical Alert Preferences
+  notifyAbnormalLab: boolean;
+  setNotifyAbnormalLab: (value: boolean) => void;
+  notifyDrugConflict: boolean;
+  setNotifyDrugConflict: (value: boolean) => void;
+  notifySound: boolean;
+  setNotifySound: (value: boolean) => void;
+  failClosedStrict: boolean;
+  setFailClosedStrict: (value: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -43,7 +53,6 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       selectedPatient: null,
       setSelectedPatient: (patient) => {
-        // Khi chuyển bệnh nhân, phải xóa sạch state cũ (citation, panel)
         set((state) => {
           if (state.selectedPatient?.patient_id !== patient?.patient_id) {
             return { 
@@ -76,14 +85,30 @@ export const useAppStore = create<AppState>()(
       triggerRefresh: () => set((state) => ({ refreshTrigger: state.refreshTrigger + 1 })),
 
       // User Preferences default
-      darkMode: true,
+      darkMode: false, // Default to light clinical theme
       setDarkMode: (value) => set({ darkMode: value }),
       compactView: false,
-      setCompactView: (value) => set({ compactView: value })
+      setCompactView: (value) => set({ compactView: value }),
+
+      notifyAbnormalLab: true,
+      setNotifyAbnormalLab: (value) => set({ notifyAbnormalLab: value }),
+      notifyDrugConflict: true,
+      setNotifyDrugConflict: (value) => set({ notifyDrugConflict: value }),
+      notifySound: true,
+      setNotifySound: (value) => set({ notifySound: value }),
+      failClosedStrict: true,
+      setFailClosedStrict: (value) => set({ failClosedStrict: value }),
     }),
     {
       name: 'app-preferences-storage',
-      partialize: (state) => ({ darkMode: state.darkMode, compactView: state.compactView }),
+      partialize: (state) => ({ 
+        darkMode: state.darkMode, 
+        compactView: state.compactView,
+        notifyAbnormalLab: state.notifyAbnormalLab,
+        notifyDrugConflict: state.notifyDrugConflict,
+        notifySound: state.notifySound,
+        failClosedStrict: state.failClosedStrict
+      }),
     }
   )
 );

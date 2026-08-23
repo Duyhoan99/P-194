@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { patients, ingestions } from '@/lib/api';
-import { LayoutDashboard, Users, FileText, Activity, CheckCircle2, Clock, AlertCircle, Server, ArrowRight, Search } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Activity, CheckCircle2, Clock, AlertCircle, Server, ArrowRight, Search, UploadCloud } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/lib/i18n';
 import DocumentModal from '@/components/DocumentModal';
@@ -32,7 +32,7 @@ export default function DashboardPage() {
       try {
         const [patientsRes, uploadsRes, healthRes] = await Promise.allSettled([
           patients.list({ page: 1, page_size: 5 }),
-          ingestions.list(50), // Fetch more for local search
+          ingestions.list(50),
           fetch('/health').then(r => r.ok),
         ]);
 
@@ -64,7 +64,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (loading) return;
     const delayDebounceFn = setTimeout(() => {
-      // Fetch more if showAllPatients is true, otherwise 5
       patients.list({ page: 1, page_size: showAllPatients ? 50 : 5, search: patientSearch }).then(res => {
         setPatientList(res.items || []);
       }).catch(console.error);
@@ -87,26 +86,28 @@ export default function DashboardPage() {
   }, [uploadSearch, allRecentFiles, loading, showAllUploads]);
 
   return (
-    <div className="page-content space-y-8">
+    <div className="page-content space-y-7">
       {/* Page Header */}
-      <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-        <div className="w-12 h-12 rounded-2xl bg-teal-500/10 flex items-center justify-center border border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.25)]">
-          <LayoutDashboard className="w-6 h-6 text-teal-300" />
-        </div>
-        <div>
-          <h1 className="text-3xl font-light tracking-tight text-slate-100">{t('dash.title')}</h1>
-          <p className="text-slate-400 text-sm mt-1">{t('dash.subtitle')}</p>
+      <div className="flex items-center justify-between border-b pb-5" style={{ borderColor: 'var(--border-card)' }}>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center border shadow-sm" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+            <LayoutDashboard className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{t('dash.title')}</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{t('dash.subtitle')}</p>
+          </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-slate-400">
-          <div className="w-6 h-6 border-2 border-teal-500/30 border-t-teal-400 rounded-full animate-spin mr-3" />
+        <div className="flex items-center justify-center py-24" style={{ color: 'var(--text-muted)' }}>
+          <div className="w-6 h-6 border-2 rounded-full animate-spin mr-3" style={{ borderColor: 'var(--accent-teal-border)', borderTopColor: 'var(--accent-teal)' }} />
           Loading dashboard...
         </div>
       ) : (
         <>
-          {/* Stat Cards with Oura Serif Numbers */}
+          {/* Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <StatCard
               icon={Users}
@@ -126,74 +127,89 @@ export default function DashboardPage() {
               value={stats.totalPatients > 0 ? Math.min(stats.totalPatients, 5) : 0}
               color="emerald"
             />
-            <div className={`p-6 rounded-2xl oura-glass-card border shadow-xl ${
-              stats.healthOk
-                ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-950/20 border-rose-500/30 text-rose-300'
-            }`}>
-              <div className="flex items-center gap-3.5">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                  stats.healthOk ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
-                }`}>
-                  <Server className="w-5 h-5" />
+
+            {/* System Status Card */}
+            <div className="clinical-card p-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  {t('dash.systemStatus')}
+                </span>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center border" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+                  <Server className="w-4 h-4" />
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('dash.systemStatus')}</p>
-                  <p className="font-serif text-2xl font-light mt-0.5">
-                    {stats.healthOk ? t('dash.operational') : t('dash.checking')}
-                  </p>
-                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                  {stats.healthOk ? t('dash.operational') : t('dash.checking')}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Recent Patients & Files */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            
             {/* Recent Patients */}
-            <div className="oura-glass rounded-2xl p-6 border border-white/10 shadow-2xl flex flex-col min-h-[350px] max-h-[600px]">
+            <div className="clinical-card p-6 flex flex-col min-h-[360px] max-h-[600px]">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-teal-400" /> {t('nav.recentPatients')}
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center border" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+                    <Users className="w-3.5 h-3.5" />
+                  </div>
+                  <span>{t('nav.recentPatients')}</span>
                 </h2>
                 <button 
                   onClick={() => setShowAllPatients(!showAllPatients)} 
-                  className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1 cursor-pointer font-medium"
+                  className="text-xs flex items-center gap-1 cursor-pointer font-bold transition-colors"
+                  style={{ color: 'var(--accent-teal)' }}
                 >
-                  {showAllPatients ? (language === 'vi' ? 'Thu gọn' : 'Show less') : t('dash.viewAll')} <ArrowRight className={`w-3 h-3 transition-transform ${showAllPatients ? '-rotate-90' : ''}`} />
+                  {showAllPatients ? (language === 'vi' ? 'Thu gọn' : 'Show less') : t('dash.viewAll')} 
+                  <ArrowRight className={`w-3.5 h-3.5 transition-transform ${showAllPatients ? '-rotate-90' : ''}`} />
                 </button>
               </div>
+
+              {/* Search input */}
               <div className="relative mb-4">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
                 <input 
                   type="text" 
                   placeholder={t('dash.searchPatients')} 
                   value={patientSearch}
                   onChange={(e) => setPatientSearch(e.target.value)}
-                  className="w-full bg-[#0c121d] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 transition-colors"
+                  className="clinical-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
                 />
               </div>
+
               <div className="space-y-2 flex-1 overflow-y-auto pr-1 chat-scrollbar">
                 {patientList.length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center py-6">{t('dash.noPatients')}</p>
+                  <div className="text-center py-10 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    {t('dash.noPatients')}
+                  </div>
                 ) : (
                   patientList.map((p) => (
                     <Link
                       key={p.patient_id}
                       href={`/patients/${p.patient_id}`}
-                      className="flex items-center justify-between p-3.5 rounded-xl oura-glass-card hover:border-teal-500/40 transition-all group"
+                      className="clinical-subcard flex items-center justify-between p-3.5 group shadow-none hover:shadow-sm"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-teal-500/15 flex items-center justify-center text-xs font-bold text-teal-300 border border-teal-500/30">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-extrabold border shrink-0" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
                           {p.pseudonym?.[0] || '?'}
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-slate-200 group-hover:text-teal-300 transition-colors">{p.pseudonym}</span>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
+                          <span className="text-xs font-bold block group-hover:text-teal-600 dark:group-hover:text-teal-300 transition-colors">
+                            {p.pseudonym}
+                          </span>
+                          <div className="text-[11px] mt-0.5 font-medium" style={{ color: 'var(--text-muted)' }}>
                             {p.age} tuổi • {p.sex} {p.primary_condition ? `• ${p.primary_condition}` : ''}
                           </div>
                         </div>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-teal-300 transition-colors" />
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center border group-hover:bg-teal-600 group-hover:text-white transition-all" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--text-muted)' }}>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </div>
                     </Link>
                   ))
                 )}
@@ -201,65 +217,81 @@ export default function DashboardPage() {
             </div>
 
             {/* Recent Files */}
-            <div className="oura-glass rounded-2xl p-6 border border-white/10 shadow-2xl flex flex-col min-h-[350px] max-h-[600px]">
+            <div className="clinical-card p-6 flex flex-col min-h-[360px] max-h-[600px]">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-cyan-400" /> {t('dash.recentUploads')}
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center border" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+                    <FileText className="w-3.5 h-3.5" />
+                  </div>
+                  <span>{t('dash.recentUploads')}</span>
                 </h2>
                 <button 
                   onClick={() => setShowAllUploads(!showAllUploads)} 
-                  className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1 cursor-pointer font-medium"
+                  className="text-xs flex items-center gap-1 cursor-pointer font-bold transition-colors"
+                  style={{ color: 'var(--accent-teal)' }}
                 >
-                  {showAllUploads ? (language === 'vi' ? 'Thu gọn' : 'Show less') : t('dash.viewAll')} <ArrowRight className={`w-3 h-3 transition-transform ${showAllUploads ? '-rotate-90' : ''}`} />
+                  {showAllUploads ? (language === 'vi' ? 'Thu gọn' : 'Show less') : t('dash.viewAll')} 
+                  <ArrowRight className={`w-3.5 h-3.5 transition-transform ${showAllUploads ? '-rotate-90' : ''}`} />
                 </button>
               </div>
+
+              {/* Search input */}
               <div className="relative mb-4">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
                 <input 
                   type="text" 
                   placeholder={t('dash.searchDocs')} 
                   value={uploadSearch}
                   onChange={(e) => setUploadSearch(e.target.value)}
-                  className="w-full bg-[#0c121d] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 transition-colors"
+                  className="clinical-input w-full pl-10 pr-4 py-2.5 text-xs font-medium"
                 />
               </div>
+
               <div className="space-y-2 flex-1 overflow-y-auto pr-1 chat-scrollbar">
                 {recentFiles.length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center py-6">{t('dash.noUploads')}</p>
+                  <div className="text-center py-12 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <UploadCloud className="w-9 h-9 mx-auto mb-2 opacity-35" />
+                    <p className="font-medium">{t('dash.noUploads')}</p>
+                    <Link href="/case-files" className="inline-block mt-2 font-semibold hover:underline" style={{ color: 'var(--accent-teal)' }}>
+                      Tải lên tài liệu PDF mới →
+                    </Link>
+                  </div>
                 ) : (
-                  recentFiles.map((f, idx) => {
-                    return (
-                      <div 
-                        key={idx} 
-                        onClick={() => f.source_document_id && setPreviewDocId(f.source_document_id)}
-                        className="flex items-center justify-between p-3.5 rounded-xl oura-glass-card hover:border-teal-500/40 transition-all cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-4 h-4 text-slate-400 group-hover:text-teal-300 transition-colors" />
-                          <div>
-                            <span className="text-xs font-medium text-slate-200 max-w-[200px] truncate block group-hover:text-teal-300 transition-colors" title={f.source_document_id || 'Document'}>
-                              {f.source_document_id || 'Document'}
-                            </span>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              {f.received_at ? new Date(f.received_at).toLocaleString() : 'Unknown'}
-                            </div>
+                  recentFiles.map((f, idx) => (
+                    <div 
+                      key={idx} 
+                      onClick={() => f.source_document_id && setPreviewDocId(f.source_document_id)}
+                      className="clinical-subcard flex items-center justify-between p-3.5 cursor-pointer group shadow-none hover:shadow-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--text-muted)' }}>
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold max-w-[200px] truncate block group-hover:text-teal-600 dark:group-hover:text-teal-300 transition-colors" title={f.source_document_id || 'Document'}>
+                            {f.source_document_id || 'Document'}
+                          </span>
+                          <div className="text-[11px] mt-0.5 font-medium" style={{ color: 'var(--text-muted)' }}>
+                            {f.received_at ? new Date(f.received_at).toLocaleString() : 'Unknown'}
                           </div>
                         </div>
-                        <div className={`flex items-center gap-1 text-[11px] font-semibold uppercase ${
-                          f.status === 'completed' ? 'text-emerald-400' :
-                          f.status === 'failed' ? 'text-rose-400' : 'text-amber-400'
-                        }`}>
-                          {f.status === 'completed' ? <CheckCircle2 className="w-3.5 h-3.5" /> :
-                           f.status === 'failed' ? <AlertCircle className="w-3.5 h-3.5" /> :
-                           <Clock className="w-3.5 h-3.5" />}
-                          {f.status}
-                        </div>
                       </div>
-                    );
-                  })
+                      <div className={`flex items-center gap-1.5 text-[11px] font-bold uppercase px-2.5 py-1 rounded-full border ${
+                        f.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' :
+                        f.status === 'failed' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800' : 
+                        'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                      }`}>
+                        {f.status === 'completed' ? <CheckCircle2 className="w-3.5 h-3.5" /> :
+                         f.status === 'failed' ? <AlertCircle className="w-3.5 h-3.5" /> :
+                         <Clock className="w-3.5 h-3.5" />}
+                        <span>{f.status}</span>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
+
           </div>
         </>
       )}
@@ -274,22 +306,19 @@ export default function DashboardPage() {
 }
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
-  const colorMap: Record<string, string> = {
-    teal: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
-    cyan: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
-    emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  };
-
   return (
-    <div className="p-6 rounded-2xl oura-glass-card border border-white/10 shadow-xl space-y-3">
+    <div className="clinical-card p-6 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{label}</span>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${colorMap[color] || colorMap.teal}`}>
+        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+          {label}
+        </span>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center border" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
           <Icon className="w-4 h-4" />
         </div>
       </div>
-      <p className="font-serif text-4xl font-light text-slate-100">{value}</p>
+      <p className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+        {value}
+      </p>
     </div>
   );
 }
-

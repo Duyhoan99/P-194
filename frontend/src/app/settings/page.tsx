@@ -1,6 +1,7 @@
 'use client';
+
 import { useState } from 'react';
-import { Settings, User, Bell, Shield, Database, ChevronRight, Check } from 'lucide-react';
+import { Settings, User, Shield, Check, Save, Clock } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import { useAppStore } from '@/lib/store';
@@ -8,11 +9,18 @@ import { useAppStore } from '@/lib/store';
 export default function SettingsPage() {
   const { t, language, setLanguage } = useLanguage();
   const { user } = useAuth();
-  
-  const { darkMode, setDarkMode, compactView, setCompactView } = useAppStore();
+  const { 
+    darkMode, setDarkMode, 
+    compactView, setCompactView 
+  } = useAppStore();
 
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+
+  // Profile state
+  const [fullName, setFullName] = useState(user?.username || 'doctor-1');
+  const [email, setEmail] = useState(user ? `${user.username}@hospital.org` : 'doctor-1@hospital.org');
+  const [sessionTimeout, setSessionTimeout] = useState('30');
 
   const handleSave = () => {
     setIsSaving(true);
@@ -20,165 +28,200 @@ export default function SettingsPage() {
       setIsSaving(false);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
-    }, 800);
+    }, 600);
   };
 
   return (
-    <div className="page-content space-y-8 flex-1 h-full overflow-y-auto">
+    <div className="page-content space-y-7 flex-1 h-full overflow-y-auto max-w-4xl mx-auto">
       {/* Page Header */}
-      <div className="flex items-center justify-between border-b border-white/5 pb-6 transition-all">
+      <div className="flex items-center justify-between border-b pb-5" style={{ borderColor: 'var(--border-card)' }}>
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center border border-cyan-500/30 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-            <Settings className="w-6 h-6 text-cyan-400" />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center border shadow-sm" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+            <Settings className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-100 tracking-wide">{t('set.title')}</h1>
-            <p className="text-slate-400 text-sm mt-1">{t('set.subtitle')}</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">{t('set.title')}</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Cấu hình thông tin bác sĩ và tùy chọn giao diện làm việc</p>
           </div>
         </div>
+
         <button 
           onClick={handleSave}
           disabled={isSaving || isSaved}
-          className={`flex items-center gap-2 font-semibold py-2 px-6 rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.3)] ${
-            isSaved 
-              ? 'bg-emerald-500 text-slate-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
-              : isSaving
-              ? 'bg-cyan-500/50 text-slate-900 cursor-not-allowed'
-              : 'bg-cyan-500 hover:bg-cyan-400 text-slate-900'
-          }`}
+          className="flex items-center gap-2 font-extrabold text-xs py-2.5 px-6 rounded-xl transition-all shadow-sm cursor-pointer bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50"
         >
           {isSaving ? (
-            <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+            <>
+              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Đang lưu...</span>
+            </>
           ) : isSaved ? (
-            <Check className="w-4 h-4" />
-          ) : null}
-          {isSaved ? 'Saved!' : isSaving ? 'Saving...' : t('set.save')}
+            <>
+              <Check className="w-4 h-4" />
+              <span>Đã lưu thành công!</span>
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              <span>{t('set.save')}</span>
+            </>
+          )}
         </button>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar Navigation */}
-        <div className="w-full lg:w-64 flex flex-col gap-2">
-          <SettingNav active icon={User} label={t('set.nav.profile')} />
-          <SettingNav icon={Bell} label={t('set.nav.notify')} />
-          <SettingNav icon={Shield} label={t('set.nav.security')} />
-          <SettingNav icon={Database} label={t('set.nav.ai')} />
-        </div>
+      <div className="space-y-6">
+        
+        {/* 1. Personal Information */}
+        <div className="clinical-card p-6 space-y-5">
+          <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <User className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <span>{t('set.personal')}</span>
+          </h2>
 
-        {/* Settings Content */}
-        <div className="flex-1 space-y-6">
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl p-6 transition-all">
-            <h2 className="text-lg font-bold text-slate-200 mb-6">{t('set.personal')}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">{t('set.fullName')}</label>
-                <input 
-                  type="text" 
-                  defaultValue={user?.username || 'Unknown'}
-                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">{t('set.email')}</label>
-                <input 
-                  type="email" 
-                  defaultValue={user ? `${user.username}@hospital.org` : ''}
-                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">{t('set.role')}</label>
-                <input 
-                  type="text" 
-                  readOnly
-                  value={user?.role || 'DOCTOR'}
-                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-400 focus:outline-none opacity-80 cursor-not-allowed"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl p-6 transition-all">
-            <h2 className="text-lg font-bold text-slate-200 mb-6">{t('set.systemPref')}</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-3 border-b border-white/5">
-                <div>
-                  <h3 className="text-sm font-medium text-slate-200">{t('set.lang')}</h3>
-                  <p className="text-xs text-slate-400 mt-1">{t('set.langDesc')}</p>
-                </div>
-                <div className="flex bg-slate-800 rounded-lg p-1 border border-white/10">
-                  <button 
-                    onClick={() => setLanguage('en')}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors ${language === 'en' ? 'bg-cyan-500 text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                  >
-                    English
-                  </button>
-                  <button 
-                    onClick={() => setLanguage('vi')}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors ${language === 'vi' ? 'bg-cyan-500 text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                  >
-                    Tiếng Việt
-                  </button>
-                </div>
-              </div>
-
-              <ToggleRow 
-                title={t('set.darkMode')} 
-                description={t('set.darkModeDesc')} 
-                active={darkMode} 
-                onChange={() => setDarkMode(!darkMode)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100">
+                {t('set.fullName')}
+              </label>
+              <input 
+                type="text" 
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="clinical-input w-full px-4 py-2.5 text-xs font-semibold"
               />
-              <ToggleRow 
-                title={t('set.compact')} 
-                description={t('set.compactDesc')} 
-                active={compactView} 
-                onChange={() => setCompactView(!compactView)}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100">
+                {t('set.email')}
+              </label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="clinical-input w-full px-4 py-2.5 text-xs font-semibold"
+              />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100">
+                {t('set.role')}
+              </label>
+              <input 
+                type="text" 
+                readOnly
+                value={user?.role || 'BÁC SĨ ĐIỀU TRỊ (DOCTOR)'}
+                className="clinical-subcard w-full px-4 py-2.5 text-xs font-bold cursor-not-allowed opacity-80"
               />
             </div>
           </div>
-          
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl p-6 border-red-500/20 transition-all">
-            <h2 className="text-lg font-bold text-red-400 mb-2">{t('set.danger')}</h2>
-            <p className="text-sm text-slate-400 mb-4">{t('set.dangerDesc')}</p>
-            <button className="border border-red-500/50 text-red-400 hover:bg-red-500/10 font-medium py-2 px-4 rounded-xl transition-colors">
-              {t('set.deleteAcc')}
-            </button>
+        </div>
+
+        {/* 2. System & Display Preferences */}
+        <div className="clinical-card p-6 space-y-5">
+          <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Settings className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <span>Tùy chọn giao diện &amp; Trải nghiệm làm việc</span>
+          </h2>
+
+          <div className="space-y-4">
+            {/* Language Switch */}
+            <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: 'var(--border-card)' }}>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">{t('set.lang')}</h3>
+                <p className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>{t('set.langDesc')}</p>
+              </div>
+              <div className="flex p-1 rounded-xl border" style={{ backgroundColor: 'var(--bg-subcard)', borderColor: 'var(--border-card)' }}>
+                <button 
+                  onClick={() => setLanguage('en')}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    language === 'en' 
+                      ? 'bg-teal-600 text-white shadow-sm' 
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  English
+                </button>
+                <button 
+                  onClick={() => setLanguage('vi')}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    language === 'vi' 
+                      ? 'bg-teal-600 text-white shadow-sm' 
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  Tiếng Việt
+                </button>
+              </div>
+            </div>
+
+            {/* Dark Mode Toggle */}
+            <ToggleRow 
+              title={t('set.darkMode')} 
+              description="Chuyển đổi giữa chế độ Sáng y tế và chế độ Tối bảo vệ mắt." 
+              active={darkMode} 
+              onChange={() => setDarkMode(!darkMode)}
+            />
+            
+            {/* Compact View Toggle */}
+            <ToggleRow 
+              title={t('set.compact')} 
+              description="Thu nhỏ khoảng cách và kích thước thẻ để hiển thị tối đa dữ liệu trên một màn hình." 
+              active={compactView} 
+              onChange={() => setCompactView(!compactView)}
+            />
           </div>
         </div>
+
+        {/* 3. Security & Session */}
+        <div className="clinical-card p-6 space-y-4">
+          <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <span>Bảo mật phiên làm việc</span>
+          </h2>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-teal-600" />
+              <span>Thời gian tự động khóa phiên khi không thao tác (Session Timeout)</span>
+            </label>
+            <select 
+              value={sessionTimeout}
+              onChange={(e) => setSessionTimeout(e.target.value)}
+              className="clinical-input w-full px-4 py-2.5 text-xs font-semibold"
+            >
+              <option value="15">15 phút không hoạt động</option>
+              <option value="30">30 phút không hoạt động (Khuyến nghị phòng khám)</option>
+              <option value="60">60 phút không hoạt động</option>
+            </select>
+          </div>
+        </div>
+
       </div>
     </div>
   );
 }
 
-function SettingNav({ icon: Icon, label, active = false }: any) {
-  return (
-    <button className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-      active 
-        ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400' 
-        : 'bg-transparent border border-transparent text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-    }`}>
-      <div className="flex items-center gap-3">
-        <Icon className="w-5 h-5" />
-        <span className="font-medium text-sm">{label}</span>
-      </div>
-      <ChevronRight className={`w-4 h-4 ${active ? 'opacity-100' : 'opacity-0 -translate-x-2'}`} />
-    </button>
-  );
-}
-
 function ToggleRow({ title, description, active, onChange }: { title: string, description: string, active: boolean, onChange: () => void }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-white/5 last:border-0 last:pb-0">
-      <div>
-        <h3 className="text-sm font-medium text-slate-200">{title}</h3>
-        <p className="text-xs text-slate-400 mt-1">{description}</p>
+    <div className="flex items-center justify-between py-3 border-b" style={{ borderColor: 'var(--border-card)' }}>
+      <div className="pr-4">
+        <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+        <p className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>{description}</p>
       </div>
-      <div 
+      <button 
+        type="button"
+        role="switch"
+        aria-checked={active}
         onClick={onChange}
-        className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${active ? 'bg-cyan-500' : 'bg-slate-700'}`}
+        className={`w-12 h-6.5 rounded-full p-0.5 transition-all duration-300 cursor-pointer shrink-0 relative flex items-center ${
+          active ? 'bg-teal-600 shadow-[0_0_10px_rgba(13,148,136,0.4)]' : 'bg-slate-300 dark:bg-slate-700'
+        }`}
       >
-        <div className={`w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${active ? 'translate-x-6' : 'translate-x-0'}`}></div>
-      </div>
+        <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ${
+          active ? 'translate-x-6' : 'translate-x-0.5'
+        }`} />
+      </button>
     </div>
   );
 }

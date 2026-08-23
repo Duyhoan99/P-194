@@ -82,16 +82,16 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
   });
 
   return (
-    <div className="bg-slate-950/70 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full min-h-0">
+    <div className="clinical-card overflow-hidden flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="p-4 px-5 border-b border-white/10 bg-slate-900/90 flex items-center justify-between shrink-0 flex-wrap gap-2">
+      <div className="p-4 px-5 border-b border-[var(--border-card)] bg-[var(--bg-card)] flex items-center justify-between shrink-0 flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/30 text-purple-400">
             <Pill className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Tiến trình Sử dụng Thuốc &amp; Phác đồ (Medication Timeline)</h3>
-            <p className="text-xs text-slate-400">Theo dõi diễn biến kê đơn, thay đổi liều lượng và cảnh báo tương tác</p>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-extrabold">Tiến trình Sử dụng Thuốc &amp; Phác đồ (Medication Timeline)</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">Theo dõi diễn biến kê đơn, thay đổi liều lượng và cảnh báo tương tác</p>
           </div>
         </div>
 
@@ -105,12 +105,12 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
       {/* Content Area */}
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-6 chat-scrollbar pr-3">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-slate-400">
+          <div className="flex items-center justify-center py-16 text-slate-600 dark:text-slate-400 font-medium">
             <RefreshCw className="w-5 h-5 animate-spin mr-2 text-purple-400" />
             <span className="text-sm">Đang phân tích dữ liệu thuốc...</span>
           </div>
         ) : error && medEvents.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
+          <div className="text-center py-12 text-slate-600 dark:text-slate-400 font-medium text-sm">
             <AlertTriangle className="w-8 h-8 text-amber-500/50 mx-auto mb-2" />
             {error}
           </div>
@@ -125,7 +125,7 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
                 </div>
                 <div className="space-y-2">
                   {interactions.map((inter: any, idx: number) => (
-                    <div key={idx} className="bg-slate-900/80 p-2.5 rounded-lg border border-rose-900/30 text-xs text-slate-300 flex items-start justify-between gap-3">
+                    <div key={idx} className="clinical-subcard p-2.5 rounded-lg text-xs text-slate-900 dark:text-slate-100 flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <span className="font-medium text-rose-300">
                           {inter.severity ? `[Mức độ: ${inter.severity.toUpperCase()}] ` : ''}{inter.description || inter.message}
@@ -158,10 +158,10 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
                 </div>
               ) : (
                 Object.entries(drugGroups).map(([drugName, events]) => (
-                  <div key={drugName} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                  <div key={drugName} className="clinical-subcard p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-[var(--border-card)] pb-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-100 text-sm">{drugName}</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100 font-extrabold text-sm">{drugName}</span>
                         <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 font-medium">
                           {events.length} lần điều chỉnh / kê đơn
                         </span>
@@ -176,15 +176,15 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
                           <div className="absolute -left-[9px] top-1.5 w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.8)]" />
 
                           <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className="font-semibold text-slate-200 text-xs">{ev.title}</span>
-                            <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100 font-bold text-xs">{ev.title}</span>
+                            <span className="text-[11px] text-slate-600 dark:text-slate-400 font-medium font-mono flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-slate-500" />
                               {formatDate(ev.occurred_at)}
                             </span>
                           </div>
 
                           {ev.summary && (
-                            <p className="text-xs text-slate-400 leading-relaxed">{ev.summary}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{ev.summary}</p>
                           )}
 
                           {ev.citations && ev.citations.length > 0 && (
@@ -193,7 +193,7 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
                                 <button
                                   key={cIdx}
                                   onClick={() => handleCitationClick(c)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 hover:bg-cyan-950/60 text-[10px] text-cyan-300 hover:text-cyan-200 rounded border border-slate-800 hover:border-cyan-500/40 transition-colors"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 hover:bg-cyan-950/60 text-[10px] text-cyan-300 hover:text-cyan-200 rounded border border-[var(--border-card)] hover:border-cyan-500/40 transition-colors"
                                 >
                                   📄 Nguồn: {c.document_name || c.resource_type || 'Đơn thuốc'}
                                 </button>

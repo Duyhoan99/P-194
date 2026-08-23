@@ -243,7 +243,7 @@ export const patients = {
 
 /* ========== Ingestions ========== */
 export const ingestions = {
-  upload: (file: File, patient_id?: string, format: string = 'auto', new_patient_name?: string) => {
+  upload: (file: File, patient_id?: string, new_patient_name?: string, format: string = 'auto') => {
     const formData = new FormData();
     formData.append('file', file);
     if (patient_id) formData.append('patient_id', patient_id);

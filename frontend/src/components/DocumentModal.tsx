@@ -45,11 +45,11 @@ export default function DocumentModal({ isOpen, onClose, documentId }: DocumentM
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-5xl h-[85vh] bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden"
+          className="relative w-full max-w-5xl h-[85vh] bg-white dark:bg-[#112240] border border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/50">
-            <h3 className="text-lg font-semibold text-slate-200 truncate pr-4">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-white dark:bg-[#112240]/50">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 truncate pr-4">
               {documentId}
             </h3>
             <div className="flex items-center gap-3">

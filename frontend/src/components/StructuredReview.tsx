@@ -304,18 +304,18 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             <div className="p-6 bg-rose-950/20 border border-rose-900/50 rounded-xl flex flex-col items-center justify-center h-full">
                 <AlertTriangle className="w-8 h-8 text-rose-400 mb-2" />
                 <p className="text-sm text-rose-300 text-center">{typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)}</p>
-                <button onClick={generateReview} className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-200">Thử lại</button>
+                <button onClick={generateReview} className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100">Thử lại</button>
             </div>
         );
     }
 
     if (!review) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl h-full shadow-2xl">
+            <div className="flex flex-col items-center justify-center p-12 clinical-card/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl h-full shadow-2xl">
                 <div className="w-16 h-16 rounded-2xl bg-teal-500/10 flex items-center justify-center mb-5 border border-teal-500/30">
                     <FileSignature className="w-8 h-8 text-teal-400" />
                 </div>
-                <h3 className="text-base font-bold text-slate-200 mb-1">Chưa có Bản Tóm tắt Lâm sàng</h3>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-1">Chưa có Bản Tóm tắt Lâm sàng</h3>
                 <p className="text-xs text-slate-400 mb-6 max-w-md text-center leading-relaxed">
                     Hệ thống sẽ đối soát toàn bộ hồ sơ điện tử (EHR) và đơn scan để tổng hợp bản tóm tắt SOAP có trích dẫn chứng cứ cho bác sĩ.
                 </p>
@@ -346,15 +346,15 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                 : 'bg-amber-500/10 text-amber-400 border-amber-500/30';
 
     return (
-        <div className="bg-slate-950/70 border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full max-h-[calc(100dvh-13rem)] min-h-0 backdrop-blur-xl">
+        <div className="clinical-card overflow-hidden flex flex-col h-full max-h-[calc(100dvh-13rem)] min-h-0">
             {/* Header */}
-            <div className="p-3.5 px-4 border-b border-white/10 bg-slate-900/90 flex items-center justify-between shrink-0">
+            <div className="p-3.5 px-4 border-b flex items-center justify-between shrink-0 border-[var(--border-card)] bg-[var(--bg-card)]">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-teal-500/10 flex items-center justify-center border border-teal-500/30 text-teal-400">
                         <FileSignature className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-slate-100">Bản Tóm tắt Điều trị (SOAP Summary)</h3>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Bản Tóm tắt Điều trị (SOAP Summary)</h3>
                         <div className="flex items-center gap-2 mt-0.5 text-xs">
                             <span className={`px-2 py-0.5 rounded-full font-semibold border text-[11px] ${statusColor}`}>
                                 {isApproved ? 'ĐÃ KÝ DUYỆT' : isStale ? 'DỮ LIỆU CŨ' : isRejected ? 'ĐÃ TỪ CHỐI' : 'BẢN THẢO (DRAFT)'}
@@ -394,7 +394,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
 
             {/* Disclaimer */}
             {review.disclaimer && (
-                <div className="px-4 py-2 bg-slate-950/90 border-b border-white/5 flex items-center gap-2">
+                <div className="px-4 py-2 bg-[var(--bg-subcard)] border-b border-[var(--border-card)] flex items-center gap-2">
                     <ShieldCheck className="w-3.5 h-3.5 text-teal-400/80 shrink-0" />
                     <p className="text-[11px] text-slate-400 leading-relaxed">
                         Tài liệu hỗ trợ rà soát lâm sàng. Bác sĩ kiểm tra chứng cứ nguồn và chịu trách nhiệm chuyên môn trước khi ký duyệt.
@@ -412,9 +412,9 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                 {sections.map((section: any, idx: number) => (
                     <div
                         key={section.section_code || idx}
-                        className="space-y-2 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80"
+                        className="space-y-2 clinical-subcard p-4 rounded-xl"
                     >
-                        <h4 className="text-xs font-bold text-teal-300 uppercase tracking-wider flex items-center gap-2 pb-1.5 border-b border-slate-800/60">
+                        <h4 className="text-xs font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wider font-extrabold flex items-center gap-2 pb-1.5 border-b border-[var(--border-card)]">
                             {cleanSectionTitle(section.title, section.section_code)}
                         </h4>
 
@@ -423,25 +423,25 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                 section.claims.map((claim: any) => (
                                     <div
                                         key={claim.claim_id}
-                                        className="py-1 px-2 rounded-lg text-xs sm:text-sm text-slate-200 leading-relaxed hover:bg-slate-800/40 transition-colors group relative flex items-start gap-2.5"
+                                        className="py-1 px-2 rounded-lg text-xs sm:text-sm text-slate-900 dark:text-slate-900 dark:text-slate-100 font-medium leading-relaxed hover:bg-[var(--accent-teal-bg)] transition-colors group relative flex items-start gap-2.5"
                                     >
                                         <span className="text-teal-500 font-bold text-xs mt-0.5 shrink-0">•</span>
 
                                         <div className="flex-1 min-w-0">
                                             {editingClaim === claim.claim_id ? (
                                                 /* --- EDIT MODE --- */
-                                                <div className="space-y-3 p-3 bg-slate-900 rounded-lg border border-teal-500/40 my-1">
+                                                <div className="space-y-3 p-3 clinical-card rounded-lg border border-teal-500/40 my-1">
                                                     <textarea
                                                         value={editText}
                                                         onChange={(e) => setEditText(e.target.value)}
-                                                        className="w-full bg-slate-950 border border-teal-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500 min-h-[80px] resize-y"
+                                                        className="w-full clinical-input border border-teal-700/50 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-teal-500 min-h-[80px] resize-y"
                                                     />
                                                     <input
                                                         type="text"
                                                         value={editReason}
                                                         onChange={(e) => setEditReason(e.target.value)}
                                                         placeholder="Lý do chỉnh sửa (bắt buộc)..."
-                                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-teal-500"
+                                                        className="w-full clinical-input border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-teal-500"
                                                     />
                                                     <div className="flex gap-2">
                                                         <button
@@ -516,7 +516,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             </div>
 
             {/* STICKY BOTTOM ACTION BAR: Always visible for 1-click Doctor Approval & Export */}
-            <div className="p-3 px-5 border-t border-white/10 bg-slate-950/95 flex items-center justify-between shrink-0 flex-wrap gap-2 shadow-2xl backdrop-blur-xl">
+            <div className="p-3 px-5 border-t border-white/10 clinical-input/95 flex items-center justify-between shrink-0 flex-wrap gap-2 shadow-2xl backdrop-blur-xl">
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400">
                         {isApproved ? '✓ Đã hoàn tất phê duyệt chuyên môn' : '⚠️ Bản thảo đang chờ bác sĩ rà soát & ký số'}
@@ -542,7 +542,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                     {canApprove && (
                         <button
                             onClick={() => setShowRejectModal(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-rose-950/50 border border-slate-700 hover:border-rose-700 text-slate-300 hover:text-rose-300 text-xs font-semibold rounded-xl transition-all"
+                            className="flex items-center gap-1.5 px-3.5 py-2 clinical-card hover:bg-rose-950/50 border border-slate-700 hover:border-rose-700 text-slate-300 hover:text-rose-300 text-xs font-semibold rounded-xl transition-all"
                         >
                             <Ban className="w-3.5 h-3.5" /> Yêu cầu chỉnh sửa
                         </button>
@@ -582,13 +582,13 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             {/* Approve Confirmation Modal */}
             {showApproveConfirm && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                    <div className="clinical-card border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
                                 <ShieldCheck className="w-5 h-5 text-emerald-400" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-slate-100 text-sm">Xác nhận Ký duyệt Bệnh án</h3>
+                                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Xác nhận Ký duyệt Bệnh án</h3>
                                 <p className="text-xs text-slate-400">Bản tóm tắt sẽ được lưu vào Patient Memory và đóng dấu số</p>
                             </div>
                         </div>
@@ -616,13 +616,13 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             {/* Reject Modal */}
             {showRejectModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                    <div className="clinical-card border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
                                 <Ban className="w-5 h-5 text-rose-400" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-slate-100 text-sm">Yêu cầu Chỉnh sửa / Từ chối</h3>
+                                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Yêu cầu Chỉnh sửa / Từ chối</h3>
                                 <p className="text-xs text-slate-400">Vui lòng nhập lý do từ chối bản tóm tắt này</p>
                             </div>
                         </div>
@@ -630,7 +630,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
                             placeholder="Nhập lý do cần chỉnh sửa (tối thiểu 3 ký tự)..."
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-rose-500 min-h-[100px] resize-y mb-4"
+                            className="w-full clinical-input border border-slate-700 rounded-xl px-4 py-3 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 min-h-[100px] resize-y mb-4"
                         />
                         <div className="flex gap-3 justify-end">
                             <button
@@ -654,11 +654,11 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             {/* Version History Modal */}
             {showVersions && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] flex flex-col">
+                    <div className="clinical-card border border-slate-700 rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 <History className="w-5 h-5 text-cyan-400" />
-                                <h3 className="font-bold text-slate-100 text-sm">Lịch sử Phiên bản</h3>
+                                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Lịch sử Phiên bản</h3>
                             </div>
                             <button onClick={() => setShowVersions(false)} className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
                                 <X className="w-4 h-4" />
@@ -672,9 +672,9 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                 <p className="text-xs text-slate-500 text-center py-6">Chỉ có 1 phiên bản hiện tại.</p>
                             ) : (
                                 versions.map((v: any) => (
-                                    <div key={v.review_version_id} className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                                    <div key={v.review_version_id} className="p-3 clinical-input/60 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
                                         <div>
-                                            <div className="font-bold text-slate-200">Phiên bản v{v.version}</div>
+                                            <div className="font-bold text-slate-900 dark:text-slate-100">Phiên bản v{v.version}</div>
                                             <div className="text-[11px] text-slate-400">
                                                 {v.created_by || 'Hệ thống'} • {new Date(v.created_at).toLocaleString('vi-VN')}
                                             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -11,35 +11,19 @@ import {
   AlertTriangle, Database, Cpu,
   Play, TrendingUp, Bot
 } from 'lucide-react';
+import { useAppStore } from '@/lib/store';
 
 export default function LandingPage() {
-  const [isDark, setIsDark] = useState(true);
+  const { darkMode, setDarkMode } = useAppStore();
+  const isDark = darkMode;
   const [activeSpecialty, setActiveSpecialty] = useState(0);
   const [activeSandboxTab, setActiveSandboxTab] = useState<'ocr' | 'timeline' | 'ask'>('ocr');
   const [selectedOcrFact, setSelectedOcrFact] = useState(0);
   const [activePromptIndex, setActivePromptIndex] = useState(0);
   const [timelineYear, setTimelineYear] = useState<2024 | 2025 | 2026>(2026);
 
-  useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark') ||
-      !document.documentElement.classList.contains('light');
-    setIsDark(isDarkMode);
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    }
-  }, []);
-
   const toggleTheme = () => {
-    const nextDark = !isDark;
-    setIsDark(nextDark);
-    if (nextDark) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-    }
+    setDarkMode(!darkMode);
   };
 
   // 4 Specialty Profiles
@@ -159,18 +143,18 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 font-sans ${isDark ? 'bg-[#06090e] text-slate-100' : 'bg-[#fbfbfa] text-slate-900'}`}>
+    <div className={`min-h-screen transition-colors duration-500 font-sans ${isDark ? 'bg-[#0b1528] text-slate-100' : 'bg-[#f1f5f9] text-slate-900'}`}>
 
-      {/* AMBIENT LIGHT MESH — OURA RING MINIMALIST SUBTLE GLOW */}
+      {/* AMBIENT LIGHT MESH — OURA RING MINIMALIST SUBTLE GLOW (Only in Dark Mode) */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className={`absolute -top-40 left-1/4 w-[1400px] h-[850px] rounded-full blur-[280px] transition-colors duration-1000 ${isDark ? 'bg-teal-500/12' : 'bg-teal-200/30'}`} />
-        <div className={`absolute top-[35%] -right-20 w-[1100px] h-[1100px] rounded-full blur-[300px] transition-colors duration-1000 ${isDark ? 'bg-cyan-600/12' : 'bg-cyan-200/25'}`} />
-        <div className={`absolute bottom-10 left-10 w-[1000px] h-[800px] rounded-full blur-[280px] transition-colors duration-1000 ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-200/20'}`} />
+        <div className={`absolute -top-40 left-1/4 w-[1400px] h-[850px] rounded-full blur-[280px] transition-colors duration-1000 ${isDark ? 'bg-teal-500/12' : 'opacity-0'}`} />
+        <div className={`absolute top-[35%] -right-20 w-[1100px] h-[1100px] rounded-full blur-[300px] transition-colors duration-1000 ${isDark ? 'bg-cyan-600/12' : 'opacity-0'}`} />
+        <div className={`absolute bottom-10 left-10 w-[1000px] h-[800px] rounded-full blur-[280px] transition-colors duration-1000 ${isDark ? 'bg-emerald-500/10' : 'opacity-0'}`} />
       </div>
 
       {/* 1. FLOATING PILL NAVIGATION (1600px Max Width) */}
       <header className="sticky top-0 z-50 w-full px-4 sm:px-10 pt-5 pb-3">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-6 rounded-full px-8 py-4 shadow-2xl oura-glass border border-white/10 backdrop-blur-2xl">
+        <div className={`mx-auto flex max-w-[1600px] items-center justify-between gap-6 rounded-full px-8 py-4 shadow-2xl oura-glass border ${isDark ? "border-white/10" : "border-slate-900/10"} backdrop-blur-2xl`}>
 
           {/* Brand Identity */}
           <Link href="/" className="flex items-center gap-4 group">
@@ -179,21 +163,22 @@ export default function LandingPage() {
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <span className="font-bold text-xl tracking-tight text-slate-100">
+                <span className={`font-bold text-xl tracking-tight ${isDark ? "text-slate-100" : "text-slate-900"}`}>
                   Clinical Copilot
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-normal hidden sm:block">
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600 font-medium"} hidden sm:block`}>
                 Longitudinal Intelligence &amp; Evidence Grounding
               </p>
             </div>
           </Link>
 
           {/* Navigation Items with Oura Underline */}
-          <nav className="hidden items-center gap-3 lg:flex text-[15px] tracking-wide font-normal text-slate-300">
-            <Link href="/" className="px-5 py-2 oura-underline-hover text-teal-300 font-medium">
+          <nav className={`hidden items-center gap-3 lg:flex text-[15px] tracking-wide ${isDark ? "text-slate-300" : "text-slate-700 font-medium"}`}>
+            <Link href="/" className={`px-5 py-2 oura-underline-hover font-semibold ${isDark ? "text-teal-300" : "text-teal-700"}`}>
               Trang chủ
             </Link>
+
             <a href="#pipeline" className="px-5 py-2 oura-underline-hover hover:text-white transition-colors">
               Kiến trúc Fusion
             </a>
@@ -204,10 +189,10 @@ export default function LandingPage() {
               <Sparkles className="h-4 w-4 text-teal-400" />
               Phòng Lab AI
             </a>
-            <Link href="/patients" className="px-5 py-2 oura-underline-hover hover:text-white transition-colors">
+            <Link href="/login" className="px-5 py-2 oura-underline-hover hover:text-white transition-colors">
               Hồ sơ Bệnh nhân
             </Link>
-            <Link href="/case-files" className="px-5 py-2 oura-underline-hover hover:text-white transition-colors">
+            <Link href="/login" className="px-5 py-2 oura-underline-hover hover:text-white transition-colors">
               Tài liệu OCR
             </Link>
           </nav>
@@ -224,8 +209,8 @@ export default function LandingPage() {
             </button>
 
             <Link
-              href="/patients"
-              className="flex items-center gap-2.5 px-7 py-3 rounded-full oura-pill bg-teal-500/15 border-teal-500/40 text-teal-200 hover:bg-teal-500/25 hover:text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-sm"
+              href="/login"
+              className={`flex items-center gap-2.5 px-7 py-3 rounded-full oura-pill text-xs font-bold tracking-wider uppercase transition-all shadow-sm ${isDark ? "bg-teal-500/15 border-teal-500/40 text-teal-200 hover:bg-teal-500/25 hover:text-white" : "bg-teal-600 border-teal-600 text-white hover:bg-teal-700 shadow-md"}`}
             >
               <span>Vào Bàn Làm Việc</span>
               <ArrowRight className="h-4 w-4" />
@@ -245,29 +230,31 @@ export default function LandingPage() {
           <div className="lg:col-span-6 space-y-8">
 
             {/* Oura Pill Eyebrow */}
-            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 oura-pill text-xs font-medium text-teal-300 uppercase tracking-widest">
-              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+            <div className={`inline-flex items-center gap-2.5 px-4 py-1.5 oura-pill text-xs uppercase tracking-widest font-bold ${isDark ? "text-teal-300" : "text-teal-800 bg-teal-50/90 border-teal-300"}`}>
+              <span className={`w-2 h-2 rounded-full ${isDark ? "bg-teal-400" : "bg-teal-600"} animate-pulse`} />
+
               <span>Khoa học lâm sàng · Kiểm định đa nguồn</span>
             </div>
 
             {/* Main Headline — In đậm mạnh mẽ, trọn vẹn 2 dòng */}
-            <h1 className="text-4xl sm:text-6xl lg:text-[52px] xl:text-[60px] font-bold tracking-tight leading-[1.18] text-slate-100">
-              Grounded in Science.{' '}
-              <span className="block mt-2 font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-200 via-cyan-200 to-sky-300">
+            <h1 className={`text-4xl sm:text-6xl lg:text-[52px] xl:text-[60px] font-extrabold tracking-tight leading-[1.18] ${isDark ? "text-slate-100" : "text-slate-950"}`}>
+              Grounded in Science.{" "}
+              <span className={`block mt-2 font-extrabold text-transparent bg-clip-text ${isDark ? "bg-gradient-to-r from-teal-200 via-cyan-200 to-sky-300" : "bg-gradient-to-r from-teal-700 via-teal-800 to-cyan-800"}`}>
                 Rà Soát Bệnh Án Dọc Đa Nguồn.
               </span>
+
             </h1>
 
             {/* Description (Chữ to hơn, rõ ràng) */}
-            <p className="text-lg sm:text-xl text-slate-200 leading-relaxed font-normal">
+            <p className={`text-lg sm:text-xl leading-relaxed ${isDark ? "text-slate-200 font-normal" : "text-slate-800 font-medium"}`}>
               Hợp nhất dữ liệu xét nghiệm, đơn thuốc và bệnh án scan qua nhiều năm thành một bức tranh lâm sàng liên tục. Tự động đối chiếu 100% dẫn chứng nguyên văn với tọa độ Bounding Box từng trang PDF gốc.
             </p>
 
             {/* CTA Action Buttons */}
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <Link
-                href="/patients"
-                className="flex items-center gap-3 px-8 py-4 rounded-full oura-pill bg-teal-500/20 border-teal-500/40 hover:border-teal-300 text-teal-100 hover:text-white font-semibold text-sm tracking-wider uppercase shadow-xl shadow-teal-950/40 transition-all hover:scale-[1.02] active:scale-95"
+                href="/login"
+                className={`flex items-center gap-3 px-8 py-4 rounded-full oura-pill font-bold text-sm tracking-wider uppercase shadow-xl transition-all hover:scale-[1.02] active:scale-95 ${isDark ? "bg-teal-500/20 border-teal-500/40 hover:border-teal-300 text-teal-100 hover:text-white shadow-teal-950/40" : "bg-teal-600 border-teal-600 hover:bg-teal-700 text-white shadow-teal-600/30"}`}
               >
                 <Activity className="h-5 w-5 text-teal-400" />
                 <span>Mở Bàn Làm Việc Bác Sĩ</span>
@@ -276,7 +263,7 @@ export default function LandingPage() {
 
               <a
                 href="#sandbox"
-                className="flex items-center gap-2.5 px-8 py-4 rounded-full oura-pill text-sm font-semibold tracking-wider uppercase text-slate-300 hover:text-white transition-all hover:scale-[1.02]"
+                className={`flex items-center gap-2.5 px-8 py-4 rounded-full oura-pill text-sm font-bold tracking-wider uppercase transition-all hover:scale-[1.02] ${isDark ? "text-slate-300 hover:text-white" : "text-slate-800 hover:text-slate-950 border-slate-300 bg-white/90 shadow-sm"}`}
               >
                 <Play className="h-4 w-4 text-cyan-400" />
                 <span>Thực Nghiệm AI Sandbox</span>
@@ -286,30 +273,30 @@ export default function LandingPage() {
             {/* OURA RING SCIENCE & RESEARCH BENTO STATS (Đều tăm tắp 1 hàng ngang) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-8 border-t border-white/10">
               <div className="flex flex-col">
-                <span className="font-serif text-5xl sm:text-7xl font-light text-slate-100 tracking-tight whitespace-nowrap">100%</span>
-                <span className="text-sm font-semibold uppercase tracking-wider text-teal-400 mt-2">Dẫn chứng gốc</span>
-                <p className="text-xs sm:text-sm text-slate-400 font-normal mt-1 leading-snug">Tọa độ Bounding Box</p>
+                <span className={`font-serif text-5xl sm:text-7xl font-light tracking-tight whitespace-nowrap ${isDark ? "text-slate-100" : "text-slate-950 font-bold"}`}>100%</span>
+                <span className={`text-sm font-bold uppercase tracking-wider mt-2 ${isDark ? "text-teal-400" : "text-teal-700"}`}>Dẫn chứng gốc</span>
+                <p className={`text-xs sm:text-sm mt-1 leading-snug ${isDark ? "text-slate-400 font-normal" : "text-slate-600 font-medium"}`}>Tọa độ Bounding Box</p>
               </div>
 
               <div className="flex flex-col">
-                <div className="font-serif text-5xl sm:text-7xl font-light text-slate-100 tracking-tight flex items-baseline gap-2 whitespace-nowrap">
+                <div className={`font-serif text-5xl sm:text-7xl font-light tracking-tight flex items-baseline gap-2 whitespace-nowrap ${isDark ? "text-slate-100" : "text-slate-950 font-bold"}`}>
                   <span>3</span>
-                  <span className="text-3xl sm:text-4xl font-serif font-light text-slate-300">Giây</span>
+                  <span className={`text-3xl sm:text-4xl font-serif font-light ${isDark ? "text-slate-300" : "text-slate-700"}`}>Giây</span>
                 </div>
-                <span className="text-sm font-semibold uppercase tracking-wider text-cyan-400 mt-2">Tốc độ xử lý</span>
-                <p className="text-xs sm:text-sm text-slate-400 font-normal mt-1 leading-snug">Hợp nhất 4 năm hồ sơ</p>
+                <span className={`text-sm font-bold uppercase tracking-wider mt-2 ${isDark ? "text-cyan-400" : "text-cyan-700"}`}>Tốc độ xử lý</span>
+                <p className={`text-xs sm:text-sm mt-1 leading-snug ${isDark ? "text-slate-400 font-normal" : "text-slate-600 font-medium"}`}>Hợp nhất 4 năm hồ sơ</p>
               </div>
 
               <div className="flex flex-col">
-                <span className="font-serif text-5xl sm:text-7xl font-light text-slate-100 tracking-tight whitespace-nowrap">0%</span>
-                <span className="text-sm font-semibold uppercase tracking-wider text-emerald-400 mt-2">Ảo giác</span>
-                <p className="text-xs sm:text-sm text-slate-400 font-normal mt-1 leading-snug">Fail-Closed Zero Trust</p>
+                <span className={`font-serif text-5xl sm:text-7xl font-light tracking-tight whitespace-nowrap ${isDark ? "text-slate-100" : "text-slate-950 font-bold"}`}>0%</span>
+                <span className={`text-sm font-bold uppercase tracking-wider mt-2 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>Ảo giác</span>
+                <p className={`text-xs sm:text-sm mt-1 leading-snug ${isDark ? "text-slate-400 font-normal" : "text-slate-600 font-medium"}`}>Fail-Closed Zero Trust</p>
               </div>
 
               <div className="flex flex-col">
-                <span className="font-serif text-5xl sm:text-7xl font-light text-slate-100 tracking-tight whitespace-nowrap">10+</span>
-                <span className="text-sm font-semibold uppercase tracking-wider text-sky-400 mt-2">Chuẩn y khoa</span>
-                <p className="text-xs sm:text-sm text-slate-400 font-normal mt-1 leading-snug">FHIR, ADA, KDIGO</p>
+                <span className={`font-serif text-5xl sm:text-7xl font-light tracking-tight whitespace-nowrap ${isDark ? "text-slate-100" : "text-slate-950 font-bold"}`}>10+</span>
+                <span className={`text-sm font-bold uppercase tracking-wider mt-2 ${isDark ? "text-sky-400" : "text-sky-700"}`}>Chuẩn y khoa</span>
+                <p className={`text-xs sm:text-sm mt-1 leading-snug ${isDark ? "text-slate-400 font-normal" : "text-slate-600 font-medium"}`}>FHIR, ADA, KDIGO</p>
               </div>
             </div>
 
@@ -336,7 +323,7 @@ export default function LandingPage() {
 
                 {/* Floating Telemetry Badges Overlay */}
                 <div className="absolute top-3 left-3 flex items-center gap-2 px-3.5 py-1.5 rounded-full oura-glass border border-white/20 text-xs font-mono text-teal-300 shadow-lg">
-                  <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+
                   <span>3D CLINICAL RADAR</span>
                 </div>
               </div>
@@ -348,8 +335,8 @@ export default function LandingPage() {
                     <Image src="/doctor-3d.png" alt="Bác sĩ" fill sizes="112px" className="object-cover scale-110" />
                   </div>
                   <div>
-                    <h4 className="text-base sm:text-lg font-semibold text-slate-100">Bác Sĩ Trưởng Khoa</h4>
-                    <p className="text-xs sm:text-sm text-slate-400 mt-1">Kiểm tra &amp; Ký duyệt (HITL)</p>
+                    <h4 className={`text-base sm:text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>Bác Sĩ Trưởng Khoa</h4>
+                    <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-600 font-medium"}`}>Kiểm tra &amp; Ký duyệt (HITL)</p>
                   </div>
                 </div>
 
@@ -358,8 +345,8 @@ export default function LandingPage() {
                     <Image src="/hero-3d.png" alt="Robot AI" fill sizes="112px" className="object-cover scale-110" />
                   </div>
                   <div>
-                    <h4 className="text-base sm:text-lg font-semibold text-slate-100">AI Co-pilot</h4>
-                    <p className="text-xs sm:text-sm text-teal-400 font-medium mt-1">Rà soát đa nguồn 3 giây</p>
+                    <h4 className={`text-base sm:text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>AI Co-pilot</h4>
+                    <p className={`text-xs sm:text-sm font-semibold mt-1 ${isDark ? "text-teal-400" : "text-teal-700"}`}>Rà soát đa nguồn 3 giây</p>
                   </div>
                 </div>
               </div>
@@ -378,10 +365,10 @@ export default function LandingPage() {
               <Database className="h-4 w-4" />
               <span>Đa nguồn dữ liệu · FHIR R4 &amp; PDF OCR</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-100 tracking-tight">
+            <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight ${isDark ? "text-slate-100" : "text-slate-950"}`}>
               Kiến Trúc Hợp Nhất Đa Chiều
             </h2>
-            <p className="text-base sm:text-lg text-slate-300 font-normal max-w-2xl mx-auto">
+            <p className={`text-base sm:text-lg max-w-2xl mx-auto ${isDark ? "text-slate-300 font-normal" : "text-slate-700 font-medium"}`}>
               Giải quyết triệt để bài toán phân mảnh giữa bệnh án điện tử và tài liệu scan:
             </p>
           </div>
@@ -412,8 +399,8 @@ export default function LandingPage() {
                 <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-300">
                   <Database className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-100">1. Chuẩn Hóa FHIR</h3>
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <h3 className={`text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>1. Chuẩn Hóa FHIR</h3>
+                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700 font-medium"}`}>
                   Đồng bộ tự động Encounter, Observation, Medication và Condition theo chuẩn quốc tế.
                 </p>
                 <span className="inline-block text-xs font-mono text-cyan-300 bg-cyan-500/10 px-2.5 py-1 rounded-full border border-cyan-500/20">
@@ -426,8 +413,8 @@ export default function LandingPage() {
                 <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-300">
                   <FileText className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-100">2. Bounding Box OCR</h3>
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <h3 className={`text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>2. Bounding Box OCR</h3>
+                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700 font-medium"}`}>
                   Quét từng trang PDF xét nghiệm, trích xuất tọa độ BBox chính xác để bác sĩ đối soát.
                 </p>
                 <span className="inline-block text-xs font-mono text-teal-300 bg-teal-500/10 px-2.5 py-1 rounded-full border border-teal-500/20">
@@ -440,8 +427,8 @@ export default function LandingPage() {
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-300">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-100">3. Ký Duyệt HITL</h3>
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <h3 className={`text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>3. Ký Duyệt HITL</h3>
+                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700 font-medium"}`}>
                   AI tạo bản tóm tắt nháp, Bác sĩ giữ toàn quyền kiểm tra, sửa đổi và ký duyệt.
                 </p>
                 <span className="inline-block text-xs font-mono text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
@@ -463,10 +450,12 @@ export default function LandingPage() {
               <Microscope className="h-4 w-4" />
               <span>Ứng dụng chuyên khoa đa ngành</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-100 tracking-tight">
+            <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight ${isDark ? "text-slate-100" : "text-slate-950"}`}>
+              Kiến Trúc Hợp Nhất Đa Chiều
               Phù Hợp Mọi Bệnh Cảnh Mạn Tính
             </h2>
-            <p className="text-base sm:text-lg text-slate-300 font-normal max-w-2xl mx-auto">
+            <p className={`text-base sm:text-lg max-w-2xl mx-auto ${isDark ? "text-slate-300 font-normal" : "text-slate-700 font-medium"}`}>
+              Giải quyết triệt để bài toán phân mảnh giữa bệnh án điện tử và tài liệu scan:
               Được tinh chỉnh theo tiêu chuẩn phác đồ của từng phân ngành y khoa:
             </p>
           </div>
@@ -479,8 +468,8 @@ export default function LandingPage() {
                   key={spec.id}
                   onClick={() => setActiveSpecialty(idx)}
                   className={`p-7 rounded-2xl oura-glass-card cursor-pointer transition-all duration-300 ${activeSpecialty === idx
-                      ? 'border-teal-500/50 bg-teal-950/20 shadow-xl shadow-teal-950/30 scale-[1.02]'
-                      : 'hover:border-white/20'
+                    ? 'border-teal-500/50 bg-teal-950/20 shadow-xl shadow-teal-950/30 scale-[1.02]'
+                    : 'hover:border-white/20'
                     }`}
                 >
                   <div className="flex items-center justify-between mb-5">
@@ -492,8 +481,8 @@ export default function LandingPage() {
                     </span>
                   </div>
 
-                  <h3 className="text-xl font-semibold text-slate-100 mb-2">{spec.title}</h3>
-                  <p className="text-sm text-slate-300 mb-5 leading-relaxed">{spec.description}</p>
+                  <h3 className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>{spec.title}</h3>
+                  <p className={`text-sm mb-5 leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700 font-medium"}`}>{spec.description}</p>
 
                   <div className="pt-4 border-t border-white/5 space-y-2">
                     <div className="flex items-center justify-between text-sm">
@@ -520,10 +509,12 @@ export default function LandingPage() {
               <Cpu className="h-4 w-4" />
               <span>Phòng thực nghiệm AI trực tiếp</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-100 tracking-tight">
+            <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight ${isDark ? "text-slate-100" : "text-slate-950"}`}>
+              Kiến Trúc Hợp Nhất Đa Chiều
               Trải Nghiệm 3 Tính Năng Cốt Lõi
             </h2>
-            <p className="text-base sm:text-lg text-slate-300 font-normal max-w-2xl mx-auto">
+            <p className={`text-base sm:text-lg max-w-2xl mx-auto ${isDark ? "text-slate-300 font-normal" : "text-slate-700 font-medium"}`}>
+              Giải quyết triệt để bài toán phân mảnh giữa bệnh án điện tử và tài liệu scan:
               Bấm chọn giữa các chế độ thực nghiệm bên dưới để tương tác trực tiếp với dữ liệu mẫu:
             </p>
           </div>
@@ -534,8 +525,8 @@ export default function LandingPage() {
               <button
                 onClick={() => setActiveSandboxTab('ocr')}
                 className={`flex items-center gap-2 px-7 py-3 rounded-full text-xs font-semibold tracking-wide transition-all ${activeSandboxTab === 'ocr'
-                    ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                  ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
                   }`}
               >
                 <FileText className="h-4 w-4" />
@@ -545,8 +536,8 @@ export default function LandingPage() {
               <button
                 onClick={() => setActiveSandboxTab('timeline')}
                 className={`flex items-center gap-2 px-7 py-3 rounded-full text-xs font-semibold tracking-wide transition-all ${activeSandboxTab === 'timeline'
-                    ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                  ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
                   }`}
               >
                 <Clock className="h-4 w-4" />
@@ -556,8 +547,8 @@ export default function LandingPage() {
               <button
                 onClick={() => setActiveSandboxTab('ask')}
                 className={`flex items-center gap-2 px-7 py-3 rounded-full text-xs font-semibold tracking-wide transition-all ${activeSandboxTab === 'ask'
-                    ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                  ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
                   }`}
               >
                 <Sparkles className="h-4 w-4" />
@@ -587,12 +578,12 @@ export default function LandingPage() {
                     <span>Tọa độ Bounding Box Thực Tế</span>
                   </div>
 
-                  <div className="relative bg-[#05080e] rounded-2xl p-6 sm:p-8 border border-white/10 font-mono text-xs overflow-hidden select-none shadow-2xl text-slate-200">
-                    
+                  <div className={`relative rounded-2xl p-6 sm:p-8 font-mono text-xs overflow-hidden select-none shadow-2xl ${isDark ? "bg-[#05080e] border border-white/10 text-slate-200" : "bg-white border border-slate-300 text-slate-900 shadow-md"}`}>
+
                     {/* Header of Medical Document */}
                     <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
                       <div>
-                        <div className="font-bold text-sm sm:text-base text-slate-100 uppercase tracking-wide">
+                        <div className={`font-bold text-sm sm:text-base uppercase tracking-wide ${isDark ? "text-slate-100" : "text-slate-900"}`}>
                           Bệnh Viện Đại Học Y Dược — Khoa Sinh Hóa
                         </div>
                         <div className="text-[11px] text-slate-400 mt-0.5">
@@ -621,11 +612,10 @@ export default function LandingPage() {
                           <div
                             key={fact.id}
                             onClick={() => setSelectedOcrFact(idx)}
-                            className={`relative flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${
-                              isSelected
+                            className={`relative flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${isSelected
                                 ? 'border-2 border-teal-400 bg-teal-400/15 text-white shadow-[0_0_25px_rgba(45,212,191,0.35)] ring-1 ring-teal-400/50'
                                 : 'border border-white/5 hover:bg-white/5 hover:border-white/15 text-slate-300'
-                            }`}
+                              }`}
                           >
                             {/* Bounding Box Floating Badge */}
                             {isSelected && (
@@ -671,8 +661,8 @@ export default function LandingPage() {
                         key={fact.id}
                         onClick={() => setSelectedOcrFact(idx)}
                         className={`p-5 rounded-xl cursor-pointer transition-all oura-glass-card ${selectedOcrFact === idx
-                            ? 'border-teal-500/50 bg-teal-950/30'
-                            : 'hover:border-white/10'
+                          ? 'border-teal-500/50 bg-teal-950/30'
+                          : 'hover:border-white/10'
                           }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
@@ -712,8 +702,8 @@ export default function LandingPage() {
                         key={year}
                         onClick={() => setTimelineYear(year)}
                         className={`px-5 py-2 rounded-full text-xs sm:text-sm font-mono font-medium transition-all ${timelineYear === year
-                            ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm'
-                            : 'text-slate-400 hover:text-white'
+                          ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
                           }`}
                       >
                         Năm {year}
@@ -802,8 +792,8 @@ export default function LandingPage() {
                       key={idx}
                       onClick={() => setActivePromptIndex(idx)}
                       className={`w-full text-left p-4 rounded-xl transition-all oura-glass-card ${activePromptIndex === idx
-                          ? 'border-teal-500/50 bg-teal-950/30 text-white'
-                          : 'text-slate-300 hover:text-white'
+                        ? 'border-teal-500/50 bg-teal-950/30 text-white'
+                        : 'text-slate-300 hover:text-white'
                         }`}
                     >
                       <div className="text-sm sm:text-base font-medium">{p.q}</div>
@@ -854,7 +844,8 @@ export default function LandingPage() {
               <Award className="h-4 w-4" />
               <span>Tiêu chuẩn &amp; Chứng thực y khoa</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-100 tracking-tight">
+            <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight ${isDark ? "text-slate-100" : "text-slate-950"}`}>
+              Kiến Trúc Hợp Nhất Đa Chiều
               Xây Dựng Trên Nền Tảng Khoa Học Vững Chắc
             </h2>
           </div>
@@ -862,8 +853,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
             {standards.map((st, idx) => (
               <div key={idx} className="p-6 rounded-xl oura-glass-card text-center space-y-2">
-                <div className="text-base font-semibold text-slate-100">{st.name}</div>
-                <div className="text-xs sm:text-sm text-slate-400 font-normal leading-snug">{st.desc}</div>
+                <div className={`text-base font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{st.name}</div>
+                <div className={`text-xs sm:text-sm leading-snug ${isDark ? "text-slate-400 font-normal" : "text-slate-600 font-medium"}`}>{st.desc}</div>
               </div>
             ))}
           </div>
@@ -872,14 +863,15 @@ export default function LandingPage() {
       </main>
 
       {/* 7. FOOTER */}
-      <footer className="border-t border-white/10 py-12 px-4 sm:px-10 text-sm text-slate-400 bg-black/40">
+      <footer className={`border-t py-12 px-4 sm:px-10 text-sm ${isDark ? "border-white/10 bg-black/40 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-700 font-medium"}`}>
         <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-full bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-300">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isDark ? "bg-teal-500/10 border border-teal-500/30 text-teal-300" : "bg-teal-600 text-white"}`}>
               <Stethoscope className="w-4 h-4" />
             </div>
-            <span>Clinical Review Copilot — AI Rà Soát Bệnh Án Dọc</span>
+            <span className={isDark ? "text-slate-300" : "text-slate-900 font-semibold"}>Clinical Review Copilot — AI Rà Soát Bệnh Án Dọc</span>
           </div>
+
 
           <div>
             Hệ thống hỗ trợ quyết định lâm sàng (CDSS) tuân thủ tiêu chuẩn HL7 FHIR R4 &amp; HITL.
