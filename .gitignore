@@ -68,8 +68,7 @@ out/
 .ai-log/*.jsonl
 .ai-log/archive/
 
-# Local subagent worktrees
-.worktrees/
+# Local test packages (keep local only)
+TEST_FILES_CHO_BAN_GIAM_KHAO/
+demo_sample_files/
 
-# Local agent customizations
-.agents/

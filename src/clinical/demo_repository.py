@@ -616,12 +616,43 @@ class DemoRepository:
             }
             entries.append({"resource": cond_resource})
 
-        # 4. Update patient summary
+        # 4. Add MedicationRequest entries
+        medications = getattr(parsed_doc, "medications", [])
+        for idx, med in enumerate(medications):
+            med_id = f"med_{document_id}_{idx}"
+            med_name = getattr(med, "name", "Thuốc điều trị")
+            med_dose = getattr(med, "dose", None)
+
+            med_resource = {
+                "resourceType": "MedicationRequest",
+                "id": med_id,
+                "status": "active",
+                "intent": "order",
+                "medicationCodeableConcept": {
+                    "coding": [{"display": med_name}],
+                    "text": med_name,
+                },
+                "authoredOn": occurred_iso,
+            }
+            if med_dose:
+                med_resource["dosageInstruction"] = [{"text": med_dose}]
+            entries.append({"resource": med_resource})
+
+        # 5. Update patient summary
         pat = self._patients.get(patient_id)
         if pat:
             pat.last_encounter_at = occurred_iso
             if conditions and (pat.primary_condition == "Chưa có dữ liệu" or not pat.primary_condition):
-                pat.primary_condition = getattr(conditions[0], "name", pat.primary_condition)
+                cond_names = [getattr(c, "name", "") for c in conditions if getattr(c, "name", "")]
+                pat.primary_condition = ", ".join(cond_names) if cond_names else getattr(conditions[0], "name", pat.primary_condition)
+            if getattr(parsed_doc, "birth_date", None):
+                try:
+                    byear = int(str(parsed_doc.birth_date).split("-")[0])
+                    pat.age = datetime.now().year - byear
+                except Exception:
+                    pass
+            if getattr(parsed_doc, "gender", None) and parsed_doc.gender in ("male", "female"):
+                pat.sex = parsed_doc.gender
 
 
     def mark_reviews_stale(self, patient_id: str) -> int:

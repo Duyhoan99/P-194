@@ -144,61 +144,131 @@ def _deterministic_regex_parse(markdown_text: str) -> ParsedClinicalDocument:
     doc = ParsedClinicalDocument(markdown_content=markdown_text)
 
     # 1. Patient ID
-    m_pid = re.search(r"(?:Mã bệnh nhân|Patient ID|patient_id)\s*[:=]\s*(PAT-?\d{3,})", markdown_text, re.IGNORECASE)
+    m_pid = re.search(r"(?:Mã bệnh nhân|Ma benh nhan|Patient ID|patient_id)\s*[:=]\s*([A-Za-z0-9_-]+)", markdown_text, re.IGNORECASE)
     if m_pid:
-        doc.patient_id = m_pid.group(1).upper().replace("PAT", "PAT-").replace("--", "-")
+        doc.patient_id = m_pid.group(1).strip()
 
     # 2. Patient Name
-    m_name = re.search(r"(?:Tên synthetic|Tên bệnh nhân|Họ và tên|Patient Name)\s*[:=]\s*([^\n\r,;|]+)", markdown_text, re.IGNORECASE)
+    m_name = re.search(r"(?:Tên synthetic|Tên bệnh nhân|Họ và tên|Ho va ten|Patient Name)\s*[:=]\s*([^\n\r,;|]+?)(?=\s+(?:Mã bệnh nhân|Ma benh nhan|Gioi tinh|Giới tính|Tuổi|Tuoi|SN|DOB|$))", markdown_text, re.IGNORECASE)
     if m_name:
         doc.patient_name = m_name.group(1).strip()
+    else:
+        m_name2 = re.search(r"(?:Tên synthetic|Tên bệnh nhân|Họ và tên|Ho va ten|Patient Name)\s*[:=]\s*([^\n\r,;|]+)", markdown_text, re.IGNORECASE)
+        if m_name2:
+            doc.patient_name = m_name2.group(1).strip()
 
-    # 3. Document ID
+    # 3. Gender & Birth date
+    m_gender = re.search(r"(?:Giới tính|Gioi tinh|Sex|Gender)\s*[:=]\s*(Nam|Nữ|Male|Female|Nu)", markdown_text, re.IGNORECASE)
+    if m_gender:
+        g = m_gender.group(1).lower()
+        doc.gender = "male" if g in ("nam", "male") else "female"
+
+    m_dob = re.search(r"(?:SN|DOB|Ngày sinh|Ngay sinh|Sinh năm)\s*[:=]?\s*(\d{4}|\d{1,2}[/.-]\d{1,2}[/.-]\d{4})", markdown_text, re.IGNORECASE)
+    if m_dob:
+        raw_dob = m_dob.group(1)
+        if len(raw_dob) == 4:
+            doc.birth_date = f"{raw_dob}-01-01"
+        else:
+            parts = re.split(r"[/.-]", raw_dob)
+            if len(parts) == 3:
+                doc.birth_date = f"{parts[2]}-{int(parts[1]):02d}-{int(parts[0]):02d}"
+
+    # 4. Document ID
     m_docid = re.search(r"(?:Mã tài liệu|Document ID|doc_id)\s*[:=]\s*([A-Za-z0-9_-]+)", markdown_text, re.IGNORECASE)
     if m_docid:
         doc.document_id = m_docid.group(1).strip()
 
-    # 4. Document Date
-    m_date = re.search(r"(?:Ngày tài liệu|Ngày xét nghiệm|Date|Ngày khám)\s*[:=]\s*(\d{4}-\d{2}-\d{2})", markdown_text, re.IGNORECASE)
+    # 5. Document Date
+    m_date = re.search(r"(?:Ngày tài liệu|Ngày xét nghiệm|Date|Ngày khám|Ngay kham)\s*[:=]\s*(\d{4}-\d{2}-\d{2})", markdown_text, re.IGNORECASE)
     if m_date:
         doc.document_date = m_date.group(1)
     else:
-        m_date_vn = re.search(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", markdown_text)
+        m_date_vn = re.search(r"(?:Ngày khám|Ngay kham|Ngày|Ngay|Date)?\s*[:=]?\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", markdown_text, re.IGNORECASE)
         if m_date_vn:
             d, m, y = m_date_vn.groups()
             doc.document_date = f"{y}-{int(m):02d}-{int(d):02d}"
 
-    # 5. Extract Observations from table rows or lines
+    # 6. Conditions / Diagnosis
+    m_cond = re.search(r"(?:Chẩn đoán|Chan doan|Diagnosis|Conditions?)\s*[:=]\s*([^\n\r]+)", markdown_text, re.IGNORECASE)
+    if m_cond:
+        cond_str = m_cond.group(1).strip()
+        for c_item in re.split(r"[,;]+", cond_str):
+            c_clean = c_item.strip()
+            if c_clean and len(c_clean) > 2:
+                code_m = re.search(r"\((?:ICD[-:]?\s*)?([A-Z0-9.]+)\)", c_clean)
+                code_val = code_m.group(1) if code_m else None
+                doc.conditions.append(ParsedCondition(name=c_clean, code=code_val, recorded_date=doc.document_date))
+
+    # 7. Blood Pressure (e.g. 145/92 mmHg)
+    m_bp = re.search(r"(?:Huyết áp|Huyet ap|Blood Pressure|BP)\s*(?:\([^)]*\))?\s*[:|]?\s*(\d{2,3})\s*[/]\s*(\d{2,3})", markdown_text, re.IGNORECASE)
+    if m_bp:
+        try:
+            sys_val = float(m_bp.group(1))
+            dia_val = float(m_bp.group(2))
+            doc.observations.append(ParsedObservation(name="BP Systolic", code="8480-6", value=sys_val, unit="mmHg"))
+            doc.observations.append(ParsedObservation(name="BP Diastolic", code="8462-4", value=dia_val, unit="mmHg"))
+        except Exception:
+            pass
+
+    # 8. Extract Observations from table rows or lines
     obs_patterns = [
-        (r"HbA1c\s*[:|]?\s*([0-9.]+)\s*(?:%|percent)?", "HbA1c", "4548-4", "%"),
-        (r"Glucose\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "Glucose", "2339-0", "mmol/L"),
-        (r"Creatinine\s*[:|]?\s*([0-9.]+)\s*(?:µmol/L|umol/L)?", "Creatinine", "2160-0", "µmol/L"),
-        (r"eGFR\s*[:|]?\s*([0-9.]+)\s*(?:mL/min)?", "eGFR", "33914-3", "mL/min/1.73m2"),
+        (r"HbA1c(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:%|percent)?", "HbA1c", "4548-4", "%"),
+        (r"Glucose(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "Glucose", "2339-0", "mmol/L"),
+        (r"Creatinine(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:µmol/L|umol/L)?", "Creatinine", "2160-0", "µmol/L"),
+        (r"eGFR(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:mL/min|mL/min/1.73m2)?", "eGFR", "33914-3", "mL/min/1.73m2"),
         (r"Systolic BP\s*[:|]?\s*([0-9.]+)\s*(?:mmHg)?", "BP Systolic", "8480-6", "mmHg"),
         (r"Diastolic BP\s*[:|]?\s*([0-9.]+)\s*(?:mmHg)?", "BP Diastolic", "8462-4", "mmHg"),
-        (r"ALT\s*[:|]?\s*([0-9.]+)\s*(?:U/L)?", "ALT", "1742-6", "U/L"),
-        (r"LDL-C\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "LDL-C", "13457-7", "mmol/L"),
-        (r"HDL-C\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "HDL-C", "2085-9", "mmol/L"),
-        (r"Triglyceride\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "Triglyceride", "2571-8", "mmol/L"),
-        (r"Uric Acid\s*[:|]?\s*([0-9.]+)\s*(?:µmol/L|umol/L)?", "Uric Acid", "3084-1", "µmol/L"),
-        (r"Hemoglobin\s*[:|]?\s*([0-9.]+)\s*(?:g/L)?", "Hemoglobin", "718-7", "g/L"),
+        (r"ALT(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:U/L)?", "ALT", "1742-6", "U/L"),
+        (r"AST(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:U/L)?", "AST", "1920-8", "U/L"),
+        (r"LDL(?:-C)?(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "LDL-C", "13457-7", "mmol/L"),
+        (r"HDL(?:-C)?(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "HDL-C", "2085-9", "mmol/L"),
+        (r"Triglyceride(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:mmol/L)?", "Triglyceride", "2571-8", "mmol/L"),
+        (r"Uric Acid(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:µmol/L|umol/L)?", "Uric Acid", "3084-1", "µmol/L"),
+        (r"Hemoglobin(?:\s+[^0-9:|\n\r]+?)?\s*[:|]?\s*([0-9.]+)\s*(?:g/L)?", "Hemoglobin", "718-7", "g/L"),
     ]
 
     for pat, display_name, code, default_unit in obs_patterns:
+        # Don't add duplicate if BP already extracted
+        if display_name in ("BP Systolic", "BP Diastolic") and any(o.code == code for o in doc.observations):
+            continue
         m = re.search(pat, markdown_text, re.IGNORECASE)
         if m:
             try:
                 val = float(m.group(1))
-                doc.observations.append(
-                    ParsedObservation(
-                        name=display_name,
-                        code=code,
-                        value=val,
-                        unit=default_unit,
+                if not any(o.code == code for o in doc.observations):
+                    doc.observations.append(
+                        ParsedObservation(
+                            name=display_name,
+                            code=code,
+                            value=val,
+                            unit=default_unit,
+                        )
                     )
-                )
             except Exception:
                 pass
+
+    # 9. Extract Medications from prescription section or lines
+    med_section_match = re.search(r"(?:DON THUOC|ĐƠN THUỐC|PRESCRIPTION|Thuốc điều trị)(.*?)(?:III\.|LOI DAN|LỜI DẶN|BENH NHAN KY|BỆNH NHÂN KÝ|$)", markdown_text, re.IGNORECASE | re.DOTALL)
+    med_text = med_section_match.group(1) if med_section_match else markdown_text
+    for line in med_text.splitlines():
+        line_clean = line.strip()
+        if not line_clean or line_clean.startswith("STT") or line_clean.startswith("ST") or "Ten thuoc" in line_clean or "Tên thuốc" in line_clean:
+            continue
+        # Pattern 1: e.g. "1 Metformin 1000 mg (Glucophage) 60 vien Uong 1 vien x 2 lan/ngay"
+        m_med = re.match(r"^\d+\s+([A-Za-z0-9\s()/-]+?(?:\d+\s*(?:mg|g|mcg|ml|IU|vien|viên))(?:\s*\([^)]*\))?)\s+(\d+\s*(?:vien|viên|goi|gói|chai|ong|ống|ml|hop|hộp))?\s*(.*)$", line_clean, re.IGNORECASE)
+        if m_med:
+            med_name = m_med.group(1).strip()
+            med_dose = m_med.group(3).strip() if m_med.group(3) else None
+            doc.medications.append(ParsedMedication(name=med_name, dose=med_dose))
+        else:
+            # Pattern 2: simple line with dosage e.g. "Metformin 500 mg: Uống 1 viên..."
+            m_med2 = re.match(r"^(?:[•\-*\d.]+\s+)?([A-Za-z0-9\s()/-]+?(?:\d+\s*(?:mg|g|mcg|ml|IU))(?:\s*\([^)]*\))?)\s*[:;-]?\s*(.*)$", line_clean, re.IGNORECASE)
+            if m_med2 and len(m_med2.group(1).strip()) > 3:
+                med_name = m_med2.group(1).strip()
+                med_dose = m_med2.group(2).strip() if m_med2.group(2) else None
+                # Exclude false positives from lab tests
+                if not any(k in med_name.lower() for k in ["hba1c", "glucose", "egfr", "creatinine", "huyet ap", "blood pressure", "khoang tham chieu", "danh gia"]):
+                    doc.medications.append(ParsedMedication(name=med_name, dose=med_dose))
 
     return doc
 
@@ -219,22 +289,7 @@ def parse_clinical_markdown(markdown_text: str) -> ParsedClinicalDocument:
             model_name = settings.llm_model_name
             base_url = settings.llm_base_url or None
 
-            if api_key.startswith("sk-") or "openai" in runtime.backend:
-                from openai import OpenAI
-                client = OpenAI(api_key=api_key, base_url=base_url)
-                response = client.chat.completions.create(
-                    model=model_name,
-                    temperature=0.0,
-                    messages=[
-                        {"role": "system", "content": _PARSE_PROMPT},
-                        {"role": "user", "content": markdown_text},
-                    ],
-                    response_format={"type": "json_object"},
-                    max_tokens=4096,
-                )
-                raw = response.choices[0].message.content or "{}"
-                parsed_json = json.loads(raw)
-            elif model_name.lower().startswith("gemini"):
+            if model_name and model_name.lower().startswith("gemini"):
                 from google import genai
                 from google.genai import types
                 client = genai.Client(api_key=api_key)
@@ -252,6 +307,21 @@ def parse_clinical_markdown(markdown_text: str) -> ParsedClinicalDocument:
                     )
                 )
                 raw = response.text or "{}"
+                parsed_json = json.loads(raw)
+            elif api_key:
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key, base_url=base_url)
+                response = client.chat.completions.create(
+                    model=model_name,
+                    temperature=0.0,
+                    messages=[
+                        {"role": "system", "content": _PARSE_PROMPT},
+                        {"role": "user", "content": markdown_text},
+                    ],
+                    response_format={"type": "json_object"},
+                    max_tokens=4096,
+                )
+                raw = response.choices[0].message.content or "{}"
                 parsed_json = json.loads(raw)
         except Exception as exc:
             logger.warning("LLM parsing of markdown failed; using deterministic fallback: %s", exc)
