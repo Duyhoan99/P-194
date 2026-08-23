@@ -264,7 +264,6 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
         }
     };
 
-    // Helper: translate medical terms into natural Vietnamese
     const cleanClaimText = (text: string) => {
         return text
             .replace(/\bTrạng thái:\s*finished\b/gi, 'Đã hoàn thành khám')
@@ -275,6 +274,22 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             .replace(/\bactive\b/g, 'đang duy trì')
             .replace(/\bcompleted\b/g, 'đã hoàn thành')
             .replace(/\bfinished\b/g, 'đã khám xong');
+    };
+
+    const renderClaimContent = (rawText: string) => {
+        const cleaned = cleanClaimText(rawText);
+        const colonIdx = cleaned.indexOf(':');
+        if (colonIdx !== -1 && colonIdx < 45) {
+            const label = cleaned.slice(0, colonIdx + 1);
+            const value = cleaned.slice(colonIdx + 1);
+            return (
+                <span>
+                    <strong className="text-teal-800 dark:text-teal-300 font-semibold">{label}</strong>
+                    <span className="text-slate-900 dark:text-slate-100 font-medium">{value}</span>
+                </span>
+            );
+        }
+        return <span className="text-slate-900 dark:text-slate-100 font-medium">{cleaned}</span>;
     };
 
     const cleanSectionTitle = (title: string, code?: string) => {
@@ -423,9 +438,9 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                 section.claims.map((claim: any) => (
                                     <div
                                         key={claim.claim_id}
-                                        className="py-1 px-2 rounded-lg text-xs sm:text-sm text-slate-900 dark:text-slate-900 dark:text-slate-100 font-medium leading-relaxed hover:bg-[var(--accent-teal-bg)] transition-colors group relative flex items-start gap-2.5"
+                                        className="py-1.5 px-2.5 rounded-lg text-xs sm:text-sm text-slate-900 dark:text-slate-100 font-normal leading-relaxed hover:bg-[var(--accent-teal-bg)] transition-colors group relative flex items-start gap-2.5"
                                     >
-                                        <span className="text-teal-500 font-bold text-xs mt-0.5 shrink-0">•</span>
+                                        <span className="text-teal-500 dark:text-teal-400 font-bold text-sm mt-0.5 shrink-0">•</span>
 
                                         <div className="flex-1 min-w-0">
                                             {editingClaim === claim.claim_id ? (
@@ -462,7 +477,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                             ) : (
                                                 /* --- VIEW MODE --- */
                                                 <div className="inline">
-                                                    <span>{cleanClaimText(claim.text)}</span>
+                                                    {renderClaimContent(claim.text)}
 
                                                     {/* Citation Badges */}
                                                     {claim.citations && claim.citations.length > 0 && (
