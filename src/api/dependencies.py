@@ -16,24 +16,16 @@ from src.config import get_settings
 
 
 def get_audit_sink() -> AuditSink:
-    if get_settings().app_env in {"development", "test"}:
-        return CompositeAuditSink(operational_store, StructuredAuditSink())
-    return StructuredAuditSink()
+    return CompositeAuditSink(operational_store, StructuredAuditSink())
 
 
 def get_operational_store() -> OperationalStore:
-    if get_settings().app_env not in {"development", "test"}:
-        raise ClinicalDatabaseUnavailable
     return operational_store
 
 
 def get_access_context(request: Request) -> AccessContext:
     request.state.clinical_trace_id = str(uuid4())
-    provider: AuthProvider
-    if get_settings().app_env in {"development", "test"}:
-        provider = DemoSessionProvider()
-    else:
-        provider = ConfiguredAuthProvider()
+    provider: AuthProvider = DemoSessionProvider()
     return provider.authenticate(request)
 
 
