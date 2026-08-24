@@ -9,7 +9,7 @@ services:
     autoDeployTrigger: commit
     envVars:
       - key: APP_ENV
-        value: production
+        value: development
       - key: AGENT_GENERATION_BACKEND
         value: deterministic
       - key: DEMO_DATA_DIR
