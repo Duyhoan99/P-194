@@ -136,8 +136,6 @@ def compose_atomic_claims(evidence_packet: list[ScopedEvidence]) -> list[Propose
     for evidence in evidence_packet:
         if is_prompt_injection_content(evidence.item):
             continue
-        if evidence.item.fact_type.casefold() in {"clinical_note", "pdf_text_block", "document_text"}:
-            continue
         statement = _statement(evidence)
         if not statement or _is_administrative_header(statement):
             continue
