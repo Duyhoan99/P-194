@@ -54,17 +54,33 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
 
   const addFiles = (files: File[]) => {
     setItems((current) => {
-      const known = new Set(current.map((item) => item.id));
-      const additions = files
-        .filter((file) => !known.has(fileId(file)))
-        .map((file) => ({ id: fileId(file), file, status: 'queued' as const, progress: 0 }));
-      return [...current, ...additions];
+      const newFileIds = new Set(files.map(fileId));
+      const remaining = current.filter((item) => !newFileIds.has(item.id));
+      const additions = files.map((file) => ({
+        id: fileId(file),
+        file,
+        status: 'queued' as const,
+        progress: 0,
+      }));
+      return [...remaining, ...additions];
     });
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     addFiles(Array.from(event.target.files || []));
     event.target.value = '';
+  };
+
+  const handleRetryItem = (id: string) => {
+    updateItem(id, { status: 'queued', progress: 0, error: undefined });
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setItems((current) => current.filter((candidate) => candidate.id !== id));
+  };
+
+  const handleClearCompleted = () => {
+    setItems((current) => current.filter((item) => !item.status.includes('completed')));
   };
 
   const pollStatus = async (itemId: string, batchId: string) => {
@@ -94,7 +110,7 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
     if (queue.length === 0 || isUploading) return;
 
     setIsUploading(true);
-    let targetPid = contextPatientId || (selectedTarget !== 'auto' && selectedTarget !== 'new' ? selectedTarget : undefined);
+    let boundPid = contextPatientId || (selectedTarget !== 'auto' && selectedTarget !== 'new' ? selectedTarget : undefined);
     let targetName = selectedTarget === 'new' && newPatientName.trim() ? newPatientName.trim() : undefined;
 
     try {
@@ -102,10 +118,13 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
         updateItem(item.id, { status: 'uploading', progress: 15, error: undefined });
 
         try {
-          const result = await ingestions.upload(item.file, targetPid, targetName);
-          targetPid = targetPid || result.patient_id;
-          if (!targetPid) throw new Error('Hệ thống không trả về mã bệnh nhân sau khi tải lên.');
-          targetName = undefined;
+          const result = await ingestions.upload(item.file, boundPid, targetName);
+          if (result.patient_id) {
+            boundPid = result.patient_id;
+          }
+          if (selectedTarget === 'new') {
+            targetName = undefined;
+          }
 
           const initialStatus = result.status as UploadStatus;
           updateItem(item.id, {
@@ -115,7 +134,7 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
           });
           if (!terminalStatuses.has(initialStatus)) {
             const finalResult = await pollStatus(item.id, result.batch_id);
-            updateItem(item.id, { status: finalResult.status, progress: 100 });
+            updateItem(item.id, { status: finalResult.status, progress: 100, error: finalResult.error });
           }
         } catch (error) {
           updateItem(item.id, {
@@ -123,7 +142,6 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
             progress: 100,
             error: error instanceof Error ? error.message : 'Xử lý tài liệu thất bại.',
           });
-          if (!targetPid && !contextPatientId) break;
         }
       }
     } finally {
@@ -135,6 +153,8 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
   };
 
   const pendingCount = items.filter((item) => item.status === 'queued' || item.status === 'failed').length;
+  const failedCount = items.filter((item) => item.status === 'failed').length;
+  const completedCount = items.filter((item) => item.status.includes('completed')).length;
 
   return (
     <div className="clinical-card p-6 space-y-5 shadow-sm">
@@ -237,40 +257,78 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
       {/* Upload Item Queue */}
       {items.length > 0 && (
         <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Danh sách tệp ({items.length})
+            </span>
+            {completedCount > 0 && !isUploading && (
+              <button
+                type="button"
+                onClick={handleClearCompleted}
+                className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+              >
+                Dọn tệp đã xong
+              </button>
+            )}
+          </div>
+
           {items.map((item) => (
-            <div key={item.id} className="clinical-subcard p-3 rounded-xl border flex items-center justify-between gap-3 shadow-sm" style={{ borderColor: 'var(--border-card)' }}>
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--accent-teal)' }}>
-                  <FileText className="w-4 h-4" />
+            <div key={item.id} className="clinical-subcard p-3.5 rounded-xl border flex flex-col gap-2 shadow-sm" style={{ borderColor: 'var(--border-card)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--accent-teal)' }}>
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold text-slate-900 dark:text-slate-100">{item.file.name}</p>
+                    <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{(item.file.size / 1024).toFixed(1)} KB</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-bold text-slate-900 dark:text-slate-100">{item.file.name}</p>
-                  <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{(item.file.size / 1024).toFixed(1)} KB</p>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                    item.status === 'failed' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800' :
+                    item.status.includes('completed') ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' :
+                    item.status === 'uploading' || item.status === 'processing' ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800' :
+                    'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                  }`}>
+                    {item.status === 'queued' ? 'Chờ tải lên' :
+                     item.status === 'uploading' ? 'Đang tải...' :
+                     item.status === 'processing' ? 'Đang phân tích...' :
+                     item.status.includes('completed') ? 'Hoàn tất' : 'Lỗi'}
+                  </span>
+
+                  {item.status === 'failed' && !isUploading && (
+                    <button
+                      type="button"
+                      onClick={() => handleRetryItem(item.id)}
+                      className="px-2 py-1 text-[11px] font-bold rounded-lg bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 hover:bg-teal-100 transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Thử lại tệp này"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Thử lại</span>
+                    </button>
+                  )}
+
+                  {!isUploading && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.id)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                      title="Xóa tệp khỏi danh sách"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-                  item.status === 'failed' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800' :
-                  item.status.includes('completed') ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' :
-                  'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800'
-                }`}>
-                  {item.status}
-                </span>
-
-                {item.status === 'queued' && !isUploading && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setItems((current) => current.filter((candidate) => candidate.id !== item.id));
-                    }}
-                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+              {item.error && (
+                <div className="text-[11px] font-medium text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900/50 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{item.error}</span>
+                </div>
+              )}
             </div>
           ))}
 
@@ -286,12 +344,16 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
                 {isUploading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang tải lên &amp; OCR...</span>
+                    <span>Đang xử lý hồ sơ...</span>
                   </>
                 ) : (
                   <>
                     <UploadCloud className="w-4 h-4" />
-                    <span>Tiến hành tải lên ({pendingCount} tệp)</span>
+                    <span>
+                      {failedCount > 0 && pendingCount === failedCount
+                        ? `Thử lại tất cả (${failedCount} tệp lỗi)`
+                        : `Tiến hành tải lên (${pendingCount} tệp)`}
+                    </span>
                   </>
                 )}
               </button>

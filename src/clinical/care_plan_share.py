@@ -15,8 +15,19 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+import socket
+
 from src.clinical.care_plan_agent import CarePlanDraft
 from src.config import get_settings
+
+
+def _get_local_lan_ip() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
 
 
 def _now() -> datetime:
@@ -50,13 +61,21 @@ class CarePlanShareStore:
         self._path = Path(settings.demo_data_dir) / ".runtime" / "care_plan_shares.json"
         self._database_url = settings.database_url
         self._ttl_seconds = settings.care_plan_share_ttl_seconds
+        self._lock = threading.RLock()
+        self._schema_ready = False
+
+    @property
+    def public_base_url(self) -> str:
+        settings = get_settings()
         configured_base_url = settings.care_plan_public_base_url.rstrip("/")
         render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
         if render_hostname and configured_base_url in {"http://localhost:8000", "http://127.0.0.1:8000"}:
-            configured_base_url = f"https://{render_hostname}"
-        self._public_base_url = configured_base_url
-        self._lock = threading.RLock()
-        self._schema_ready = False
+            return f"https://{render_hostname}"
+        if configured_base_url in {"http://localhost:8000", "http://127.0.0.1:8000"}:
+            lan_ip = _get_local_lan_ip()
+            if lan_ip and lan_ip != "127.0.0.1":
+                return f"http://{lan_ip}:{settings.app_port}"
+        return configured_base_url
 
     @property
     def _uses_postgres(self) -> bool:
@@ -184,7 +203,7 @@ class CarePlanShareStore:
                         existing["revoked_at"] = issued_at.isoformat()
                 records.append(record)
                 self._save(records)
-        share_url = f"{self._public_base_url}/api/v1/care-plan/listen/{token}"
+        share_url = f"{self.public_base_url}/api/v1/care-plan/listen/{token}"
         return token, share_url, expires_at
 
     def get(self, token: str) -> dict[str, Any] | None:

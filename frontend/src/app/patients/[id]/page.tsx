@@ -21,8 +21,11 @@ import {
   FileText,
   TrendingUp,
   Pill,
-  SplitSquareVertical
+  SplitSquareVertical,
+  Bot,
+  GripVertical
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 type WorkspaceTab = 'review' | 'medications' | 'conflicts' | 'metrics';
 
@@ -34,6 +37,7 @@ export default function PatientWorkspace() {
   const [authChecking, setAuthChecking] = useState(true);
   const [patientData, setPatientData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('review');
+  const [showChat, setShowChat] = useState(true);
 
   // Patient Memory modal
   const [showMemory, setShowMemory] = useState(false);
@@ -168,8 +172,8 @@ export default function PatientWorkspace() {
         <div className="flex-1 overflow-hidden p-4 sm:p-5 bg-transparent">
           <div className="h-full max-w-[1700px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
 
-            {/* LEFT COLUMN: Clinical Workspace with 4 Core Medical Tabs (7 of 12 cols = ~58%) */}
-            <div className="lg:col-span-7 flex flex-col h-full overflow-hidden gap-3 min-w-0">
+            {/* LEFT COLUMN: Clinical Workspace with 4 Core Medical Tabs (Expands to 12 cols when Chat is closed!) */}
+            <div className={`${showChat ? 'lg:col-span-7' : 'lg:col-span-12'} flex flex-col h-full overflow-hidden gap-3 min-w-0 transition-all duration-300`}>
 
               {/* Navigation Tabs Bar - 4 High-Value Clinical Tabs */}
               <div className="shrink-0 flex items-center justify-between clinical-card p-1.5 rounded-2xl">
@@ -177,16 +181,16 @@ export default function PatientWorkspace() {
                   <button
                     onClick={() => setActiveTab('review')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'review'
-                        ? 'bg-teal-600 text-white font-bold shadow-sm'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
+                      ? 'bg-teal-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
                       }`}
                   >
                     <FileText className="w-3.5 h-3.5 text-teal-400" />
                     <span>Tóm tắt Lâm sàng</span>
                     {currentReview && (
                       <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono uppercase font-bold ${currentReview.status === 'approved'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                         }`}>
                         {currentReview.status || 'DRAFT'}
                       </span>
@@ -196,8 +200,8 @@ export default function PatientWorkspace() {
                   <button
                     onClick={() => setActiveTab('medications')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'medications'
-                        ? 'bg-purple-600 text-white font-bold shadow-sm'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
+                      ? 'bg-purple-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
                       }`}
                   >
                     <Pill className="w-3.5 h-3.5 text-purple-400" />
@@ -207,8 +211,8 @@ export default function PatientWorkspace() {
                   <button
                     onClick={() => setActiveTab('conflicts')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'conflicts'
-                        ? 'bg-amber-600 text-white font-bold shadow-sm'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
+                      ? 'bg-amber-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
                       }`}
                   >
                     <SplitSquareVertical className="w-3.5 h-3.5 text-amber-400" />
@@ -223,8 +227,8 @@ export default function PatientWorkspace() {
                   <button
                     onClick={() => setActiveTab('metrics')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'metrics'
-                        ? 'bg-gradient-to-r from-teal-500/20 to-cyan-500/20 text-teal-200 border border-teal-500/40 shadow-[0_0_15px_rgba(20,184,166,0.15)]'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      ? 'bg-gradient-to-r from-teal-500/20 to-cyan-500/20 text-teal-200 border border-teal-500/40 shadow-[0_0_15px_rgba(20,184,166,0.15)]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                       }`}
                   >
                     <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
@@ -259,10 +263,12 @@ export default function PatientWorkspace() {
 
             </div>
 
-            {/* RIGHT COLUMN: AI Co-pilot Assistant (5 of 12 cols = ~42%) */}
-            <div className="lg:col-span-5 flex flex-col h-full overflow-hidden min-w-0">
-              <ChatPanel patientId={patientId} />
-            </div>
+            {/* RIGHT COLUMN: AI Co-pilot Assistant (Shown when showChat is true) */}
+            {showChat && (
+              <div className="lg:col-span-5 flex flex-col h-full overflow-hidden min-w-0 animate-in fade-in slide-in-from-right-4 duration-200">
+                <ChatPanel patientId={patientId} onClose={() => setShowChat(false)} />
+              </div>
+            )}
 
           </div>
         </div>
@@ -271,6 +277,41 @@ export default function PatientWorkspace() {
 
       {/* Right Evidence Panel for Citation deep dive */}
       <EvidencePanel />
+
+      {/* Floating Action Button to Reopen AI Co-pilot Chat (Draggable vertically along right edge, positioned initially at TOP) */}
+      {!showChat && (
+        <motion.div
+          drag="y"
+          dragMomentum={false}
+          dragConstraints={{ top: -10, bottom: 580 }}
+          dragElastic={0.05}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          className="fixed top-24 right-6 z-40 touch-none select-none"
+        >
+          <div className="flex items-center gap-1 p-1 bg-slate-900/95 backdrop-blur-md rounded-full border border-teal-500/50 shadow-[0_4px_30px_rgba(20,184,166,0.5)] hover:border-teal-400 transition-all">
+            <div
+              className="px-1.5 py-2 cursor-grab active:cursor-grabbing text-teal-400/80 hover:text-teal-300 transition-colors"
+              title="Kéo thả để di chuyển nút lên/xuống dọc màn hình"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </div>
+            <button
+              onClick={() => setShowChat(true)}
+              className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-600 hover:from-teal-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-md hover:scale-102 transition-all cursor-pointer"
+              title="Nhấp để mở Trợ lý AI Co-pilot Lâm sàng"
+            >
+              <div className="relative">
+                <Bot className="w-4 h-4" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full border-2 border-slate-900" />
+              </div>
+              <span className="tracking-wide font-extrabold pr-1">Mở AI Co-pilot</span>
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Patient Memory Modal */}
       {showMemory && (

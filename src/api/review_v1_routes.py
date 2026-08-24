@@ -35,7 +35,7 @@ class ApproveReviewRequest(BaseModel):
 
 
 class RejectReviewRequest(BaseModel):
-    review_version_id: str
+    review_version_id: str | None = None
     expected_version: int
     reason: str
 

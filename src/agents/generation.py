@@ -39,7 +39,13 @@ _SECTION_BY_FACT_TYPE: tuple[tuple[str, SectionCode], ...] = (
 def _statement(evidence: ScopedEvidence) -> str | None:
     value = evidence.item.normalized_value
     if isinstance(value, dict):
-        for key in ("statement", "public_text", "answer", "display_name", "name", "concept"):
+        if value.get("medication"):
+            med = value["medication"]
+            dose = value.get("dosage")
+            return f"Thuốc: {med}{f' ({dose})' if dose else ''} (đang sử dụng)"
+        if value.get("condition"):
+            return f"Chẩn đoán/Tình trạng bệnh: {value['condition']}"
+        for key in ("statement", "public_text", "answer", "display_name", "name", "concept", "medication", "condition"):
             statement = value.get(key)
             if isinstance(statement, str) and statement.strip():
                 return statement.strip()
@@ -47,7 +53,7 @@ def _statement(evidence: ScopedEvidence) -> str | None:
         return value.strip()
     source = evidence.item.source_value
     if isinstance(source, dict):
-        summary = source.get("summary") or source.get("title")
+        summary = source.get("summary") or source.get("title") or source.get("display") or source.get("medication")
         if isinstance(summary, str) and summary.strip():
             return summary.strip()
     elif isinstance(source, str) and source.strip():
@@ -73,14 +79,67 @@ def _section(evidence: ScopedEvidence) -> SectionCode:
     return "patient_overview"
 
 
+_DISCLAIMER_PHRASES = (
+    "DỮ LIỆU GIẢ LẬP",
+    "DU LIEU GIA LAP",
+    "KHÔNG PHẢI HỒ SƠ Y TẾ THẬT",
+    "KHONG PHAI HO SO Y TE THAT",
+    "PHỤC VỤ DEMO",
+    "PHUC VU DEMO",
+    "DEMO ONLY",
+    "SYNTHETIC DATA",
+    "DỮ LIỆU MÔ PHỎNG",
+    "DỮ LIỆU THỬ NGHIỆM",
+    "TRUNG TÂM Y KHOA SYNTHETIC",
+    "MÃ TÀI LIỆU DOC-",
+    "MÃ TÀI LIỆU",
+    "TÊN SYNTHETIC",
+    "MÃ TIẾP NHẬN REQ-",
+    "MÃ TIẾP NHẬN",
+    "MÃ THANH TOÁN NỘI BỘ",
+    "METADATA HÀNH CHÍNH",
+    "DANH SÁCH VẤN ĐỀ HÀNH CHÍNH",
+    "KHÔNG TẠO SỰ KIỆN LÂM SÀNG",
+    "NGÀY SINH / GIỚI TÍNH",
+    "NGÀY SINH/GIỚI TÍNH",
+    "NGÀY TÀI LIỆU",
+    "CHẨN ĐOÁN ĐÃ GHI NHẬN TRONG HỒ SƠ",
+    "CHẨN ĐOÁN ĐÃ GHI NHẬN",
+    "MÃ SNOMED CT",
+    "MÃ SNOMED",
+    "TÊN BỆNH GHI NHẬN TỪ",
+    "ĐỐI CHIẾU THUỐC TRONG HỒ SƠ",
+    "BẢNG NÀY MÔ TẢ TRẠNG THÁI",
+    "PHIẾU KẾT QUẢ XÉT NGHIỆM",
+    "GHI CHÚ TÁI KHÁM ĐƠN VỊ",
+    "CHỈ SỬ DỤNG GIÁ TRỊ CÓ PROVENANCE",
+)
+
+
+def _is_administrative_header(text: str) -> bool:
+    t = text.strip().upper()
+    if any(phrase in t for phrase in _DISCLAIMER_PHRASES):
+        return True
+    if t.startswith((
+        "BENH VIEN", "BỆNH VIỆN", "KHOA ", "PHÒNG KHÁM", "PHONG KHAM",
+        "CỘNG HÒA", "CONG HOA", "GHI CHÚ TÁI KHÁM NGÀY SINH", "PHIẾU KẾT QUẢ", "ĐỐI CHIẾU THUỐC",
+    )):
+        return True
+    if "BENH VIEN DA KHOA" in t or "BỆNH VIỆN ĐA KHOA" in t or "MÃ SNOMED" in t or "NGÀY SINH /" in t:
+        return True
+    return False
+
+
 def compose_atomic_claims(evidence_packet: list[ScopedEvidence]) -> list[ProposedClaim]:
     """Copy backend-supplied factual statements; never derive clinical values."""
     claims: list[ProposedClaim] = []
     for evidence in evidence_packet:
         if is_prompt_injection_content(evidence.item):
             continue
+        if evidence.item.fact_type.casefold() in {"clinical_note", "pdf_text_block", "document_text"}:
+            continue
         statement = _statement(evidence)
-        if not statement:
+        if not statement or _is_administrative_header(statement):
             continue
         claim_id = str(
             uuid5(
@@ -307,12 +366,7 @@ def compose_atomic_claims_llm(
             continue
         ev_id = scoped.item.evidence_id
         evidence_by_id[ev_id] = scoped
-        nv = scoped.item.normalized_value
-        statement = ""
-        if isinstance(nv, dict):
-            statement = nv.get("statement") or nv.get("public_text") or ""
-        elif isinstance(nv, str):
-            statement = nv
+        statement = _statement(scoped) or ""
         evidence_items.append({"evidence_id": ev_id, "statement": statement})
 
     if not evidence_items:
@@ -346,7 +400,7 @@ def compose_atomic_claims_llm(
         if not isinstance(raw, dict):
             continue
         text = str(raw.get("text", "")).strip()
-        if not text:
+        if not text or _is_administrative_header(text):
             continue
         raw_ev_ids = raw.get("evidence_ids", [])
         if not isinstance(raw_ev_ids, list):
@@ -380,7 +434,7 @@ def compose_atomic_claims_llm(
         if not isinstance(raw, dict):
             continue
         text = str(raw.get("text", "")).strip()
-        if not text:
+        if not text or _is_administrative_header(text):
             continue
         
         claim_id = str(uuid5(NAMESPACE_URL, f"clinical-review-unsupported:{text}"))
@@ -396,5 +450,12 @@ def compose_atomic_claims_llm(
     if not claims and not unsupported_claims:
         # Model returned nothing usable → deterministic fallback
         return {"claims": compose_atomic_claims(evidence_packet), "unsupported_claims": [], "conflicts": []}
+
+    # Ensure vital sections like current_medications and active_conditions are never dropped by LLM
+    present_sections = {c.section_code for c in claims}
+    deterministic_claims = compose_atomic_claims(evidence_packet)
+    for dc in deterministic_claims:
+        if dc.section_code not in present_sections:
+            claims.append(dc)
 
     return {"claims": claims, "unsupported_claims": unsupported_claims, "conflicts": conflicts}

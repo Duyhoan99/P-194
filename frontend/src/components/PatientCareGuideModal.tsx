@@ -159,31 +159,48 @@ export default function PatientCareGuideModal({
     }
   }, [isOpen, effectivePatientId, handleGenerateWithLLMAgent]);
 
-  // Dynamic sentence list generated from the active text (Covers 100% of all sections)
+  // Dynamic sentence list generated from the active text (Covers patient guidance only)
   const getDynamicSentences = () => {
     const list: string[] = [];
 
     // 1. Lời mở đầu & Lời chào bác sĩ
-    list.push(`Chào bác ${patientName}. Đây là bản hướng dẫn dự thảo đã được cá nhân hóa từ hồ sơ hiện tại.`);
-    if (doctorGreeting) list.push(doctorGreeting);
+    list.push(`Kính chào bác ${patientName}. Sau đây là hướng dẫn chăm sóc sức khỏe dành cho bác.`);
+    if (doctorGreeting && doctorGreeting.trim()) {
+      list.push(doctorGreeting.trim());
+    }
 
     // 2. Lịch uống thuốc chi tiết
-    list.push(`Thứ nhất, về thuốc đang được ghi nhận: Lần dùng thứ nhất: ${morningMeds}.`);
-    list.push(`Lần dùng thứ hai: ${eveningMeds}. ${medicationNote}`);
+    if (morningMeds && !morningMeds.includes('Bác sĩ bổ sung')) {
+      list.push(`Về lịch uống thuốc: Lần một dùng: ${morningMeds}.`);
+    }
+    if (eveningMeds && !eveningMeds.includes('Bác sĩ bổ sung')) {
+      list.push(`Lần hai dùng: ${eveningMeds}.`);
+    }
+    list.push(`Lưu ý luôn đối chiếu đơn và nhãn thuốc trước khi uống, tuyệt đối không tự ý bỏ thuốc hoặc đổi liều.`);
 
-    // 3. Chế độ ăn uống & kiêng cữ
-    list.push(`Thứ hai, về chế độ dinh dưỡng: Bác nên ăn và tăng cường: ${dietGood}`);
-    list.push(`Đồng thời, bác cần kiêng cữ và hạn chế: ${dietBad}`);
+    // 3. Chế độ dinh dưỡng
+    if (dietGood && dietGood.trim()) {
+      list.push(`Về chế độ dinh dưỡng: Bác nên ăn và tăng cường: ${dietGood}.`);
+    }
+    if (dietBad && dietBad.trim()) {
+      list.push(`Đồng thời, bác cần kiêng cữ và hạn chế: ${dietBad}.`);
+    }
 
     // 4. Vận động & thói quen sinh hoạt
-    list.push(`Thứ ba, về vận động và chăm sóc thân thể: ${exercise}`);
+    if (exercise && exercise.trim()) {
+      list.push(`Về vận động và sinh hoạt: ${exercise}.`);
+    }
 
     // 5. Cảnh báo cấp cứu & xử trí khẩn cấp
-    list.push(`Thứ tư, điều đặc biệt lưu ý khi có dấu hiệu cấp cứu: ${warning}`);
+    if (warning && warning.trim()) {
+      list.push(`Đặc biệt lưu ý khi có dấu hiệu bất thường: ${warning}.`);
+    }
 
-    // 6. Lịch tái khám & Hotline hỗ trợ
-    list.push(`${followUp} Khi cần hỗ trợ y tế khẩn cấp, người nhà vui lòng gọi 115.`);
-    list.push(`Kính chúc bác ${patientName} luôn dồi dào sức khỏe và bình an!`);
+    // 6. Lịch tái khám & Lời chúc
+    if (followUp && followUp.trim()) {
+      list.push(`Về lịch tái khám: ${followUp}.`);
+    }
+    list.push(`Khi cần hỗ trợ y tế khẩn cấp, vui lòng gọi 115. Kính chúc bác ${patientName} luôn mạnh khỏe và bình an!`);
 
     return list.filter((s) => s && s.trim().length > 0);
   };
@@ -945,8 +962,7 @@ export default function PatientCareGuideModal({
                   </div>
                 )}
 
-                <div className="text-[11px] text-slate-400 print:text-slate-600 italic pt-1 space-y-1">
-                  <p>{medicationNote}</p>
+                <div className="text-[11px] text-slate-400 print:text-slate-600 italic pt-1">
                   <p>* Đối chiếu đơn/nhãn thuốc trước khi dùng; không tự bỏ thuốc, đổi liều hoặc uống dồn liều.</p>
                 </div>
               </div>

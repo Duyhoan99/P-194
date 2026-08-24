@@ -70,15 +70,47 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
     }
   };
 
-  // Group medications by title/drug name if possible
+  // Group medications by title/drug name and deduplicate on same date
   const drugGroups: Record<string, MedicationEvent[]> = {};
   medEvents.forEach(m => {
-    // Extract base drug name, e.g. "Metformin" from "Metformin 500 MG"
-    const nameMatch = m.title.replace(/^Thuốc:\s*/i, '').split(' ')[0] || m.title;
+    const cleanTitle = m.title.replace(/^Thuốc:\s*/i, '').trim();
+    const nameMatch = cleanTitle.split(' ')[0] || cleanTitle;
     if (!drugGroups[nameMatch]) {
       drugGroups[nameMatch] = [];
     }
     drugGroups[nameMatch].push(m);
+  });
+
+  // Deduplicate entries on the same date within each drug group & merge multi-source citations
+  Object.keys(drugGroups).forEach(drug => {
+    const byDate: Record<string, MedicationEvent> = {};
+    drugGroups[drug].forEach(ev => {
+      const dKey = (ev.occurred_at || '').substring(0, 10) || 'no_date';
+      if (!byDate[dKey]) {
+        byDate[dKey] = { ...ev, citations: [...(ev.citations || [])] };
+      } else {
+        // Merge citations
+        const existingCitations = byDate[dKey].citations || [];
+        const incomingCitations = ev.citations || [];
+        incomingCitations.forEach((inc: any) => {
+          if (!existingCitations.some((c: any) => (c.citation_id && c.citation_id === inc.citation_id) || (c.document_id && c.document_id === inc.document_id && c.resource_id === inc.resource_id))) {
+            existingCitations.push(inc);
+          }
+        });
+        byDate[dKey].citations = existingCitations;
+
+        // Keep the more descriptive title (e.g. with dosage / brand name)
+        if (ev.title.length > byDate[dKey].title.length || (ev.title.includes('mg') && !byDate[dKey].title.includes('mg'))) {
+          byDate[dKey].title = ev.title;
+        }
+        if (ev.summary && (!byDate[dKey].summary || ev.summary.length > byDate[dKey].summary.length)) {
+          byDate[dKey].summary = ev.summary;
+        }
+      }
+    });
+    drugGroups[drug] = Object.values(byDate).sort((a, b) => 
+      new Date(b.occurred_at || '').getTime() - new Date(a.occurred_at || '').getTime()
+    );
   });
 
   return (
@@ -189,15 +221,45 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
 
                           {ev.citations && ev.citations.length > 0 && (
                             <div className="flex gap-1.5 pt-1 flex-wrap">
-                              {ev.citations.map((c: any, cIdx: number) => (
-                                <button
-                                  key={cIdx}
-                                  onClick={() => handleCitationClick(c)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 hover:bg-cyan-950/60 text-[10px] text-cyan-300 hover:text-cyan-200 rounded border border-[var(--border-card)] hover:border-cyan-500/40 transition-colors"
-                                >
-                                  📄 Nguồn: {c.document_name || c.resource_type || 'Đơn thuốc'}
-                                </button>
-                              ))}
+                              {ev.citations.map((c: any, cIdx: number) => {
+                                const rawType = (c.source_type || '').toLowerCase();
+                                const docName = (c.document_name || c.document_id || c.citation_id || '').toLowerCase();
+
+                                let label = 'PDF';
+                                let colorCls = 'bg-indigo-950/90 text-indigo-300 border-indigo-600/80 hover:border-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]';
+                                let icon = '📄';
+
+                                if (rawType === 'ocr' || docName.includes('scan') || docName.includes('photo') || docName.endsWith('.jpg') || docName.endsWith('.png') || docName.endsWith('.jpeg')) {
+                                  label = 'OCR';
+                                  colorCls = 'bg-amber-950/90 text-amber-300 border-amber-600/80 hover:border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.2)]';
+                                  icon = '📷';
+                                } else if (rawType === 'pdf' || docName.includes('pdf') || docName.endsWith('.pdf') || docName.includes('doc_') || docName.includes('prescription') || docName.includes('phieu_kham') || docName.includes('followup') || docName.includes('lab_report')) {
+                                  label = 'PDF';
+                                  colorCls = 'bg-indigo-950/90 text-indigo-300 border-indigo-600/80 hover:border-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]';
+                                  icon = '📄';
+                                } else if (rawType === 'fhir' || docName.includes('fhir') || docName.endsWith('.json') || docName.includes('bundle') || c.resource_type || c.resource_id) {
+                                  label = 'FHIR';
+                                  colorCls = 'bg-cyan-950/90 text-cyan-300 border-cyan-600/80 hover:border-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.2)]';
+                                  icon = '⚡';
+                                } else if (rawType === 'canonical_record' || rawType === 'ehr') {
+                                  label = 'EHR';
+                                  colorCls = 'bg-emerald-950/90 text-emerald-300 border-emerald-600/80 hover:border-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.2)]';
+                                  icon = '🏥';
+                                }
+
+                                return (
+                                  <button
+                                    key={cIdx}
+                                    onClick={() => handleCitationClick(c)}
+                                    className={`inline-flex items-center gap-1 min-w-[34px] h-[20px] px-1.5 text-[10px] font-extrabold font-mono border rounded-md cursor-pointer transition-all ${colorCls}`}
+                                    title={`Nhấp để mở nguồn chứng cứ gốc [${label}]: ${c.document_name || c.resource_type || 'Đơn thuốc'}`}
+                                  >
+                                    <span>{icon}</span>
+                                    <span>{label}</span>
+                                    {(ev.citations?.length ?? 0) > 1 && <span className="opacity-75 text-[9px]">#{cIdx + 1}</span>}
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

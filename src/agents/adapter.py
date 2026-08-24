@@ -125,7 +125,10 @@ _CLINICAL_TERM_REPLACEMENTS = (
     ("Diastolic blood pressure", "Huyết áp tâm trương"),
     ("Hemoglobin A1c", "HbA1c"),
     ("Glucose", "Đường huyết"),
+    ("Lượt khám GHI CHÚ TÁI KHÁM", "Lần tái khám"),
+    ("Lượt khám Ghi chú tái khám", "Lần tái khám"),
     ("Lượt khám Tái khám", "Lần tái khám"),
+    ("Lượt khám khám", "Lần khám"),
 )
 
 _FHIR_STATUS_LABELS = {
@@ -212,17 +215,24 @@ def _trend_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]
         required_tokens: list[str] = []
         citations: list[dict[str, Any]] = []
         seen_citations: set[str] = set()
+        seen_points: set[tuple[str, str, str]] = set()
         for point in usable:
             value = str(point.get("value"))
             unit = str(point.get("unit", "")).strip()
             date = str(point.get("observed_at", ""))[:10]
-            entries.append(f"{value} {unit} ({date})".strip())
-            required_tokens.extend(token for token in (value, unit, date) if token)
+            point_key = (date, value, unit)
+
             for citation in _citations(point.get("citations")):
                 citation_id = str(citation.get("citation_id", ""))
                 if citation_id and citation_id not in seen_citations:
                     seen_citations.add(citation_id)
                     citations.append(citation)
+
+            if point_key in seen_points:
+                continue
+            seen_points.add(point_key)
+            entries.append(f"{value} {unit} ({date})".strip())
+            required_tokens.extend(token for token in (value, unit, date) if token)
         display = display_by_code.get(str(code), str(code))
         statement = f"Diễn tiến {display}: {'; '.join(entries)}."
         safe_code = re.sub(r"[^A-Za-z0-9]+", "-", str(code)).strip("-")
@@ -359,11 +369,95 @@ def _current_medication_facts(packet: dict[str, Any], tenant_id: str) -> list[di
     return facts
 
 
+def _consolidate_structured_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge duplicate clinical facts across timeline and raw PDF/FHIR extractions on matching dates."""
+    consolidated: list[dict[str, Any]] = []
+    seen_facts: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+    for fact in facts:
+        nv = fact.get("normalized_value", {})
+        stmt = str(nv.get("statement", "") if isinstance(nv, dict) else nv)
+        sec = str(nv.get("section_code", "") if isinstance(nv, dict) else "")
+        ft = str(fact.get("fact_type", ""))
+        stmt_clean = stmt.lower()
+
+        # Trend series facts should always be preserved intact
+        if "trend" in ft or "diễn tiến" in stmt_clean:
+            consolidated.append(fact)
+            continue
+
+        # Extract date
+        date_match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", stmt_clean)
+        source_time_str = str(fact.get("source_time", ""))[:10] if fact.get("source_time") else ""
+        date_key = date_match.group(1) if date_match else (source_time_str or "no_date")
+
+        if sec == "current_medications" or "thuốc" in stmt_clean:
+            clean_med = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", stmt_clean)
+            clean_med = re.sub(r"thuốc(?:\s+hiện\s+tại)?:\s*", "", clean_med)
+            clean_med = re.sub(r"(?:trạng thái|ghi nhận|đang duy trì|đang sử dụng|active|stopped|discontinued).*", "", clean_med)
+            clean_med = re.sub(r"\(.*?\)", "", clean_med).strip()
+            med_match = re.search(r"^([a-z\s]+?\d+(?:\.\d+)?\s*(?:mg|g|ml|mcg|ui|iu)?)", clean_med)
+            if med_match:
+                drug_key = re.sub(r"\s+", " ", med_match.group(1)).strip()
+                sem_key = f"med:{drug_key}"
+            else:
+                sem_key = f"med:{clean_med[:30].strip()}"
+        elif sec == "recent_results" or "xét nghiệm" in stmt_clean:
+            without_date = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", stmt_clean)
+            val_match = re.search(r"(?:kết quả|kết quả:|\:)\s*(\d+(?:\.\d+)?)", without_date) or re.search(r"(\d+(?:\.\d+)?)\s*(?:%|mmol/l|µmol/l|umol/l|mg/dl|ml/min|mmhg|mm\[hg\])?", without_date)
+            val_str = val_match.group(1) if val_match else ""
+            val_norm = re.sub(r"\.0$", "", val_str)
+
+            if "hba1c" in without_date:
+                test_key = "hba1c"
+            elif "glucose" in without_date or "đường huyết" in without_date:
+                test_key = "glucose"
+            elif "creatinine" in without_date:
+                test_key = "creatinine"
+            elif "egfr" in without_date:
+                test_key = "egfr"
+            elif "tâm thu" in without_date or "systolic" in without_date:
+                test_key = "bp_sys"
+            elif "tâm trương" in without_date or "diastolic" in without_date:
+                test_key = "bp_dia"
+            elif "huyết áp" in without_date or "blood pressure" in without_date:
+                try:
+                    num_val = float(val_norm)
+                    test_key = "bp_sys" if num_val >= 100 else "bp_dia"
+                except Exception:
+                    test_key = "bp"
+            else:
+                test_key = without_date[:20].strip()
+
+            sem_key = f"lab:{test_key}:{val_norm}"
+        elif sec == "active_conditions" or "chẩn đoán" in stmt_clean:
+            cond_clean = re.sub(r"\(.*?\)", "", stmt_clean)
+            cond_clean = re.sub(r"chẩn đoán/tình trạng bệnh:\s*", "", cond_clean)
+            cond_clean = re.sub(r"ghi nhận\s+\d{4}-\d{2}-\d{2}", "", cond_clean).strip()
+            sem_key = f"cond:{cond_clean}"
+        else:
+            sem_key = f"other:{re.sub(r'\s+', ' ', stmt_clean)}"
+
+        group_key = (sec, date_key, sem_key)
+        if group_key not in seen_facts:
+            seen_facts[group_key] = fact
+            consolidated.append(fact)
+        else:
+            existing = seen_facts[group_key]
+            existing_cits = existing.get("citations", [])
+            seen_cids = {c.get("citation_id") or c.get("document_id") or c.get("resource_id") for c in existing_cits}
+            for c in fact.get("citations", []):
+                cid = c.get("citation_id") or c.get("document_id") or c.get("resource_id")
+                if cid and cid not in seen_cids:
+                    seen_cids.add(cid)
+                    existing_cits.append(c)
+            existing["citations"] = existing_cits
+
+    return consolidated
+
+
 def _structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
-    # Backend flags and canonical series are deliberately ranked before raw
-    # timeline events so the bounded review retrieval cannot crowd them out.
-    # Verified PDF facts are added after FHIR timeline facts.
-    return [
+    raw_facts = [
         *_flag_facts(packet, tenant_id),
         *_condition_facts(packet, tenant_id),
         *_current_medication_facts(packet, tenant_id),
@@ -372,6 +466,7 @@ def _structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, 
         *_uploaded_fhir_facts(packet, tenant_id),
         *_pdf_structured_facts(packet, tenant_id),
     ]
+    return _consolidate_structured_facts(raw_facts)
 
 
 def _uploaded_fhir_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
@@ -394,11 +489,7 @@ def _uploaded_fhir_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[st
 
 
 def _pdf_structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
-    """Extract verified PDF evidence items from the packet for structured_facts.
-
-    Only items with verification_status == 'verified' go here.
-    needs_verification items are handled by _pdf_note_evidence.
-    """
+    """Extract verified PDF evidence items from the packet for structured_facts."""
     patient_id = str(packet.get("patient_id", ""))
     facts: list[dict[str, Any]] = []
     for raw_item in packet.get("pdf_evidence", []):
@@ -407,7 +498,6 @@ def _pdf_structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[s
             continue
         item_patient = str(item.get("patient_id", patient_id))
         if item_patient != patient_id:
-            # Cross-patient isolation: skip
             continue
         citations = _citations(item.get("citations", []))
         if not citations:
@@ -428,12 +518,7 @@ def _pdf_structured_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[s
 
 
 def _pdf_note_evidence(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
-    """Extract needs_verification PDF evidence items for note_evidence.
-
-    Low-confidence OCR items go here instead of structured_facts so that
-    the agent knows to surface them with a needs_verification flag.
-    Per API_CONTRACT.md: low-confidence OCR must NOT be treated as verified fact.
-    """
+    """Extract needs_verification PDF evidence items for note_evidence."""
     patient_id = str(packet.get("patient_id", ""))
     items: list[dict[str, Any]] = []
     for raw_item in packet.get("pdf_evidence", []):

@@ -432,7 +432,17 @@ class ClinicalCarePlanAgent:
         morning: list[str] = []
         evening: list[str] = []
         unspecified: list[str] = []
-        for medication, source_text in medications:
+        
+        seen_meds: set[str] = set()
+        deduped_medications: list[tuple[str, str]] = []
+        for med, src in medications:
+            med_clean = re.sub(r"\(.*?\)", "", med.casefold()).strip()
+            med_clean = re.sub(r"\s+", " ", med_clean)
+            if med_clean not in seen_meds:
+                seen_meds.add(med_clean)
+                deduped_medications.append((med, src))
+
+        for medication, source_text in deduped_medications:
             if "2 lần/ngày" in source_text or "hai lần/ngày" in source_text:
                 morning.append(medication)
                 evening.append(medication)
@@ -445,7 +455,7 @@ class ClinicalCarePlanAgent:
 
         morning_text = "; ".join(morning) or "Bác sĩ bổ sung thuốc và cách dùng buổi sáng nếu có."
         evening_text = "; ".join(evening) or "Bác sĩ bổ sung thuốc và cách dùng buổi tối nếu có."
-        note = "Thuốc trong bản tóm tắt đã duyệt: " + "; ".join(item for item, _ in medications) + "."
+        note = "Thuốc trong bản tóm tắt đã duyệt: " + "; ".join(item for item, _ in deduped_medications) + "."
         if unspecified:
             note += " Chưa tự xếp thời điểm dùng cho: " + "; ".join(unspecified) + "."
         note += " Chỉ dùng theo đơn bác sĩ đã chốt."

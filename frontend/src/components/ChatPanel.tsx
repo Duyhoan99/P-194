@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { Send, Bot, User, AlertCircle, XCircle, Trash2, Sparkles } from 'lucide-react';
+import { Send, Bot, User, AlertCircle, XCircle, Trash2, Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 /**
@@ -147,7 +147,13 @@ function MarkdownRenderer({ content }: { content: string }) {
   );
 }
 
-export default function ChatPanel({ patientId }: { patientId: string }) {
+export default function ChatPanel({
+  patientId,
+  onClose,
+}: {
+  patientId: string;
+  onClose?: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string, status?: string, citations?: any[] }[]>([]);
@@ -252,15 +258,26 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
-              className="p-1.5 rounded-lg border text-xs transition-colors hover:text-rose-600 hover:bg-rose-50"
+              className="p-1.5 rounded-lg border text-xs transition-colors hover:text-rose-400 hover:bg-rose-950/40 cursor-pointer"
               style={{ borderColor: 'var(--border-card)', color: 'var(--text-muted)' }}
               title="Xóa cuộc trò chuyện"
             >
               <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg border text-xs transition-colors hover:text-slate-100 hover:bg-slate-800/80 cursor-pointer flex items-center gap-1 text-slate-400"
+              style={{ borderColor: 'var(--border-card)' }}
+              title="Tắt / Thu nhỏ cửa sổ Chat"
+            >
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>

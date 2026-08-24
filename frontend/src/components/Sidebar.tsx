@@ -59,16 +59,15 @@ export function Sidebar() {
       <nav className="px-3 py-4 space-y-1.5">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname.startsWith(item.href);
-          
+
           return (
-            <Link 
-              key={item.href} 
+            <Link
+              key={item.href}
               href={item.href}
-              className={`flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs tracking-wide transition-all duration-200 relative ${
-                isActive 
-                  ? 'bg-teal-600 text-white font-bold shadow-sm shadow-teal-600/30 dark:bg-teal-500/15 dark:text-teal-200 dark:border dark:border-teal-500/30' 
+              className={`flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs tracking-wide transition-all duration-200 relative ${isActive
+                  ? 'bg-teal-600 text-white font-bold shadow-sm shadow-teal-600/30 dark:bg-teal-500/15 dark:text-teal-200 dark:border dark:border-teal-500/30'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-white/5'
-              }`}
+                }`}
             >
               <item.icon className={`w-4 h-4 ${isActive ? 'text-white dark:text-teal-300' : 'text-slate-400 dark:text-slate-400'}`} />
               <span>{item.name}</span>
@@ -90,15 +89,14 @@ export function Sidebar() {
         {patientList.map((p) => {
           const isActive = pathname.includes(`/patients/${p.patient_id}`);
           return (
-            <Link 
-              key={p.patient_id} 
+            <Link
+              key={p.patient_id}
               href={`/patients/${p.patient_id}`}
               onClick={() => setSelectedPatient(p)}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all duration-200 ${
-                isActive 
-                  ? 'bg-teal-50 text-teal-800 font-bold border border-teal-200 dark:bg-teal-500/15 dark:text-teal-200 dark:border-teal-500/30' 
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all duration-200 ${isActive
+                  ? 'bg-teal-50 text-teal-800 font-bold border border-teal-200 dark:bg-teal-500/15 dark:text-teal-200 dark:border-teal-500/30'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-white/5'
-              }`}
+                }`}
             >
               <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-teal-500 dark:bg-teal-400 shadow-[0_0_6px_rgba(20,184,166,0.8)]' : 'bg-slate-400 dark:bg-slate-600'}`} />
               <span className="truncate">{p.pseudonym}</span>
@@ -109,8 +107,8 @@ export function Sidebar() {
 
       {/* Bottom Actions: Theme Toggle & Logout */}
       <div className="p-3.5 mt-auto border-t border-slate-200/80 dark:border-white/5 space-y-1">
-        <button 
-          onClick={() => setDarkMode(!darkMode)} 
+        <button
+          onClick={() => setDarkMode(!darkMode)}
           className="flex w-full items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-white/5 transition-all duration-200 cursor-pointer"
         >
           <div className="flex items-center gap-3">
@@ -122,8 +120,8 @@ export function Sidebar() {
           </span>
         </button>
 
-        <button 
-          onClick={handleLogout} 
+        <button
+          onClick={handleLogout}
           className="flex w-full items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 dark:text-slate-400 dark:hover:text-rose-300 dark:hover:bg-rose-950/20 transition-all duration-200 cursor-pointer"
         >
           <LogOut className="w-4 h-4" />

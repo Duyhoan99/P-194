@@ -283,10 +283,10 @@ export const reviews = {
       body: JSON.stringify({ review_version_id, expected_version, clinician_confirmation })
     }),
 
-  reject: (patient_id: string, review_id: string, expected_version: number, reason: string) => 
+  reject: (patient_id: string, review_id: string, expected_version: number, reason: string, review_version_id?: string) => 
     request<any>(`/reviews/${review_id}/reject`, {
       method: 'POST',
-      body: JSON.stringify({ expected_version, reason })
+      body: JSON.stringify({ review_version_id, expected_version, reason })
     }),
 
   exportPdf: async (patient_id: string, review_id: string, review_version_id: string) => {

@@ -55,6 +55,14 @@ export default function PatientsLandingPage() {
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{t('pt.subtitle')}</p>
           </div>
         </div>
+
+        <Link
+          href="/case-files"
+          className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-900/30 transition-all"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>Tải lên hồ sơ bệnh nhân mới</span>
+        </Link>
       </div>
 
       {/* Search and Problem-Oriented Filters */}

@@ -11,6 +11,7 @@ Rules enforced here (per ARCHITECTURE.md §14.11.1 and API_CONTRACT.md §3.2):
 
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Any
 
@@ -26,12 +27,42 @@ CANONICALIZER_VERSION = "pdf-canonicalizer@1.0.0"
 # Maximum snippet length returned to callers (API_CONTRACT.md: only minimal needed)
 _SNIPPET_MAX = 200
 
+_DISCLAIMER_PATTERNS = [
+    r"DỮ\s+LIỆU\s+GIẢ\s+LẬP\s+PHỤC\s+VỤ\s+DEMO\s*[-–—:]*\s*KHÔNG\s+PHẢI\s+HỒ\s+SƠ\s+Y\s+TẾ\s+THẬT",
+    r"DỮ\s+LIỆU\s+GIẢ\s+LẬP\s+PHỤC\s+VỤ\s+DEMO",
+    r"KHÔNG\s+PHẢI\s+HỒ\s+SƠ\s+Y\s+TẾ\s+THẬT",
+    r"DU\s+LIEU\s+GIA\s+LAP\s+PHUC\s+VU\s+DEMO",
+    r"KHONG\s+PHAI\s+HO\s+SO\s+Y\s+TE\s+THAT",
+    r"DEMO\s+ONLY",
+    r"SYNTHETIC\s+DATA",
+    r"DỮ\s+LIỆU\s+MÔ\s+PHỎNG",
+    r"DỮ\s+LIỆU\s+THỬ\s+NGHIỆM",
+    r"Đơn vị\s+Trung tâm Y khoa Synthetic\s*[-–—:]*\s*Khoa Nội tổng hợp",
+    r"Mã tài liệu\s+DOC-[A-Z0-9_-]+",
+    r"Mã bệnh nhân\s+[A-Z0-9_-]+",
+    r"Tên synthetic\s+[^\n.,;]+",
+    r"Mã tiếp nhận\s+REQ-[A-Z0-9_-]+",
+    r"Mã thanh toán nội bộ:\s*DEMO-[A-Z0-9_-]+",
+    r"Đây là metadata hành chính, không phải bằng chứng lâm sàng\.?",
+    r"Danh sách vấn đề hành chính:\s*cập nhật số điện thoại synthetic;?\s*không tạo sự kiện lâm sàng từ dòng này\.?",
+]
+
+
+def _clean_clinical_text(text: str) -> str:
+    cleaned = text
+    for pat in _DISCLAIMER_PATTERNS:
+        cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
 
 def _make_snippet(text: str) -> str:
-    text = text.strip()
-    if len(text) <= _SNIPPET_MAX:
-        return text
-    return text[:_SNIPPET_MAX] + "…"
+    cleaned = _clean_clinical_text(text)
+    if not cleaned:
+        cleaned = text.strip()
+    if len(cleaned) <= _SNIPPET_MAX:
+        return cleaned
+    return cleaned[:_SNIPPET_MAX] + "…"
 
 
 def _citation_id(document_id: str, page_number: int, block_index: int) -> str:
@@ -125,7 +156,7 @@ def canonicalize_extraction(
                 "fact_type": fact.fact_type,
                 "normalized_value": {
                     "statement": snippet,
-                    "section_code": "changes_to_review",
+                    "section_code": "patient_overview",
                     "page_number": block.page_number,
                     "document_id": extraction.document_id,
                     "document_name": document_name,
