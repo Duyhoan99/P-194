@@ -436,7 +436,8 @@ def _consolidate_structured_facts(facts: list[dict[str, Any]]) -> list[dict[str,
             cond_clean = re.sub(r"ghi nhận\s+\d{4}-\d{2}-\d{2}", "", cond_clean).strip()
             sem_key = f"cond:{cond_clean}"
         else:
-            sem_key = f"other:{re.sub(r'\s+', ' ', stmt_clean)}"
+            cleaned_stmt = re.sub(r"\s+", " ", stmt_clean)
+            sem_key = f"other:{cleaned_stmt}"
 
         group_key = (sec, date_key, sem_key)
         if group_key not in seen_facts:
