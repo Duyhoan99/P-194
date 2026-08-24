@@ -6,6 +6,14 @@ __pycache__
 *.pyc
 .pytest_cache
 .ruff_cache
+.pytest-tmp-*
+.pytest_temp
+.worktrees
+frontend/node_modules
+frontend/.next
+*.db
+*.sqlite3
+mimic-iv-clinical-database-demo-2.2/
 docs/
 presentation/
 eval/
@@ -14,3 +22,4 @@ eval/
 .dockerignore
 Dockerfile
 docker-compose.yml
+
