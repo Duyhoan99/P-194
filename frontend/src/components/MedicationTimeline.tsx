@@ -70,28 +70,60 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
     }
   };
 
-  // Group medications by title/drug name if possible
+  // Group medications by title/drug name and deduplicate on same date
   const drugGroups: Record<string, MedicationEvent[]> = {};
   medEvents.forEach(m => {
-    // Extract base drug name, e.g. "Metformin" from "Metformin 500 MG"
-    const nameMatch = m.title.replace(/^Thuốc:\s*/i, '').split(' ')[0] || m.title;
+    const cleanTitle = m.title.replace(/^Thuốc:\s*/i, '').trim();
+    const nameMatch = cleanTitle.split(' ')[0] || cleanTitle;
     if (!drugGroups[nameMatch]) {
       drugGroups[nameMatch] = [];
     }
     drugGroups[nameMatch].push(m);
   });
 
+  // Deduplicate entries on the same date within each drug group & merge multi-source citations
+  Object.keys(drugGroups).forEach(drug => {
+    const byDate: Record<string, MedicationEvent> = {};
+    drugGroups[drug].forEach(ev => {
+      const dKey = (ev.occurred_at || '').substring(0, 10) || 'no_date';
+      if (!byDate[dKey]) {
+        byDate[dKey] = { ...ev, citations: [...(ev.citations || [])] };
+      } else {
+        // Merge citations
+        const existingCitations = byDate[dKey].citations || [];
+        const incomingCitations = ev.citations || [];
+        incomingCitations.forEach((inc: any) => {
+          if (!existingCitations.some((c: any) => (c.citation_id && c.citation_id === inc.citation_id) || (c.document_id && c.document_id === inc.document_id && c.resource_id === inc.resource_id))) {
+            existingCitations.push(inc);
+          }
+        });
+        byDate[dKey].citations = existingCitations;
+
+        // Keep the more descriptive title (e.g. with dosage / brand name)
+        if (ev.title.length > byDate[dKey].title.length || (ev.title.includes('mg') && !byDate[dKey].title.includes('mg'))) {
+          byDate[dKey].title = ev.title;
+        }
+        if (ev.summary && (!byDate[dKey].summary || ev.summary.length > byDate[dKey].summary.length)) {
+          byDate[dKey].summary = ev.summary;
+        }
+      }
+    });
+    drugGroups[drug] = Object.values(byDate).sort((a, b) => 
+      new Date(b.occurred_at || '').getTime() - new Date(a.occurred_at || '').getTime()
+    );
+  });
+
   return (
-    <div className="bg-slate-950/70 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full min-h-0">
+    <div className="clinical-card overflow-hidden flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="p-4 px-5 border-b border-white/10 bg-slate-900/90 flex items-center justify-between shrink-0 flex-wrap gap-2">
+      <div className="p-4 px-5 border-b border-[var(--border-card)] bg-[var(--bg-card)] flex items-center justify-between shrink-0 flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/30 text-purple-400">
             <Pill className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Tiến trình Sử dụng Thuốc &amp; Phác đồ (Medication Timeline)</h3>
-            <p className="text-xs text-slate-400">Theo dõi diễn biến kê đơn, thay đổi liều lượng và cảnh báo tương tác</p>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-extrabold">Tiến trình Sử dụng Thuốc &amp; Phác đồ (Medication Timeline)</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">Theo dõi diễn biến kê đơn, thay đổi liều lượng và cảnh báo tương tác</p>
           </div>
         </div>
 
@@ -105,12 +137,12 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
       {/* Content Area */}
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-6 chat-scrollbar pr-3">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-slate-400">
+          <div className="flex items-center justify-center py-16 text-slate-600 dark:text-slate-400 font-medium">
             <RefreshCw className="w-5 h-5 animate-spin mr-2 text-purple-400" />
             <span className="text-sm">Đang phân tích dữ liệu thuốc...</span>
           </div>
         ) : error && medEvents.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
+          <div className="text-center py-12 text-slate-600 dark:text-slate-400 font-medium text-sm">
             <AlertTriangle className="w-8 h-8 text-amber-500/50 mx-auto mb-2" />
             {error}
           </div>
@@ -125,7 +157,7 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
                 </div>
                 <div className="space-y-2">
                   {interactions.map((inter: any, idx: number) => (
-                    <div key={idx} className="bg-slate-900/80 p-2.5 rounded-lg border border-rose-900/30 text-xs text-slate-300 flex items-start justify-between gap-3">
+                    <div key={idx} className="clinical-subcard p-2.5 rounded-lg text-xs text-slate-900 dark:text-slate-100 flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <span className="font-medium text-rose-300">
                           {inter.severity ? `[Mức độ: ${inter.severity.toUpperCase()}] ` : ''}{inter.description || inter.message}
@@ -158,10 +190,10 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
                 </div>
               ) : (
                 Object.entries(drugGroups).map(([drugName, events]) => (
-                  <div key={drugName} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                  <div key={drugName} className="clinical-subcard p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-[var(--border-card)] pb-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-100 text-sm">{drugName}</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100 font-extrabold text-sm">{drugName}</span>
                         <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 font-medium">
                           {events.length} lần điều chỉnh / kê đơn
                         </span>
@@ -176,28 +208,58 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
                           <div className="absolute -left-[9px] top-1.5 w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.8)]" />
 
                           <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className="font-semibold text-slate-200 text-xs">{ev.title}</span>
-                            <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100 font-bold text-xs">{ev.title}</span>
+                            <span className="text-[11px] text-slate-600 dark:text-slate-400 font-medium font-mono flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-slate-500" />
                               {formatDate(ev.occurred_at)}
                             </span>
                           </div>
 
                           {ev.summary && (
-                            <p className="text-xs text-slate-400 leading-relaxed">{ev.summary}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{ev.summary}</p>
                           )}
 
                           {ev.citations && ev.citations.length > 0 && (
                             <div className="flex gap-1.5 pt-1 flex-wrap">
-                              {ev.citations.map((c: any, cIdx: number) => (
-                                <button
-                                  key={cIdx}
-                                  onClick={() => handleCitationClick(c)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 hover:bg-cyan-950/60 text-[10px] text-cyan-300 hover:text-cyan-200 rounded border border-slate-800 hover:border-cyan-500/40 transition-colors"
-                                >
-                                  📄 Nguồn: {c.document_name || c.resource_type || 'Đơn thuốc'}
-                                </button>
-                              ))}
+                              {ev.citations.map((c: any, cIdx: number) => {
+                                const rawType = (c.source_type || '').toLowerCase();
+                                const docName = (c.document_name || c.document_id || c.citation_id || '').toLowerCase();
+
+                                let label = 'PDF';
+                                let colorCls = 'bg-indigo-950/90 text-indigo-300 border-indigo-600/80 hover:border-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]';
+                                let icon = '📄';
+
+                                if (rawType === 'ocr' || docName.includes('scan') || docName.includes('photo') || docName.endsWith('.jpg') || docName.endsWith('.png') || docName.endsWith('.jpeg')) {
+                                  label = 'OCR';
+                                  colorCls = 'bg-amber-950/90 text-amber-300 border-amber-600/80 hover:border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.2)]';
+                                  icon = '📷';
+                                } else if (rawType === 'pdf' || docName.includes('pdf') || docName.endsWith('.pdf') || docName.includes('doc_') || docName.includes('prescription') || docName.includes('phieu_kham') || docName.includes('followup') || docName.includes('lab_report')) {
+                                  label = 'PDF';
+                                  colorCls = 'bg-indigo-950/90 text-indigo-300 border-indigo-600/80 hover:border-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]';
+                                  icon = '📄';
+                                } else if (rawType === 'fhir' || docName.includes('fhir') || docName.endsWith('.json') || docName.includes('bundle') || c.resource_type || c.resource_id) {
+                                  label = 'FHIR';
+                                  colorCls = 'bg-cyan-950/90 text-cyan-300 border-cyan-600/80 hover:border-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.2)]';
+                                  icon = '⚡';
+                                } else if (rawType === 'canonical_record' || rawType === 'ehr') {
+                                  label = 'EHR';
+                                  colorCls = 'bg-emerald-950/90 text-emerald-300 border-emerald-600/80 hover:border-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.2)]';
+                                  icon = '🏥';
+                                }
+
+                                return (
+                                  <button
+                                    key={cIdx}
+                                    onClick={() => handleCitationClick(c)}
+                                    className={`inline-flex items-center gap-1 min-w-[34px] h-[20px] px-1.5 text-[10px] font-extrabold font-mono border rounded-md cursor-pointer transition-all ${colorCls}`}
+                                    title={`Nhấp để mở nguồn chứng cứ gốc [${label}]: ${c.document_name || c.resource_type || 'Đơn thuốc'}`}
+                                  >
+                                    <span>{icon}</span>
+                                    <span>{label}</span>
+                                    {(ev.citations?.length ?? 0) > 1 && <span className="opacity-75 text-[9px]">#{cIdx + 1}</span>}
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

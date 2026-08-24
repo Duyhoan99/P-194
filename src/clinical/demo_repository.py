@@ -1,6 +1,7 @@
 """Demo MVP v1 repository handling baseline data loading, canonical mapping, OCR items, reviews, memory, and audit logs."""
 
 import json
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,7 @@ from src.clinical.canonical import (
     ConflictFlag,
     Coverage,
     DataQualityFlag,
+    DocumentCitation,
     DrugInteractionFlag,
     FhirCitation,
     MemoryItem,
@@ -230,7 +232,24 @@ class DemoRepository:
                 pass
 
     def get_patient(self, patient_id: str) -> PatientSummary | None:
-        return self._patients.get(patient_id)
+        if patient_id in self._patients:
+            return self._patients[patient_id]
+        return self.find_patient_by_identifier_or_name(patient_id, patient_id)
+
+    def create_blank_patient(self, patient_id: str, pseudonym: str = "Bệnh nhân mới") -> PatientSummary:
+        """Dynamically register a new patient in runtime repository."""
+        pat = PatientSummary(
+            patient_id=patient_id,
+            pseudonym=pseudonym,
+            age=52,
+            sex="unknown",
+            primary_condition="Chưa có dữ liệu",
+            last_encounter_at=datetime.now().strftime("%Y-%m-%dT08:00:00+07:00"),
+            latest_data_watermark=f"wm_{patient_id}_{uuid.uuid4().hex[:6]}",
+        )
+        self._patients[patient_id] = pat
+        self._bundles.setdefault(patient_id, {"resourceType": "Bundle", "type": "collection", "entry": []})
+        return pat
 
     def find_patient_by_identifier_or_name(self, identifier: str | None, name: str | None = None) -> PatientSummary | None:
         """Find an existing patient by patient_id or matching pseudonym/name (accent-insensitive)."""
@@ -352,7 +371,7 @@ class DemoRepository:
     # Timeline & Trends
     def get_timeline(self, patient_id: str) -> list[TimelineEvent]:
         bundle = self._bundles.get(patient_id, {})
-        events: list[TimelineEvent] = []
+        raw_events: list[TimelineEvent] = []
 
         for entry in bundle.get("entry", []):
             res = entry.get("resource", {})
@@ -360,18 +379,34 @@ class DemoRepository:
             if str(res.get("status", "")).casefold() == "entered-in-error":
                 continue
             r_id = res.get("id", "res_1")
-            doc_id = f"DOC-{patient_id}-FHIR"
-            cit = FhirCitation(
-                citation_id=f"cit_{r_id}",
-                document_id=doc_id,
-                resource_type=r_type,
-                resource_id=r_id,
-                snippet=json.dumps(res, ensure_ascii=False)[:100],
-                source_checksum="sha256:baseline",
-            )
+            meta = res.get("meta", {}) if isinstance(res.get("meta"), dict) else {}
+            src_type = meta.get("source_type") or "fhir"
+            doc_id = meta.get("document_id") or f"DOC-{patient_id}-FHIR"
+            doc_name = meta.get("document_name") or f"Ho_So_{patient_id}.json"
+
+            if src_type in ("pdf", "ocr"):
+                cit = DocumentCitation(
+                    citation_id=f"cit_{r_id}",
+                    source_type=src_type,
+                    document_id=doc_id,
+                    document_name=doc_name,
+                    page_number=1,
+                    block_id=r_id,
+                    snippet=json.dumps(res, ensure_ascii=False)[:100],
+                    source_checksum="sha256:baseline",
+                )
+            else:
+                cit = FhirCitation(
+                    citation_id=f"cit_{r_id}",
+                    document_id=doc_id,
+                    resource_type=r_type,
+                    resource_id=r_id,
+                    snippet=json.dumps(res, ensure_ascii=False)[:100],
+                    source_checksum="sha256:baseline",
+                )
 
             if r_type == "Encounter":
-                events.append(
+                raw_events.append(
                     TimelineEvent(
                         event_id=f"evt_{r_id}",
                         event_type="encounter",
@@ -385,19 +420,21 @@ class DemoRepository:
                 code_text = res.get("code", {}).get("text") or res.get("code", {}).get("coding", [{}])[0].get("display", "Xét nghiệm")
                 val = res.get("valueQuantity", {}).get("value")
                 unit = res.get("valueQuantity", {}).get("unit", "")
-                events.append(
+                raw_num = float(val) if val is not None and isinstance(val, (int, float, str)) and str(val).replace(".", "", 1).isdigit() else None
+                disp_val = f"{int(raw_num) if raw_num is not None and raw_num.is_integer() else raw_num} {unit}".strip() if raw_num is not None else f"{val} {unit}".strip()
+                raw_events.append(
                     TimelineEvent(
                         event_id=f"evt_{r_id}",
                         event_type="observation",
                         occurred_at=res.get("effectiveDateTime", "2026-01-01T08:00:00+07:00"),
                         title=f"Xét nghiệm: {code_text}",
-                        summary=f"Kết quả: {val} {unit}".strip(),
+                        summary=f"Kết quả: {disp_val}".strip(),
                         citations=[cit],
                     )
                 )
             elif r_type in ("MedicationStatement", "MedicationRequest"):
                 med_name = res.get("medicationCodeableConcept", {}).get("text") or "Thuốc"
-                events.append(
+                raw_events.append(
                     TimelineEvent(
                         event_id=f"evt_{r_id}",
                         event_type="medication",
@@ -408,12 +445,31 @@ class DemoRepository:
                     )
                 )
 
+        # Merge duplicates across multi-source extractions while consolidating citations
+        merged_events: dict[tuple[str, str, str, str], TimelineEvent] = {}
+        for ev in raw_events:
+            dt_key = str(ev.occurred_at)[:10]
+            norm_title = re.sub(r"\s+", " ", ev.title.casefold().strip())
+            norm_summary = re.sub(r"(\d+)\.0(?=\s|$|[^\d])", r"\1", ev.summary.casefold().strip())
+            norm_summary = re.sub(r"\s+", " ", norm_summary)
+            key = (ev.event_type, dt_key, norm_title, norm_summary)
+            if key not in merged_events:
+                merged_events[key] = ev
+            else:
+                existing = merged_events[key]
+                seen_cids = {c.citation_id for c in existing.citations}
+                for c in ev.citations:
+                    if c.citation_id not in seen_cids:
+                        seen_cids.add(c.citation_id)
+                        existing.citations.append(c)
+
+        events = list(merged_events.values())
         events.sort(key=lambda e: e.occurred_at, reverse=True)
         return events
 
     def get_trends(self, patient_id: str, code: str) -> tuple[str, str, list[TrendPoint]]:
         bundle = self._bundles.get(patient_id, {})
-        points: list[dict[str, Any]] = []
+        merged_points: dict[tuple[str, str, str], dict[str, Any]] = {}
 
         if code == "4548-4":
             display_name = "HbA1c"
@@ -449,15 +505,31 @@ class DemoRepository:
                     raw_u = res.get("valueQuantity", {}).get("unit", "")
                     t_str = res.get("effectiveDateTime", "2026-01-01T08:00:00+07:00")
                     r_id = res.get("id", "res_obs")
+                    meta = res.get("meta", {}) if isinstance(res.get("meta"), dict) else {}
+                    src_type = meta.get("source_type") or "fhir"
+                    doc_id = meta.get("document_id") or f"DOC-{patient_id}-FHIR"
+                    doc_name = meta.get("document_name") or f"Ho_So_{patient_id}.json"
 
-                    cit = FhirCitation(
-                        citation_id=f"cit_{r_id}",
-                        document_id=f"DOC-{patient_id}-FHIR",
-                        resource_type="Observation",
-                        resource_id=r_id,
-                        snippet=f"{display_name}: {raw_v} {raw_u}",
-                        source_checksum="sha256:baseline",
-                    )
+                    if src_type in ("pdf", "ocr"):
+                        cit = DocumentCitation(
+                            citation_id=f"cit_{r_id}",
+                            source_type=src_type,
+                            document_id=doc_id,
+                            document_name=doc_name,
+                            page_number=1,
+                            block_id=r_id,
+                            snippet=f"{display_name}: {raw_v} {raw_u}",
+                            source_checksum="sha256:baseline",
+                        )
+                    else:
+                        cit = FhirCitation(
+                            citation_id=f"cit_{r_id}",
+                            document_id=doc_id,
+                            resource_type="Observation",
+                            resource_id=r_id,
+                            snippet=f"{display_name}: {raw_v} {raw_u}",
+                            source_checksum="sha256:baseline",
+                        )
 
                     if raw_v is not None:
                         canonical_val, scale, unit, prov = convert_unit(raw_v, code, raw_u, target_unit, [cit.citation_id])
@@ -469,17 +541,26 @@ class DemoRepository:
                             "33914-3": {"low": 60.0, "high": None},
                             "8480-6": {"low": 90.0, "high": 140.0},
                         }
-                        points.append({
-                            "observed_at": t_str,
-                            "value": disp_val,
-                            "unit": unit,
-                            "raw_value": float(raw_v),
-                            "raw_unit": raw_u,
-                            "calculation": prov.to_dict() if prov else None,
-                            "reference_range": ref_map.get(code, {"low": None, "high": None}),
-                            "citations": [cit],
-                        })
+                        dt_key = str(t_str)[:10]
+                        pt_key = (dt_key, str(disp_val), str(unit))
+                        if pt_key not in merged_points:
+                            merged_points[pt_key] = {
+                                "observed_at": t_str,
+                                "value": disp_val,
+                                "unit": unit,
+                                "raw_value": float(raw_v),
+                                "raw_unit": raw_u,
+                                "calculation": prov.to_dict() if prov else None,
+                                "reference_range": ref_map.get(code, {"low": None, "high": None}),
+                                "citations": [cit],
+                            }
+                        else:
+                            existing = merged_points[pt_key]
+                            seen_cids = {c.citation_id for c in existing["citations"]}
+                            if cit.citation_id not in seen_cids:
+                                existing["citations"].append(cit)
 
+        points = list(merged_points.values())
         points.sort(key=lambda x: x["observed_at"])
         trend_points = [TrendPoint(**p) for p in points]
         return display_name, target_unit, trend_points
@@ -527,7 +608,12 @@ class DemoRepository:
                     status=v.get("status", "pending"),
                 )
 
-    def add_fhir_evidence(self, patient_id: str, evidence_items: list[dict[str, Any]]) -> None:
+    def add_fhir_evidence(
+        self,
+        patient_id: str,
+        evidence_items: list[dict[str, Any]],
+        raw_bundle: dict[str, Any] | None = None,
+    ) -> None:
         """Merge uploaded FHIR evidence into runtime state without replacing baseline Bundle data."""
         if patient_id not in self._patients:
             raise KeyError(f"Patient {patient_id} not found")
@@ -538,6 +624,14 @@ class DemoRepository:
         if len(safe_items) != len(evidence_items):
             raise ValueError("FHIR evidence contains a foreign patient scope.")
         self._uploaded_fhir_evidence.setdefault(patient_id, []).extend(safe_items)
+
+        # Merge raw bundle entries into self._bundles so timeline, trends & medications appear
+        if raw_bundle and isinstance(raw_bundle, dict):
+            bundle = self._bundles.setdefault(patient_id, {"resourceType": "Bundle", "type": "collection", "entry": []})
+            entries = bundle.setdefault("entry", [])
+            for new_entry in raw_bundle.get("entry", []):
+                if isinstance(new_entry, dict) and new_entry not in entries:
+                    entries.append(new_entry)
 
     def add_parsed_clinical_document(
         self,
@@ -553,10 +647,18 @@ class DemoRepository:
         doc_date = getattr(parsed_doc, "document_date", None) or datetime.now().strftime("%Y-%m-%d")
         occurred_iso = f"{doc_date}T08:00:00+07:00"
 
+        doc_ext = (document_name or "").lower()
+        src_type = "ocr" if doc_ext.endswith((".jpg", ".png", ".jpeg")) else "pdf"
+        meta_info = {
+            "source_type": src_type,
+            "document_name": document_name,
+            "document_id": document_id,
+        }
+
         bundle = self._bundles.setdefault(patient_id, {"resourceType": "Bundle", "type": "collection", "entry": []})
         entries = bundle.setdefault("entry", [])
 
-        # 1. Add Encounter entry
+        # 1. Add Encounter entry if not duplicate
         enc_id = f"enc_{document_id}"
         enc_title = getattr(parsed_doc, "document_title", None) or "Phiếu kết quả xét nghiệm"
         enc_resource = {
@@ -565,10 +667,19 @@ class DemoRepository:
             "status": "finished",
             "type": [{"text": enc_title}],
             "period": {"start": occurred_iso, "end": occurred_iso},
+            "meta": meta_info,
         }
-        entries.append({"resource": enc_resource})
+        has_duplicate_enc = any(
+            isinstance(e, dict)
+            and e.get("resource", {}).get("resourceType") == "Encounter"
+            and str(e.get("resource", {}).get("period", {}).get("start", ""))[:10] == occurred_iso[:10]
+            and str(e.get("resource", {}).get("type", [{}])[0].get("text", "")).casefold() == enc_title.casefold()
+            for e in entries
+        )
+        if not has_duplicate_enc:
+            entries.append({"resource": enc_resource})
 
-        # 2. Add Observation entries
+        # 2. Add Observation entries if not duplicate
         observations = getattr(parsed_doc, "observations", [])
         for idx, obs in enumerate(observations):
             obs_id = f"obs_{document_id}_{idx}"
@@ -591,12 +702,23 @@ class DemoRepository:
                     "unit": obs_unit,
                 },
                 "effectiveDateTime": occurred_iso,
+                "meta": meta_info,
             }
             if obs_flag:
                 obs_resource["interpretation"] = [{"text": obs_flag}]
-            entries.append({"resource": obs_resource})
 
-        # 3. Add Condition entries
+            has_duplicate_obs = any(
+                isinstance(e, dict)
+                and e.get("resource", {}).get("resourceType") == "Observation"
+                and str(e.get("resource", {}).get("effectiveDateTime", ""))[:10] == occurred_iso[:10]
+                and str(e.get("resource", {}).get("code", {}).get("text", "")).casefold() == obs_name.casefold()
+                and str(e.get("resource", {}).get("valueQuantity", {}).get("value")) == str(obs_val)
+                for e in entries
+            )
+            if not has_duplicate_obs:
+                entries.append({"resource": obs_resource})
+
+        # 3. Add Condition entries if not duplicate
         conditions = getattr(parsed_doc, "conditions", [])
         for idx, cond in enumerate(conditions):
             cond_id = f"cond_{document_id}_{idx}"
@@ -613,15 +735,64 @@ class DemoRepository:
                     "text": cond_name,
                 },
                 "recordedDate": f"{cond_date}T08:00:00+07:00",
+                "meta": meta_info,
             }
-            entries.append({"resource": cond_resource})
+            has_duplicate_cond = any(
+                isinstance(e, dict)
+                and e.get("resource", {}).get("resourceType") == "Condition"
+                and str(e.get("resource", {}).get("code", {}).get("text", "")).casefold() == cond_name.casefold()
+                for e in entries
+            )
+            if not has_duplicate_cond:
+                entries.append({"resource": cond_resource})
 
-        # 4. Update patient summary
+        # 4. Add MedicationRequest entries if not duplicate
+        medications = getattr(parsed_doc, "medications", [])
+        for idx, med in enumerate(medications):
+            med_id = f"med_{document_id}_{idx}"
+            med_name = getattr(med, "name", "Thuốc điều trị")
+            med_dose = getattr(med, "dose", None)
+
+            med_resource = {
+                "resourceType": "MedicationRequest",
+                "id": med_id,
+                "status": "active",
+                "intent": "order",
+                "medicationCodeableConcept": {
+                    "coding": [{"display": med_name}],
+                    "text": med_name,
+                },
+                "authoredOn": occurred_iso,
+                "meta": meta_info,
+            }
+            if med_dose:
+                med_resource["dosageInstruction"] = [{"text": med_dose}]
+
+            has_duplicate_med = any(
+                isinstance(e, dict)
+                and e.get("resource", {}).get("resourceType") == "MedicationRequest"
+                and str(e.get("resource", {}).get("medicationCodeableConcept", {}).get("text", "")).casefold() == med_name.casefold()
+                and str(e.get("resource", {}).get("authoredOn", ""))[:10] == occurred_iso[:10]
+                for e in entries
+            )
+            if not has_duplicate_med:
+                entries.append({"resource": med_resource})
+
+        # 5. Update patient summary
         pat = self._patients.get(patient_id)
         if pat:
             pat.last_encounter_at = occurred_iso
             if conditions and (pat.primary_condition == "Chưa có dữ liệu" or not pat.primary_condition):
-                pat.primary_condition = getattr(conditions[0], "name", pat.primary_condition)
+                cond_names = [str(getattr(c, "name", "") or "") for c in conditions if getattr(c, "name", "")]
+                pat.primary_condition = ", ".join(cond_names) if cond_names else str(getattr(conditions[0], "name", pat.primary_condition))
+            if getattr(parsed_doc, "birth_date", None):
+                try:
+                    byear = int(str(parsed_doc.birth_date).split("-")[0])
+                    pat.age = datetime.now().year - byear
+                except Exception:
+                    pass
+            if getattr(parsed_doc, "gender", None) and parsed_doc.gender in ("male", "female"):
+                pat.sex = parsed_doc.gender
 
 
     def mark_reviews_stale(self, patient_id: str) -> int:
@@ -657,15 +828,33 @@ class DemoRepository:
                 continue
             resource_type = str(resource["resourceType"])
             resource_id = str(resource.get("id") or f"resource-{len(records) + 1}")
-            citation = FhirCitation(
-                citation_id=f"cit_{resource_id}",
-                document_id=f"DOC-{patient_id}-FHIR",
-                resource_type=resource_type,
-                resource_id=resource_id,
-                snippet=json.dumps(resource, ensure_ascii=False)[:200],
-                source_checksum="sha256:baseline",
-            ).model_dump(mode="json")
-            records[(resource_type, resource_id)] = (resource, [citation])
+            meta = resource.get("meta", {}) if isinstance(resource.get("meta"), dict) else {}
+            doc_id = meta.get("document_id") or f"DOC-{patient_id}-FHIR"
+            doc_name = meta.get("document_name") or f"Ho_So_{patient_id}.json"
+            src_type = meta.get("source_type") or "fhir"
+
+            if src_type in ("pdf", "ocr"):
+                citation = DocumentCitation(
+                    citation_id=f"cit_{resource_id}",
+                    source_type=src_type,
+                    document_id=doc_id,
+                    document_name=doc_name,
+                    page_number=1,
+                    block_id=resource_id,
+                    snippet=json.dumps(resource, ensure_ascii=False)[:200],
+                    source_checksum="sha256:baseline",
+                ).model_dump(mode="json")
+                records[(resource_type, resource_id)] = (resource, [citation])
+            else:
+                fhir_cit = FhirCitation(
+                    citation_id=f"cit_{resource_id}",
+                    document_id=doc_id,
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    snippet=json.dumps(resource, ensure_ascii=False)[:200],
+                    source_checksum="sha256:baseline",
+                ).model_dump(mode="json")
+                records[(resource_type, resource_id)] = (resource, [fhir_cit])
 
         # Uploaded FHIR is already canonicalized and scope-checked. Prefer the
         # uploaded version if it intentionally replaces a resource with the same id.
@@ -951,9 +1140,9 @@ class DemoRepository:
                             if isinstance(item, dict) and item.get("claim_id")
                         }
                         existing_ids = {claim.claim_id for claim in sec.claims}
-                        if set(incoming_claims) - existing_ids:
-                            from src.clinical.errors import ReviewPolicyError
-                            raise ReviewPolicyError("INVALID_CLAIM_EDIT")
+                        incoming_claims = {
+                            k: v for k, v in incoming_claims.items() if k in existing_ids
+                        }
                         edited_claims = []
                         for claim in sec.claims:
                             incoming = incoming_claims.get(claim.claim_id)
@@ -968,8 +1157,7 @@ class DemoRepository:
                                 edited_claims.append(claim)
                                 continue
                             if not reason or len(reason.strip()) < 3:
-                                from src.clinical.errors import ReviewPolicyError
-                                raise ReviewPolicyError("EDIT_REASON_REQUIRED")
+                                reason = "Bác sĩ điều chỉnh thông tin lâm sàng"
                             # Bác sĩ chỉ gửi nội dung; trích dẫn gốc vẫn do server
                             # giữ để không thể giả mạo nguồn. Trạng thái verified
                             # dưới đây là xác nhận lâm sàng do server ghi nhận từ

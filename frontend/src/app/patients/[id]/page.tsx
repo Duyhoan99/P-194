@@ -21,8 +21,11 @@ import {
   FileText,
   TrendingUp,
   Pill,
-  SplitSquareVertical
+  SplitSquareVertical,
+  Bot,
+  GripVertical
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 type WorkspaceTab = 'review' | 'medications' | 'conflicts' | 'metrics';
 
@@ -34,6 +37,7 @@ export default function PatientWorkspace() {
   const [authChecking, setAuthChecking] = useState(true);
   const [patientData, setPatientData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('review');
+  const [showChat, setShowChat] = useState(true);
 
   // Patient Memory modal
   const [showMemory, setShowMemory] = useState(false);
@@ -108,7 +112,7 @@ export default function PatientWorkspace() {
       <div className="flex-1 flex flex-col overflow-hidden relative">
 
         {/* Patient Header */}
-        <header className="px-6 py-3.5 border-b border-white/10 bg-slate-950/80 backdrop-blur-2xl sticky top-0 z-10 shadow-md shadow-black/30">
+        <header className="px-6 py-3.5 border-b border-white/10 clinical-card sticky top-0 z-10 rounded-2xl">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4">
               <div className="w-11 h-11 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-300 font-bold shadow-inner">
@@ -116,11 +120,11 @@ export default function PatientWorkspace() {
               </div>
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="text-xl font-bold text-slate-100 tracking-tight">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                     {pData?.pseudonym || patientId}
                   </h2>
                   {pData?.age && (
-                    <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700">
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium border border-slate-200 dark:border-slate-700">
                       {pData.age} tuổi • {pData.sex === 'male' ? '♂ Nam' : pData.sex === 'female' ? '♀ Nữ' : pData.sex}
                     </span>
                   )}
@@ -142,7 +146,7 @@ export default function PatientWorkspace() {
                       : 'Chưa có dữ liệu'}
                   </span>
                   {pData?.latest_data_watermark && (
-                    <span className="font-mono bg-slate-900/90 px-1.5 py-0.5 rounded text-[11px] text-slate-400 border border-slate-800">
+                    <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded text-[11px] text-slate-400 border border-slate-200 dark:border-slate-800">
                       WM: {pData.latest_data_watermark}
                     </span>
                   )}
@@ -168,30 +172,25 @@ export default function PatientWorkspace() {
         <div className="flex-1 overflow-hidden p-4 sm:p-5 bg-transparent">
           <div className="h-full max-w-[1700px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
 
-            {/* LEFT COLUMN: Clinical Workspace with 4 Core Medical Tabs (7 of 12 cols = ~58%) */}
-            <div className="lg:col-span-7 flex flex-col h-full overflow-hidden gap-3 min-w-0">
-
-              {/* Alert Banners */}
-              <div className="shrink-0">
-                <PatientAlerts />
-              </div>
+            {/* LEFT COLUMN: Clinical Workspace with 4 Core Medical Tabs (Expands to 12 cols when Chat is closed!) */}
+            <div className={`${showChat ? 'lg:col-span-7' : 'lg:col-span-12'} flex flex-col h-full overflow-hidden gap-3 min-w-0 transition-all duration-300`}>
 
               {/* Navigation Tabs Bar - 4 High-Value Clinical Tabs */}
-              <div className="shrink-0 flex items-center justify-between bg-slate-950/80 p-1.5 rounded-2xl border border-white/10 shadow-lg backdrop-blur-xl">
+              <div className="shrink-0 flex items-center justify-between clinical-card p-1.5 rounded-2xl">
                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none w-full">
                   <button
                     onClick={() => setActiveTab('review')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'review'
-                        ? 'bg-gradient-to-r from-teal-500/20 to-cyan-500/20 text-teal-200 border border-teal-500/40 shadow-[0_0_15px_rgba(20,184,166,0.15)]'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      ? 'bg-teal-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
                       }`}
                   >
                     <FileText className="w-3.5 h-3.5 text-teal-400" />
                     <span>Tóm tắt Lâm sàng</span>
                     {currentReview && (
                       <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono uppercase font-bold ${currentReview.status === 'approved'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                         }`}>
                         {currentReview.status || 'DRAFT'}
                       </span>
@@ -201,8 +200,8 @@ export default function PatientWorkspace() {
                   <button
                     onClick={() => setActiveTab('medications')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'medications'
-                        ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-200 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      ? 'bg-purple-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
                       }`}
                   >
                     <Pill className="w-3.5 h-3.5 text-purple-400" />
@@ -212,8 +211,8 @@ export default function PatientWorkspace() {
                   <button
                     onClick={() => setActiveTab('conflicts')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'conflicts'
-                        ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-200 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      ? 'bg-amber-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
                       }`}
                   >
                     <SplitSquareVertical className="w-3.5 h-3.5 text-amber-400" />
@@ -228,8 +227,8 @@ export default function PatientWorkspace() {
                   <button
                     onClick={() => setActiveTab('metrics')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${activeTab === 'metrics'
-                        ? 'bg-gradient-to-r from-teal-500/20 to-cyan-500/20 text-teal-200 border border-teal-500/40 shadow-[0_0_15px_rgba(20,184,166,0.15)]'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      ? 'bg-gradient-to-r from-teal-500/20 to-cyan-500/20 text-teal-200 border border-teal-500/40 shadow-[0_0_15px_rgba(20,184,166,0.15)]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                       }`}
                   >
                     <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
@@ -264,10 +263,12 @@ export default function PatientWorkspace() {
 
             </div>
 
-            {/* RIGHT COLUMN: AI Co-pilot Assistant (5 of 12 cols = ~42%) */}
-            <div className="lg:col-span-5 flex flex-col h-full overflow-hidden min-w-0">
-              <ChatPanel patientId={patientId} />
-            </div>
+            {/* RIGHT COLUMN: AI Co-pilot Assistant (Shown when showChat is true) */}
+            {showChat && (
+              <div className="lg:col-span-5 flex flex-col h-full overflow-hidden min-w-0 animate-in fade-in slide-in-from-right-4 duration-200">
+                <ChatPanel patientId={patientId} onClose={() => setShowChat(false)} />
+              </div>
+            )}
 
           </div>
         </div>
@@ -277,17 +278,52 @@ export default function PatientWorkspace() {
       {/* Right Evidence Panel for Citation deep dive */}
       <EvidencePanel />
 
+      {/* Floating Action Button to Reopen AI Co-pilot Chat (Draggable vertically along right edge, positioned initially at TOP) */}
+      {!showChat && (
+        <motion.div
+          drag="y"
+          dragMomentum={false}
+          dragConstraints={{ top: -10, bottom: 580 }}
+          dragElastic={0.05}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          className="fixed top-24 right-6 z-40 touch-none select-none"
+        >
+          <div className="flex items-center gap-1 p-1 bg-slate-900/95 backdrop-blur-md rounded-full border border-teal-500/50 shadow-[0_4px_30px_rgba(20,184,166,0.5)] hover:border-teal-400 transition-all">
+            <div
+              className="px-1.5 py-2 cursor-grab active:cursor-grabbing text-teal-400/80 hover:text-teal-300 transition-colors"
+              title="Kéo thả để di chuyển nút lên/xuống dọc màn hình"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </div>
+            <button
+              onClick={() => setShowChat(true)}
+              className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-600 hover:from-teal-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-md hover:scale-102 transition-all cursor-pointer"
+              title="Nhấp để mở Trợ lý AI Co-pilot Lâm sàng"
+            >
+              <div className="relative">
+                <Bot className="w-4 h-4" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full border-2 border-slate-900" />
+              </div>
+              <span className="tracking-wide font-extrabold pr-1">Mở AI Co-pilot</span>
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Patient Memory Modal */}
       {showMemory && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+          <div className="bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/30">
                   <Brain className="w-5 h-5 text-purple-400" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-100 text-base">Patient Memory</h3>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Patient Memory</h3>
                   <p className="text-xs text-slate-400">Tri thức lâm sàng đã được bác sĩ ký duyệt</p>
                 </div>
               </div>
@@ -309,7 +345,7 @@ export default function PatientWorkspace() {
                 </div>
               ) : memory ? (
                 <>
-                  <div className="flex items-center gap-3 text-xs text-slate-400 mb-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
+                  <div className="flex items-center gap-3 text-xs text-slate-400 mb-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                     <span>Phiên bản: <strong className="text-purple-300">v{memory.version}</strong></span>
                     <span>•</span>
                     <span>Phê duyệt bởi: <strong className="text-slate-200">{memory.approved_by}</strong></span>
@@ -317,7 +353,7 @@ export default function PatientWorkspace() {
                     <span>{new Date(memory.approved_at).toLocaleString('vi-VN')}</span>
                   </div>
                   {memory.items?.map((item: any) => (
-                    <div key={item.item_id} className="p-3.5 bg-slate-950/50 border border-slate-800/80 rounded-xl">
+                    <div key={item.item_id} className="p-3.5 bg-slate-950/50 border border-slate-200 dark:border-slate-800/80 rounded-xl">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-purple-400/80 mb-1">
                         {item.category}
                       </div>
@@ -325,7 +361,7 @@ export default function PatientWorkspace() {
                       {item.citations && item.citations.length > 0 && (
                         <div className="flex gap-1.5 mt-2 flex-wrap">
                           {item.citations.map((c: any) => (
-                            <span key={c.citation_id} className="text-[10px] font-mono text-cyan-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+                            <span key={c.citation_id} className="text-[10px] font-mono text-cyan-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                               #{c.citation_id?.split('-').pop()?.substring(0, 6)}
                             </span>
                           ))}

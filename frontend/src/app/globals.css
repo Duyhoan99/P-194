@@ -1,25 +1,136 @@
 @import "tailwindcss";
 
-/* =========================================
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =========================================================
    Clinical Review Copilot — Design System
-   ========================================= */
+   Theme System: CSS Variables for 100% Guaranteed Tone Harmony
+   Light: Soft Clinical Slate & Pure White Cards
+   Dark: Deep Ocean Navy & Emerald Teal Cards
+   ========================================================= */
+
+:root {
+  --bg-app: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --border-sidebar: #e2e8f0;
+  --bg-card: #ffffff;
+  --border-card: #e2e8f0;
+  --bg-subcard: #f8fafc;
+  --border-subcard: #e2e8f0;
+  --bg-input: #ffffff;
+  --border-input: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --accent-teal: #0d9488;
+  --accent-teal-bg: #f0fdfa;
+  --accent-teal-border: #99f6e4;
+  --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+html.dark {
+  --bg-app: #0b1528;
+  --bg-sidebar: #081020;
+  --border-sidebar: rgba(45, 212, 191, 0.15);
+  --bg-card: #112240;
+  --border-card: rgba(45, 212, 191, 0.18);
+  --bg-subcard: rgba(14, 28, 51, 0.7);
+  --border-subcard: rgba(45, 212, 191, 0.12);
+  --bg-input: #0d1b30;
+  --border-input: rgba(45, 212, 191, 0.25);
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --accent-teal: #2dd4bf;
+  --accent-teal-bg: rgba(20, 184, 166, 0.15);
+  --accent-teal-border: rgba(45, 212, 191, 0.35);
+  --shadow-card: 0 10px 30px rgba(7, 15, 30, 0.4);
+}
 
 body {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: #06090e;
-  background-image:
-    radial-gradient(circle at 50% 0%, rgba(20, 184, 166, 0.08) 0%, transparent 60%),
-    radial-gradient(circle at 100% 50%, rgba(6, 182, 212, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
-  background-attachment: fixed;
-  color: #e2e8f0;
+  background-color: var(--bg-app) !important;
+  color: var(--text-primary) !important;
   line-height: 1.5;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* ---- Global Scrollbars (Subtle & Neutral) ---- */
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--bg-app) !important;
+  color: var(--text-primary) !important;
+}
+
+.main-content {
+  flex: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-app) !important;
+}
+
+.page-content {
+  flex: 1;
+  padding: 28px 36px;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Sidebar */
+aside {
+  background-color: var(--bg-sidebar) !important;
+  border-right: 1px solid var(--border-sidebar) !important;
+  color: var(--text-primary) !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Card Containers */
+.clinical-card {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-card) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-card) !important;
+  border-radius: 1rem;
+  transition: all 0.25s ease;
+}
+
+.clinical-subcard {
+  background-color: var(--bg-subcard) !important;
+  border: 1px solid var(--border-subcard) !important;
+  color: var(--text-primary) !important;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.clinical-subcard:hover {
+  background-color: var(--accent-teal-bg) !important;
+  border-color: var(--accent-teal-border) !important;
+}
+
+.clinical-input {
+  background-color: var(--bg-input) !important;
+  border: 1px solid var(--border-input) !important;
+  color: var(--text-primary) !important;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.clinical-input::placeholder {
+  color: var(--text-muted) !important;
+}
+
+.clinical-input:focus {
+  outline: none;
+  border-color: var(--accent-teal) !important;
+  box-shadow: 0 0 0 2px var(--accent-teal-bg) !important;
+}
+
+/* Global Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -30,19 +141,18 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(45, 212, 191, 0.2);
   border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(45, 212, 191, 0.4);
 }
 
-/* ---- Dedicated Panel & Chat Scrollbars (Neutral) ---- */
 .chat-scrollbar {
   overflow-y: auto !important;
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent !important;
+  scrollbar-color: rgba(45, 212, 191, 0.25) transparent !important;
 }
 
 .chat-scrollbar::-webkit-scrollbar {
@@ -54,79 +164,47 @@ body {
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15) !important;
+  background: rgba(45, 212, 191, 0.25) !important;
   border-radius: 6px !important;
-  border: none !important;
-  box-shadow: none !important;
 }
 
-/* Scroll only inside the clinical summary body; header and actions stay visible. */
-.summary-scrollbar {
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(45, 212, 191, 0.5) rgba(15, 23, 42, 0.35);
-}
-
-.summary-scrollbar::-webkit-scrollbar {
-  width: 8px;
-}
-
-.summary-scrollbar::-webkit-scrollbar-track {
-  margin-block: 8px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.35);
-}
-
-.summary-scrollbar::-webkit-scrollbar-thumb {
-  min-height: 44px;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: rgba(45, 212, 191, 0.5);
-  background-clip: padding-box;
-}
-
-.summary-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(45, 212, 191, 0.78);
-  background-clip: padding-box;
-}
-
-/* ---- Oura Ring Editorial & Science Design Tokens ---- */
+/* Oura Token aliases */
 .font-serif {
   font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
 .oura-glass {
-  background: rgba(10, 15, 26, 0.55);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-card) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
 .oura-glass-card {
-  background: rgba(14, 20, 33, 0.45);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--bg-subcard) !important;
+  border: 1px solid var(--border-subcard) !important;
+  color: var(--text-primary) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .oura-glass-card:hover {
-  background: rgba(20, 29, 48, 0.6);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: var(--accent-teal-bg) !important;
+  border-color: var(--accent-teal-border) !important;
   transform: translateY(-2px);
 }
 
 .oura-pill {
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-input) !important;
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .oura-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--accent-teal-bg) !important;
+  border-color: var(--accent-teal-border) !important;
+  color: var(--accent-teal) !important;
 }
 
 .oura-underline-hover {
@@ -150,463 +228,60 @@ body {
   width: 80%;
 }
 
-/* ---- Layout ---- */
-.app-layout {
-  display: flex;
-  min-height: 100vh;
+/* =========================================================
+   Compact View Mode (Giao diện nhỏ gọn — High Density View)
+   Reduces spacing, padding, and height to display max clinical data
+   ========================================================= */
+.compact-mode .page-content {
+  padding: 14px 20px !important;
 }
 
-.main-content {
-  flex: 1;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+.compact-mode .space-y-7 {
+  gap: 1rem !important;
 }
 
-.page-content {
-  flex: 1;
-  padding: 28px 36px;
-  max-width: 1600px;
-  width: 100%;
-  margin: 0 auto;
+.compact-mode .space-y-6 {
+  gap: 0.85rem !important;
 }
 
-/* ---- Glassmorphism ---- */
-.glass-panel {
-  @apply bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl shadow-xl shadow-black/20;
+.compact-mode .space-y-5 {
+  gap: 0.75rem !important;
 }
 
-.glass-card {
-  @apply bg-slate-800/30 backdrop-blur-sm border border-white/5 rounded-lg shadow-lg;
+.compact-mode .clinical-card {
+  padding: 1rem !important;
+  border-radius: 0.75rem !important;
 }
 
-.glass-header {
-  @apply bg-slate-900/60 backdrop-blur-xl border-b border-white/5 shadow-md;
+.compact-mode .clinical-subcard {
+  padding: 0.6rem 0.8rem !important;
+  border-radius: 0.5rem !important;
 }
 
-/* ---- Login Page ---- */
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 70% 80%, rgba(20, 184, 166, 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 50% 0%, #0d1e36 0%, #060913 100%);
-  padding: 20px;
+.compact-mode aside {
+  width: 14rem !important;
 }
 
-.login-card {
-  width: 100%;
-  max-width: 420px;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 24px;
-  padding: 40px 36px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(34, 211, 238, 0.05);
+.compact-mode aside a {
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
+  font-size: 0.75rem !important;
 }
 
-.login-logo {
-  text-align: center;
-  margin-bottom: 32px;
+.compact-mode .clinical-input {
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
+  font-size: 0.75rem !important;
 }
 
-.login-logo-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.3));
+.compact-mode h1 {
+  font-size: 1.4rem !important;
 }
 
-.login-logo h1 {
-  font-size: 24px;
-  font-weight: 800;
-  color: #f1f5f9;
-  letter-spacing: 0.5px;
+.compact-mode h2 {
+  font-size: 1.1rem !important;
 }
 
-.login-logo p {
-  font-size: 13px;
-  color: #94a3b8;
-  margin-top: 4px;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.input-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #94a3b8;
-}
-
-.input-field {
-  width: 100%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(15, 23, 42, 0.6);
-  color: #e2e8f0;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.input-field:focus {
-  border-color: rgba(34, 211, 238, 0.5);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
-}
-
-.input-field::placeholder {
-  color: #475569;
-}
-
-.login-error {
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-  font-size: 13px;
-}
-
-.login-hint {
-  margin-top: 8px;
-  padding: 14px;
-  border-radius: 12px;
-  background: rgba(34, 211, 238, 0.04);
-  border: 1px solid rgba(34, 211, 238, 0.1);
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-/* ---- Buttons ---- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #0891b2, #0d9488);
-  color: white;
-  box-shadow: 0 4px 15px rgba(8, 145, 178, 0.3);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #06b6d4, #14b8a6);
-  box-shadow: 0 6px 20px rgba(8, 145, 178, 0.4);
-  transform: translateY(-1px);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: rgba(30, 41, 59, 0.6);
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.btn-secondary:hover {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 12px;
-  border-radius: 8px;
-}
-
-.btn-lg {
-  padding: 14px 28px;
-  font-size: 16px;
-}
-
-/* ---- Badges ---- */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid transparent;
-}
-
-.badge-draft {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.2);
-}
-
-.badge-needs-revision {
-  background: rgba(249, 115, 22, 0.1);
-  color: #fb923c;
-  border-color: rgba(249, 115, 22, 0.2);
-}
-
-.badge-approved {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-  border-color: rgba(16, 185, 129, 0.2);
-}
-
-.badge-rejected {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
-  border-color: rgba(239, 68, 68, 0.2);
-}
-
-.badge-exported {
-  background: rgba(34, 211, 238, 0.1);
-  color: #22d3ee;
-  border-color: rgba(34, 211, 238, 0.2);
-}
-
-.badge-success {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-  border-color: rgba(16, 185, 129, 0.2);
-}
-
-.badge-warning {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.2);
-}
-
-.badge-error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
-  border-color: rgba(239, 68, 68, 0.2);
-}
-
-.badge-info {
-  background: rgba(99, 102, 241, 0.1);
-  color: #818cf8;
-  border-color: rgba(99, 102, 241, 0.2);
-}
-
-/* ---- Loading ---- */
-.loading-page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  color: #94a3b8;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(34, 211, 238, 0.15);
-  border-top-color: #22d3ee;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* ---- Header ---- */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 32px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(16px);
-}
-
-.header-title {
-  font-size: 22px;
-  font-weight: 800;
-  color: #f1f5f9;
-  letter-spacing: -0.01em;
-}
-
-.header-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #64748b;
-  margin-top: 4px;
-}
-
-.header-breadcrumb a {
-  color: #22d3ee;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.header-breadcrumb a:hover {
-  color: #67e8f9;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* ---- Responsive ---- */
-@media (max-width: 1024px) {
-  .page-content {
-    padding: 20px 16px;
-  }
-}
-
-@media (max-width: 768px) {
-  .login-card {
-    padding: 28px 24px;
-  }
-}
-
-/* ---- Clinical Precision Glassmorphism & UI Tokens ---- */
-.clinical-glass {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
-}
-
-.clinical-glass-strong {
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
-}
-
-.clinical-glass-subtle {
-  background: rgba(30, 41, 59, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.clinical-glass-pill {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
-}
-
-/* Light Theme overrides when .light or html without dark */
-html.light .clinical-glass,
-.light-mode .clinical-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 20px 40px -15px rgba(148, 163, 184, 0.25);
-}
-
-html.light .clinical-glass-strong,
-.light-mode .clinical-glass-strong {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  box-shadow: 0 25px 50px -12px rgba(148, 163, 184, 0.35);
-}
-
-html.light .clinical-glass-subtle,
-.light-mode .clinical-glass-subtle {
-  background: rgba(241, 245, 249, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.6);
-}
-
-html.light .clinical-glass-pill,
-.light-mode .clinical-glass-pill {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 10px 25px -5px rgba(148, 163, 184, 0.2);
-}
-
-/* Animations */
-@keyframes floatSlow {
-
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-@keyframes pulseGlow {
-
-  0%,
-  100% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 1;
-    transform: scale(1.03);
-  }
-}
-
-.animate-float-slow {
-  animation: floatSlow 5s ease-in-out infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 3s ease-in-out infinite;
-}
-
-/* ---- Dynamic Settings Modes ---- */
-html.compact-mode {
-  font-size: 13px !important;
-}
-
-html.compact-mode .page-content {
-  padding: 16px 20px;
-}
-
-html.compact-mode .space-y-8>*+* {
-  margin-top: 1rem !important;
-}
-
-html.compact-mode .p-6,
-html.compact-mode .p-8 {
-  padding: 16px !important;
+.compact-mode h3 {
+  font-size: 0.95rem !important;
 }

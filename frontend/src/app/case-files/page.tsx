@@ -36,30 +36,30 @@ export default function CaseFilesPage() {
 
   return (
     <div className="page-content space-y-6">
-      <div className="flex items-center gap-4 border-b border-white/5 pb-6">
+      <div className="flex items-center gap-4 border-b border-slate-200/80 dark:border-white/10 pb-6">
         <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center border border-cyan-500/30">
           <FileText className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold text-slate-100 tracking-wide">Case Files</h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-wide">Case Files</h1>
           <p className="text-slate-400 text-sm mt-1">Manage and upload patient documents and FHIR records.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-[#112240] border border-slate-200/80 dark:border-teal-500/20 shadow-sm rounded-2xl p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,1)] animate-pulse" />
               Upload New File
             </h2>
             <UploadZone />
           </div>
 
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl p-6 shadow-2xl">
+          <div className="bg-white dark:bg-[#112240] border border-slate-200/80 dark:border-teal-500/20 shadow-sm rounded-2xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-200">Recent Uploads</h2>
-              <button onClick={loadRecentUploads} className="p-1 text-slate-400 hover:text-slate-200 rounded">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Recent Uploads</h2>
+              <button onClick={loadRecentUploads} className="p-1 text-slate-400 hover:text-slate-800 dark:text-slate-200 rounded">
                 <RefreshCw className="w-4 h-4" />
               </button>
             </div>
@@ -79,7 +79,7 @@ export default function CaseFilesPage() {
                       <div className="flex items-center gap-3">
                         <FileText className="w-5 h-5 text-slate-400 group-hover:text-cyan-400 transition-colors" />
                         <div className="flex flex-col">
-                          <span className="text-slate-200 font-medium text-sm group-hover:text-cyan-300 transition-colors">{file.source_document_id || 'Document'}</span>
+                          <span className="text-slate-800 dark:text-slate-200 font-medium text-sm group-hover:text-cyan-300 transition-colors">{file.source_document_id || 'Document'}</span>
                           <span className="text-xs text-slate-500">{new Date(file.received_at).toLocaleString()}</span>
                         </div>
                       </div>
@@ -101,7 +101,7 @@ export default function CaseFilesPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl p-6 shadow-2xl">
+          <div className="bg-white dark:bg-[#112240] border border-slate-200/80 dark:border-teal-500/20 shadow-sm rounded-2xl p-6 shadow-2xl">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4">{t('cf.quota')}</h3>
             {quota ? (() => {
               const usedGB = (quota.used_bytes / (1024 * 1024 * 1024)).toFixed(2);

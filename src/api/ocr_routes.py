@@ -2,6 +2,7 @@
 
 import json
 import pathlib
+import re
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -22,32 +23,85 @@ _DEMO_MANIFEST = _DEMO_DATA_DIR / "dataset_manifest.json"
 
 @lru_cache(maxsize=1)
 def _demo_document_index() -> dict[str, pathlib.Path]:
-    """Resolve stable demo document IDs from the authoritative manifest."""
-    if not _DEMO_MANIFEST.is_file():
-        return {}
-    try:
-        manifest = json.loads(_DEMO_MANIFEST.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
+    """Resolve stable demo document IDs from the authoritative manifest and demo files."""
     data_root = _DEMO_DATA_DIR.resolve()
     index: dict[str, pathlib.Path] = {}
-    for item in manifest.get("documents", []):
-        if not isinstance(item, dict):
-            continue
-        document_id = str(item.get("document_id") or "").strip()
-        relative_file = str(item.get("file") or "").strip()
-        if not document_id or not relative_file:
-            continue
-        file_path = (_DEMO_DATA_DIR / relative_file).resolve()
-        if data_root not in file_path.parents or not file_path.is_file():
-            continue
-        index[document_id.casefold()] = file_path
+
+    if _DEMO_MANIFEST.is_file():
+        try:
+            manifest = json.loads(_DEMO_MANIFEST.read_text(encoding="utf-8"))
+            for item in manifest.get("documents", []):
+                if not isinstance(item, dict):
+                    continue
+                document_id = str(item.get("document_id") or "").strip()
+                relative_file = str(item.get("file") or "").strip()
+                if not document_id or not relative_file:
+                    continue
+                file_path = (_DEMO_DATA_DIR / relative_file).resolve()
+                if data_root not in file_path.parents or not file_path.is_file():
+                    continue
+
+                # Primary key
+                index[document_id.casefold()] = file_path
+
+                # Variations with / without hyphen: e.g. DOC-PAT006-NOTE-001 <-> DOC-PAT-006-NOTE-001
+                if "pat" in document_id.casefold():
+                    normalized_with_dash = re.sub(r"(?i)pat(\d+)", r"PAT-\1", document_id)
+                    normalized_no_dash = re.sub(r"(?i)pat-(\d+)", r"PAT\1", document_id)
+                    index[normalized_with_dash.casefold()] = file_path
+                    index[normalized_no_dash.casefold()] = file_path
+
+                # Clean alphanumeric key
+                clean_key = re.sub(r"[^a-z0-9]", "", document_id.casefold())
+                if clean_key:
+                    index[clean_key] = file_path
+
+                # File name and stem
+                index[file_path.name.casefold()] = file_path
+                index[file_path.stem.casefold()] = file_path
+                index[f"doc-{file_path.stem.casefold()}"] = file_path
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # Also index all files in documents dir
+    if _DEMO_DOCS_DIR.is_dir():
+        for doc_file in _DEMO_DOCS_DIR.glob("*.*"):
+            if doc_file.is_file() and doc_file.suffix.casefold() in (".pdf", ".png", ".jpg", ".jpeg", ".json"):
+                index.setdefault(doc_file.name.casefold(), doc_file)
+                index.setdefault(doc_file.stem.casefold(), doc_file)
+                index.setdefault(f"doc-{doc_file.stem.casefold()}", doc_file)
+
+                # Match patterns like PAT-006_followup_note.pdf -> DOC-PAT-006-NOTE-001 or DOC-PAT006-NOTE-001
+                m = re.search(r"(?i)pat-?(\d+)[-_]?(followup_note|lab_report|prescription|medication_reconciliation|medication_allergy|lab_mixed_units|incomplete_lab)", doc_file.stem)
+                if m:
+                    pnum = m.group(1).zfill(3)
+                    kind_raw = m.group(2).lower()
+                    kind_map = {
+                        "followup_note": "note",
+                        "lab_report": "lab",
+                        "lab_mixed_units": "lab",
+                        "incomplete_lab": "lab",
+                        "prescription": "rx",
+                        "prescription_conflict": "rx",
+                        "medication_reconciliation": "rx",
+                        "medication_allergy": "rx",
+                    }
+                    doc_kind = kind_map.get(kind_raw, "doc")
+                    index.setdefault(f"doc-pat-{pnum}-{doc_kind}-001", doc_file)
+                    index.setdefault(f"doc-pat{pnum}-{doc_kind}-001", doc_file)
+
     return index
 
 
 def _inline_file_response(file_path: pathlib.Path) -> Response:
-    media_type = "application/pdf" if file_path.suffix.casefold() == ".pdf" else "application/octet-stream"
+    suffix = file_path.suffix.casefold()
+    media_type = "application/pdf"
+    if suffix in (".png",):
+        media_type = "image/png"
+    elif suffix in (".jpg", ".jpeg"):
+        media_type = "image/jpeg"
+    elif suffix in (".json",):
+        media_type = "application/json"
     return Response(
         content=file_path.read_bytes(),
         media_type=media_type,

@@ -362,30 +362,129 @@ def public_care_plan_listen_page(token: str) -> HTMLResponse:
     )
     signer = html.escape(record["doctor_sign_name"])
     spoken_json = json.dumps(record.get("spoken_text", ""), ensure_ascii=False).replace("</", "<\\/")
+    audio_url = f"/api/v1/care-plan/listen/{token}/audio"
     return HTMLResponse(
         content=f"""<!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nghe hướng dẫn chăm sóc tại nhà</title>
 <style>
-body{{font-family:Arial,sans-serif;background:#f4f5f7;color:#111;margin:0;line-height:1.55}}
-main{{max-width:720px;margin:auto;padding:20px}}header,section{{background:#fff;border:1px solid #bbb;border-radius:12px;padding:18px;margin:0 0 14px}}
-h1{{font-size:28px;margin:0 0 8px}}h2{{font-size:21px;margin:0 0 8px}}p{{font-size:19px;margin:0}}
-button{{width:100%;min-height:64px;border:0;border-radius:12px;background:#111;color:#fff;font-size:21px;font-weight:700;padding:14px;margin:16px 0;cursor:pointer}}
-.meta{{font-size:16px;color:#444}}.notice{{font-weight:700}}#speech-status{{font-size:17px;margin:-6px 0 16px;color:#444}}
-</style></head><body><main><header><h1>Hướng dẫn chăm sóc tại nhà</h1><p class="meta">Đã được bác sĩ {signer} ký duyệt.</p></header>
-<button id="play" type="button" aria-pressed="false">BẤM ĐỂ NGHE TOÀN BỘ HƯỚNG DẪN</button>
-<p id="speech-status" role="status">Điện thoại sẽ đọc chậm bằng giọng tiếng Việt.</p>
-{section_html}<section class="notice">Nếu có dấu hiệu nguy hiểm hoặc tình trạng nặng lên, gọi 115 hoặc đến cơ sở y tế gần nhất.</section>
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f0f4f8;color:#0f172a;margin:0;padding:16px 12px 48px;line-height:1.6}}
+main{{max-width:680px;margin:auto}}
+header{{background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;border-radius:16px;padding:24px 20px;margin-bottom:16px;box-shadow:0 4px 12px rgba(13,148,136,0.2)}}
+h1{{font-size:24px;margin:0 0 8px;line-height:1.25}}
+.meta{{font-size:15px;color:#ccfbf1;margin:0}}
+.audio-card{{background:#fff;border:2px solid #0d9488;border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 4px 16px rgba(0,0,0,0.06)}}
+button.primary-btn{{width:100%;min-height:58px;border:0;border-radius:12px;background:#0d9488;color:#fff;font-size:18px;font-weight:700;padding:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 8px rgba(13,148,136,0.3);transition:background 0.2s}}
+button.primary-btn:hover{{background:#0f766e}}
+button.primary-btn:active{{transform:scale(0.98)}}
+#speech-status{{font-size:15px;margin:12px 0 6px;color:#475569;font-weight:500;text-align:center}}
+audio{{width:100%;margin-top:10px;border-radius:8px}}
+section{{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 20px;margin:0 0 12px;box-shadow:0 2px 6px rgba(0,0,0,0.03)}}
+h2{{font-size:18px;color:#0f766e;margin:0 0 8px;font-weight:700}}
+p{{font-size:17px;margin:0;color:#334155;white-space:pre-wrap}}
+.notice{{background:#fef2f2;border:2px solid #ef4444;color:#991b1b;font-weight:700;font-size:17px;border-radius:14px;padding:16px 20px;margin-top:16px}}
+</style></head><body><main>
+<header>
+  <h1>Hướng dẫn chăm sóc tại nhà</h1>
+  <p class="meta">Đã được bác sĩ <b>{signer}</b> ký duyệt.</p>
+</header>
+
+<div class="audio-card">
+  <button id="play" class="primary-btn" type="button" aria-pressed="false">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    <span>BẤM ĐỂ NGHE TOÀN BỘ HƯỚNG DẪN</span>
+  </button>
+  <p id="speech-status" role="status">Bấm nút trên để nghe giọng đọc hướng dẫn tiếng Việt rõ ràng.</p>
+  <audio id="audio-elem" src="{audio_url}" preload="metadata" controls></audio>
+</div>
+
+{section_html}
+
+<div class="notice">
+  ⚠️ Nếu có dấu hiệu nguy hiểm hoặc tình trạng nặng lên, gọi ngay 115 hoặc đến cơ sở y tế gần nhất.
+</div>
+
 <script>
-const text={spoken_json}, b=document.getElementById('play'), status=document.getElementById('speech-status');let speaking=false;
-b.addEventListener('click',()=>{{
-  if(!('speechSynthesis' in window)){{status.textContent='Điện thoại này chưa hỗ trợ đọc tự động. Vui lòng nhờ người nhà đọc phần chữ bên dưới.';return;}}
-  if(speaking){{window.speechSynthesis.cancel();speaking=false;b.setAttribute('aria-pressed','false');b.textContent='TIẾP TỤC NGHE';status.textContent='Đã dừng đọc.';return;}}
-  const utterance=new SpeechSynthesisUtterance(text);utterance.lang='vi-VN';utterance.rate=0.88;utterance.pitch=1;
-  utterance.onstart=()=>{{speaking=true;b.setAttribute('aria-pressed','true');b.textContent='DỪNG ĐỌC';status.textContent='Đang đọc hướng dẫn đã ký duyệt…';}};
-  utterance.onend=()=>{{speaking=false;b.setAttribute('aria-pressed','false');b.textContent='NGHE LẠI HƯỚNG DẪN';status.textContent='Đã đọc xong hướng dẫn.';}};
-  utterance.onerror=()=>{{speaking=false;b.setAttribute('aria-pressed','false');b.textContent='THỬ ĐỌC LẠI';status.textContent='Không thể phát giọng đọc. Vui lòng kiểm tra cài đặt giọng tiếng Việt trên điện thoại.';}};
-  window.speechSynthesis.cancel();window.speechSynthesis.speak(utterance);
+const text = {spoken_json};
+const audio = document.getElementById('audio-elem');
+const b = document.getElementById('play');
+const status = document.getElementById('speech-status');
+let isAudioPlaying = false;
+let isSynthSpeaking = false;
+
+function updateButton(playing, textStr) {{
+  if (playing) {{
+    b.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg><span>' + textStr + '</span>';
+    b.setAttribute('aria-pressed', 'true');
+    b.style.background = '#e11d48';
+  }} else {{
+    b.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>' + textStr + '</span>';
+    b.setAttribute('aria-pressed', 'false');
+    b.style.background = '#0d9488';
+  }}
+}}
+
+audio.onplay = () => {{
+  isAudioPlaying = true;
+  updateButton(true, 'TẠM DỪNG PHÁT ÂM THANH');
+  status.textContent = '🔊 Đang phát giọng đọc tiếng Việt từ bác sĩ...';
+}};
+
+audio.onpause = () => {{
+  isAudioPlaying = false;
+  updateButton(false, 'TIẾP TỤC NGHE HƯỚNG DẪN');
+  status.textContent = 'Đã tạm dừng.';
+}};
+
+audio.onended = () => {{
+  isAudioPlaying = false;
+  updateButton(false, 'NGHE LẠI TOÀN BỘ HƯỚNG DẪN');
+  status.textContent = '✅ Đã nghe xong toàn bộ hướng dẫn.';
+}};
+
+b.addEventListener('click', () => {{
+  if (isAudioPlaying) {{
+    audio.pause();
+    return;
+  }}
+  
+  if (isSynthSpeaking) {{
+    window.speechSynthesis.cancel();
+    isSynthSpeaking = false;
+    updateButton(false, 'TIẾP TỤC NGHE');
+    status.textContent = 'Đã dừng đọc.';
+    return;
+  }}
+
+  status.textContent = 'Đang tải âm thanh...';
+  audio.play().catch(err => {{
+    console.warn('Audio stream fallback to SpeechSynthesis', err);
+    if ('speechSynthesis' in window) {{
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'vi-VN';
+      utterance.rate = 0.88;
+      utterance.pitch = 1;
+      utterance.onstart = () => {{
+        isSynthSpeaking = true;
+        updateButton(true, 'DỪNG ĐỌC');
+        status.textContent = '🔊 Đang đọc hướng dẫn...';
+      }};
+      utterance.onend = () => {{
+        isSynthSpeaking = false;
+        updateButton(false, 'NGHE LẠI HƯỚNG DẪN');
+        status.textContent = '✅ Đã đọc xong hướng dẫn.';
+      }};
+      utterance.onerror = () => {{
+        isSynthSpeaking = false;
+        updateButton(false, 'THỬ ĐỌC LẠI');
+        status.textContent = 'Không thể phát giọng đọc. Vui lòng đọc nội dung văn bản bên dưới.';
+      }};
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }} else {{
+      status.textContent = 'Không thể phát âm thanh tự động. Vui lòng đọc nội dung văn bản bên dưới.';
+    }}
+  }});
 }});
 </script>
 </main></body></html>""",

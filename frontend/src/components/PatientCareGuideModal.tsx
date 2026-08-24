@@ -21,7 +21,8 @@ import {
   BookOpen,
   ChevronUp,
   UserCheck,
-  Sparkles
+  Sparkles,
+  Clock
 } from 'lucide-react';
 
 interface PatientCareGuideModalProps {
@@ -58,7 +59,7 @@ export default function PatientCareGuideModal({
           const pt = data?.items?.find((p: any) => p.patient_id === effectivePatientId);
           if (pt) setFetchedPatient(pt);
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [effectivePatientId, isOpen]);
 
@@ -68,8 +69,8 @@ export default function PatientCareGuideModal({
   const age = activePt?.age ?? patient?.age ?? 'Chưa rõ';
   const gender = activePt?.sex === 'female' ? 'Nữ' : activePt?.sex === 'male' ? 'Nam' : 'Chưa rõ';
   const patientId = effectivePatientId;
-  const lastEncounter = activePt?.last_encounter_at 
-    ? new Date(activePt.last_encounter_at).toLocaleDateString('vi-VN') 
+  const lastEncounter = activePt?.last_encounter_at
+    ? new Date(activePt.last_encounter_at).toLocaleDateString('vi-VN')
     : new Date().toLocaleDateString('vi-VN');
 
   // Doctor & Guideline Grounded Fields (Dynamic based on patient condition & medications)
@@ -158,33 +159,50 @@ export default function PatientCareGuideModal({
     }
   }, [isOpen, effectivePatientId, handleGenerateWithLLMAgent]);
 
-  // Dynamic sentence list generated from the active text (Covers 100% of all sections)
+  // Dynamic sentence list generated from the active text (Covers patient guidance only)
   const getDynamicSentences = () => {
     const list: string[] = [];
-    
+
     // 1. Lời mở đầu & Lời chào bác sĩ
-    list.push(`Chào bác ${patientName}. Đây là bản hướng dẫn dự thảo đã được cá nhân hóa từ hồ sơ hiện tại.`);
-    if (doctorGreeting) list.push(doctorGreeting);
+    list.push(`Kính chào bác ${patientName}. Sau đây là hướng dẫn chăm sóc sức khỏe dành cho bác.`);
+    if (doctorGreeting && doctorGreeting.trim()) {
+      list.push(doctorGreeting.trim());
+    }
 
     // 2. Lịch uống thuốc chi tiết
-    list.push(`Thứ nhất, về thuốc đang được ghi nhận: Lần dùng thứ nhất: ${morningMeds}.`);
-    list.push(`Lần dùng thứ hai: ${eveningMeds}. ${medicationNote}`);
+    if (morningMeds && !morningMeds.includes('Bác sĩ bổ sung')) {
+      list.push(`Về lịch uống thuốc: Lần một dùng: ${morningMeds}.`);
+    }
+    if (eveningMeds && !eveningMeds.includes('Bác sĩ bổ sung')) {
+      list.push(`Lần hai dùng: ${eveningMeds}.`);
+    }
+    list.push(`Lưu ý luôn đối chiếu đơn và nhãn thuốc trước khi uống, tuyệt đối không tự ý bỏ thuốc hoặc đổi liều.`);
 
-    // 3. Chế độ ăn uống & kiêng cữ
-    list.push(`Thứ hai, về chế độ dinh dưỡng: Bác nên ăn và tăng cường: ${dietGood}`);
-    list.push(`Đồng thời, bác cần kiêng cữ và hạn chế: ${dietBad}`);
+    // 3. Chế độ dinh dưỡng
+    if (dietGood && dietGood.trim()) {
+      list.push(`Về chế độ dinh dưỡng: Bác nên ăn và tăng cường: ${dietGood}.`);
+    }
+    if (dietBad && dietBad.trim()) {
+      list.push(`Đồng thời, bác cần kiêng cữ và hạn chế: ${dietBad}.`);
+    }
 
     // 4. Vận động & thói quen sinh hoạt
-    list.push(`Thứ ba, về vận động và chăm sóc thân thể: ${exercise}`);
+    if (exercise && exercise.trim()) {
+      list.push(`Về vận động và sinh hoạt: ${exercise}.`);
+    }
 
     // 5. Cảnh báo cấp cứu & xử trí khẩn cấp
-    list.push(`Thứ tư, điều đặc biệt lưu ý khi có dấu hiệu cấp cứu: ${warning}`);
+    if (warning && warning.trim()) {
+      list.push(`Đặc biệt lưu ý khi có dấu hiệu bất thường: ${warning}.`);
+    }
 
-    // 6. Lịch tái khám & Hotline hỗ trợ
-    list.push(`${followUp} Khi cần hỗ trợ y tế khẩn cấp, người nhà vui lòng gọi 115.`);
-    list.push(`Kính chúc bác ${patientName} luôn dồi dào sức khỏe và bình an!`);
+    // 6. Lịch tái khám & Lời chúc
+    if (followUp && followUp.trim()) {
+      list.push(`Về lịch tái khám: ${followUp}.`);
+    }
+    list.push(`Khi cần hỗ trợ y tế khẩn cấp, vui lòng gọi 115. Kính chúc bác ${patientName} luôn mạnh khỏe và bình an!`);
 
-    return list.filter(s => s && s.trim().length > 0);
+    return list.filter((s) => s && s.trim().length > 0);
   };
 
   // Cleanup audio
@@ -195,6 +213,91 @@ export default function PatientCareGuideModal({
       }
     };
   }, []);
+
+  // Helper to format medication recommendation with clear structured bullet points
+  const renderMedicationRecommendation = (raw: string) => {
+    if (!raw || !raw.trim()) return null;
+
+    let header = 'Đề xuất theo phác đồ';
+    let badge = 'Chờ bác sĩ duyệt';
+    let body = raw;
+
+    // Detect prefix like "ĐỀ XUẤT THEO PHÁC ĐỒ – CHỜ BÁC SĨ DUYỆT:"
+    const prefixMatch = body.match(/^(ĐỀ XUẤT [^:–-]+)(?:[–-]\s*([^:]+))?:\s*/i);
+    if (prefixMatch) {
+      header = prefixMatch[1].trim();
+      if (prefixMatch[2]) {
+        badge = prefixMatch[2].trim();
+      }
+      body = body.slice(prefixMatch[0].length).trim();
+    }
+
+    // Extract "Thuốc đang ghi nhận: ..." or similar footnote
+    let recordedMed = '';
+    const recordedMatch = body.match(/(?:Thuốc đang ghi nhận|Thuốc hiện tại):\s*([^.]+)\.?/i);
+    if (recordedMatch) {
+      recordedMed = recordedMatch[1].trim();
+      body = body.replace(recordedMatch[0], '').trim();
+    }
+
+    // Split remaining recommendations by semicolon or newline
+    const rawPoints = body
+      .split(/[;\n]+/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0 && p !== '.');
+
+    const points = rawPoints
+      .map((p) => {
+        let clean = p.replace(/^[•\-\*\s]+/, '').replace(/\.+$/, '').trim();
+        if (clean.length > 0) {
+          clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+        }
+        return clean;
+      })
+      .filter(Boolean);
+
+    return (
+      <div className="no-print print:hidden rounded-xl border border-teal-500/20 bg-slate-950/60 p-3.5 space-y-3 shadow-sm">
+        {/* Header & Status Badge */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-teal-500/15">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-teal-300">
+            <Stethoscope className="w-4 h-4 text-teal-400 shrink-0" />
+            <span className="tracking-wide uppercase text-[11px]">{header}</span>
+          </div>
+          {badge && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase bg-teal-500/10 text-teal-300 border border-teal-500/25 print:bg-amber-100 print:text-amber-900 print:border-amber-300">
+              <Clock className="w-3 h-3 text-teal-400 print:text-amber-700 shrink-0" />
+              {badge}
+            </span>
+          )}
+        </div>
+
+        {/* List of distinct points / items with clear line breaks */}
+        {points.length > 0 ? (
+          <ul className="space-y-2 text-xs">
+            {points.map((point, idx) => (
+              <li key={idx} className="flex items-start gap-2 text-slate-200 print:text-slate-800 leading-snug">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0 print:bg-teal-700" />
+                <span className="flex-1 text-[11.5px] leading-relaxed">{point}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-200 print:text-slate-800 leading-relaxed">{body}</p>
+        )}
+
+        {/* Recorded Medication Tag */}
+        {recordedMed && (
+          <div className="pt-2 border-t border-teal-500/15 flex items-center gap-2 text-[11px] text-teal-200/90 print:text-slate-700">
+            <Pill className="w-3.5 h-3.5 text-teal-400 shrink-0 print:text-teal-700" />
+            <span>
+              <strong className="text-teal-300 print:text-slate-900">Thuốc đang ghi nhận:</strong> {recordedMed}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const playSentencesWithAudio = (index: number, sentencesList: string[]) => {
     if (index >= sentencesList.length) {
@@ -474,11 +577,11 @@ export default function PatientCareGuideModal({
 
       {/* Screen Modal Backdrop */}
       <div id="patient-guide-print-shell" className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-150">
-        <div 
+        <div
           id="printable-patient-guide"
           className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-4xl w-full max-h-[94vh] flex flex-col shadow-2xl overflow-hidden print:max-w-none print:max-h-none print:rounded-none"
         >
-          
+
           {/* 1. Modal Top Bar (Screen only - Clean structured 2-row layout to prevent clipping) */}
           <div className="no-print p-4 sm:px-6 border-b border-white/10 bg-slate-950/95 shrink-0 space-y-3">
             {/* Top Row: Title + Close Button */}
@@ -516,11 +619,11 @@ export default function PatientCareGuideModal({
             {/* Bottom Row: Quick Action Toolbar */}
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 flex-wrap">
               <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
-                <span className="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[10px] font-bold flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-purple-400" /> {agentBadge}
+                <span className="px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/25 text-[10px] font-bold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-teal-400" /> {agentBadge}
                 </span>
                 <span className="text-slate-500">•</span>
-                <span>Chế độ: <strong>{generationMode === 'llm_grounded' ? 'Mô hình ngôn ngữ có căn cứ' : 'Luật xác định có căn cứ'}</strong></span>
+                <span>Chế độ: <strong className="text-slate-300">{generationMode === 'llm_grounded' ? 'Mô hình ngôn ngữ có căn cứ' : 'Luật xác định có căn cứ'}</strong></span>
                 {clinicalBasis.length > 0 && (
                   <><span className="text-slate-500">•</span><span>{clinicalBasis.length} căn cứ áp dụng cho ca bệnh</span></>
                 )}
@@ -531,10 +634,10 @@ export default function PatientCareGuideModal({
                 <button
                   onClick={handleGenerateWithLLMAgent}
                   disabled={isGeneratingLLM}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all border bg-gradient-to-r from-purple-900/60 to-indigo-900/60 hover:from-purple-800/80 hover:to-indigo-800/80 text-purple-200 border-purple-500/40 shadow-sm disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all border bg-slate-850 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-teal-500/40 shadow-sm disabled:opacity-50"
                   title="Tạo lại bản nháp từ dữ liệu FHIR và bằng chứng của đúng bệnh nhân"
                 >
-                  <Sparkles className={`w-3.5 h-3.5 text-purple-300 ${isGeneratingLLM ? 'animate-spin' : ''}`} />
+                  <Sparkles className={`w-3.5 h-3.5 text-teal-400 ${isGeneratingLLM ? 'animate-spin' : ''}`} />
                   <span>{isGeneratingLLM ? 'Đang đọc hồ sơ...' : 'Tạo lại từ hồ sơ'}</span>
                 </button>
 
@@ -543,25 +646,23 @@ export default function PatientCareGuideModal({
                   onClick={() => setShowGuidelines(!showGuidelines)}
                   aria-expanded={showGuidelines}
                   aria-controls="care-plan-evidence-panel"
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all border ${
-                    showGuidelines
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
-                      : 'bg-slate-800/90 hover:bg-slate-700 text-amber-300/90 border-slate-700'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all border ${showGuidelines
+                      ? 'bg-teal-500/20 text-teal-200 border-teal-500/40 shadow-sm'
+                      : 'bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-teal-300 border-slate-700/80'
+                    }`}
                   title="Chỉ mở phần tra cứu căn cứ trên màn hình; căn cứ không được đưa vào PDF"
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                  <BookOpen className="w-3.5 h-3.5 text-teal-400" />
                   <span>{showGuidelines ? 'Ẩn căn cứ' : 'Xem căn cứ'}</span>
                 </button>
 
-                {/* Doctor Edit Toggle Button */}
+                {/* Doctor Edit Toggle Button (Right Side) */}
                 <button
                   onClick={handleToggleEdit}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all shadow-sm ${
-                    isEditing
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all shadow-sm ${isEditing
                       ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-slate-700'
-                  }`}
+                      : 'bg-teal-600/15 hover:bg-teal-600/25 text-teal-300 hover:text-teal-200 border border-teal-500/35'
+                    }`}
                   title="Bác sĩ bấm vào đây để tự tay chỉnh sửa nội dung dặn dò"
                 >
                   {isEditing ? (
@@ -571,20 +672,10 @@ export default function PatientCareGuideModal({
                     </>
                   ) : (
                     <>
-                      <Edit3 className="w-3.5 h-3.5" />
+                      <Edit3 className="w-3.5 h-3.5 text-teal-400" />
                       <span>Bác sĩ tùy biến</span>
                     </>
                   )}
-                </button>
-
-                {/* Print Button */}
-                <button
-                  onClick={handleExportPdf}
-                  disabled={isExportingPdf || requiresReview}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-teal-950/40 disabled:opacity-50"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{isExportingPdf ? 'Đang tạo PDF...' : 'Xuất PDF'}</span>
                 </button>
               </div>
             </div>
@@ -624,7 +715,7 @@ export default function PatientCareGuideModal({
 
           {/* 3. Main Scrollable Content */}
           <div className="care-print-content flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5 chat-scrollbar bg-slate-950/40 print:p-0 print:space-y-4 print:bg-white print:overflow-visible">
-            
+
             {/* Notification when in edit mode */}
             {isEditing && (
               <div className="no-print bg-cyan-950/40 border border-cyan-500/40 p-3 rounded-2xl flex items-center justify-between text-xs text-cyan-200">
@@ -753,11 +844,10 @@ export default function PatientCareGuideModal({
                 <div className="no-print shrink-0 w-full sm:w-auto">
                   <button
                     onClick={handleToggleSpeech}
-                    className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 ${
-                      isPlayingAudio
+                    className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 ${isPlayingAudio
                         ? 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse'
                         : 'bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white shadow-teal-950/50'
-                    }`}
+                      }`}
                   >
                     {isPlayingAudio ? (
                       <>
@@ -785,29 +875,28 @@ export default function PatientCareGuideModal({
 
             {/* 4 CORE CLINICAL GUIDANCE PILLARS */}
             <div className="care-print-sections grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2 print:gap-3">
-              
+
               {/* 1. LỊCH UỐNG THUỐC */}
               <div className="care-print-card bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-md print:bg-white print:border print:border-slate-300 print:rounded-lg print:p-3">
-                <div className="flex items-center gap-2 text-purple-400 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
-                  <Pill className="w-4 h-4 text-purple-400 print:text-slate-800" />
+                <div className="flex items-center gap-2 text-teal-300 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
+                  <Pill className="w-4 h-4 text-teal-400 print:text-slate-800" />
                   <span>1. Thuốc đang hoạt động trong hồ sơ</span>
                 </div>
 
-                <div className={`rounded-xl border p-3 text-xs ${
-                  medicationNeed === 'yes'
-                    ? 'bg-emerald-950/25 border-emerald-700/40 text-emerald-100'
+                <div className={`rounded-xl border p-3 text-xs ${medicationNeed === 'yes'
+                    ? 'bg-teal-950/20 border-teal-700/30 text-slate-100'
                     : medicationNeed === 'no'
-                      ? 'bg-slate-950/70 border-slate-700 text-slate-200'
-                      : 'bg-amber-950/25 border-amber-700/40 text-amber-100'
-                } print:bg-white print:text-slate-900 print:border-slate-300`}>
-                  <div className="font-bold mb-1">
+                      ? 'bg-slate-950/70 border-slate-800 text-slate-200'
+                      : 'bg-amber-950/20 border-amber-700/30 text-amber-100'
+                  } print:bg-white print:text-slate-900 print:border-slate-300`}>
+                  <div className="font-bold mb-1 text-teal-200">
                     Có cần điều trị bằng thuốc? {medicationNeed === 'yes' ? 'CÓ' : medicationNeed === 'no' ? 'KHÔNG' : 'CHƯA KẾT LUẬN'}
                   </div>
-                  <p className="leading-relaxed">{medicationAssessment}</p>
+                  <p className="leading-relaxed text-slate-200">{medicationAssessment}</p>
                 </div>
 
                 {dataSummary.medications?.length > 0 && (
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-950/70 p-3 print:bg-white print:border-slate-300">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 print:bg-white print:border-slate-300">
                     <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2 print:text-slate-700">
                       Thuốc đang được ghi nhận
                     </div>
@@ -822,30 +911,26 @@ export default function PatientCareGuideModal({
                   </div>
                 )}
 
-                {medicationRecommendation && (
-                  <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-3 text-[11px] leading-relaxed text-purple-100 print:bg-white print:text-slate-900 print:border-slate-300">
-                    {medicationRecommendation}
-                  </div>
-                )}
+                {medicationRecommendation && renderMedicationRecommendation(medicationRecommendation)}
 
                 {isEditing ? (
                   <div className="space-y-2.5">
                     <div>
-                      <label className="text-[11px] font-bold text-amber-400 block mb-1">Lần dùng 1 / buổi sáng nếu đơn ghi rõ:</label>
+                      <label className="text-[11px] font-bold text-teal-400 block mb-1">Lần dùng 1 / buổi sáng nếu đơn ghi rõ:</label>
                       <input
                         type="text"
                         value={morningMeds}
                         onChange={(e) => setMorningMeds(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-purple-500 focus:outline-none"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-teal-500 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-indigo-400 block mb-1">Lần dùng 2 / buổi tối nếu đơn ghi rõ:</label>
+                      <label className="text-[11px] font-bold text-teal-400 block mb-1">Lần dùng 2 / buổi tối nếu đơn ghi rõ:</label>
                       <input
                         type="text"
                         value={eveningMeds}
                         onChange={(e) => setEveningMeds(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-purple-500 focus:outline-none"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-teal-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -854,7 +939,7 @@ export default function PatientCareGuideModal({
                     {/* Sáng */}
                     <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2 print:bg-slate-50 print:border-slate-200">
                       <div className="flex items-center gap-2.5">
-                        <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[11px] font-bold print:bg-amber-100 print:text-amber-900">
+                        <span className="px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/20 text-[11px] font-bold print:bg-amber-100 print:text-amber-900">
                           LẦN 1
                         </span>
                         <div className="text-xs font-bold text-slate-100 print:text-slate-900">
@@ -866,7 +951,7 @@ export default function PatientCareGuideModal({
                     {/* Tối */}
                     <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2 print:bg-slate-50 print:border-slate-200">
                       <div className="flex items-center gap-2.5">
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[11px] font-bold print:bg-blue-100 print:text-blue-900">
+                        <span className="px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/20 text-[11px] font-bold print:bg-blue-100 print:text-blue-900">
                           LẦN 2
                         </span>
                         <div className="text-xs font-bold text-slate-100 print:text-slate-900">
@@ -877,52 +962,51 @@ export default function PatientCareGuideModal({
                   </div>
                 )}
 
-                <div className="text-[11px] text-slate-400 print:text-slate-600 italic pt-1 space-y-1">
-                  <p>{medicationNote}</p>
+                <div className="text-[11px] text-slate-400 print:text-slate-600 italic pt-1">
                   <p>* Đối chiếu đơn/nhãn thuốc trước khi dùng; không tự bỏ thuốc, đổi liều hoặc uống dồn liều.</p>
                 </div>
               </div>
 
               {/* 2. CHẾ ĐỘ DINH DƯỠNG & KIÊNG CỮ */}
               <div className="care-print-card bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-md print:bg-white print:border print:border-slate-300 print:rounded-lg print:p-3">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
-                  <Apple className="w-4 h-4 text-emerald-400 print:text-slate-800" />
+                <div className="flex items-center gap-2 text-teal-300 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
+                  <Apple className="w-4 h-4 text-teal-400 print:text-slate-800" />
                   <span>2. Chế Độ Ăn Uống &amp; Kiêng Cữ</span>
                 </div>
 
                 {isEditing ? (
                   <div className="space-y-2.5">
                     <div>
-                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">✅ Nên ăn &amp; Uống đủ:</label>
+                      <label className="text-[11px] font-bold text-teal-300 block mb-1">✅ Nên ăn &amp; Uống đủ:</label>
                       <textarea
                         value={dietGood}
                         onChange={(e) => setDietGood(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-emerald-500 focus:outline-none min-h-[50px] resize-y"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-teal-500 focus:outline-none min-h-[50px] resize-y"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-rose-400 block mb-1">❌ Cần kiêng &amp; Hạn chế:</label>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1">❌ Cần kiêng &amp; Hạn chế:</label>
                       <textarea
                         value={dietBad}
                         onChange={(e) => setDietBad(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-rose-500 focus:outline-none min-h-[50px] resize-y"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-slate-500 focus:outline-none min-h-[50px] resize-y"
                       />
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-2 text-xs">
-                    <div className="bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-900/30 print:bg-emerald-50 print:border-emerald-200">
-                      <div className="font-bold text-emerald-300 mb-1 print:text-emerald-900 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Nên ăn &amp; Uống đủ:
+                    <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 print:bg-emerald-50 print:border-emerald-200">
+                      <div className="font-bold text-teal-300 mb-1 print:text-emerald-900 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" /> Nên ăn &amp; Uống đủ:
                       </div>
-                      <p className="text-slate-300 text-[11px] leading-relaxed print:text-slate-700">
+                      <p className="text-slate-200 text-[11px] leading-relaxed print:text-slate-700">
                         {dietGood}
                       </p>
                     </div>
 
-                    <div className="bg-rose-950/20 p-2.5 rounded-xl border border-rose-900/30 print:bg-rose-50 print:border-rose-200">
-                      <div className="font-bold text-rose-300 mb-1 print:text-rose-900 flex items-center gap-1">
-                        <AlertOctagon className="w-3.5 h-3.5 text-rose-400" /> Cần kiêng &amp; Hạn chế:
+                    <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 print:bg-rose-50 print:border-rose-200">
+                      <div className="font-bold text-slate-200 mb-1 print:text-rose-900 flex items-center gap-1.5">
+                        <AlertOctagon className="w-3.5 h-3.5 text-amber-400" /> Cần kiêng &amp; Hạn chế:
                       </div>
                       <p className="text-slate-300 text-[11px] leading-relaxed print:text-slate-700">
                         {dietBad}
@@ -934,24 +1018,24 @@ export default function PatientCareGuideModal({
 
               {/* 3. VẬN ĐỘNG & THEO DÕI */}
               <div className="care-print-card bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-md print:bg-white print:border print:border-slate-300 print:rounded-lg print:p-3">
-                <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
-                  <Footprints className="w-4 h-4 text-cyan-400 print:text-slate-800" />
+                <div className="flex items-center gap-2 text-teal-300 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
+                  <Footprints className="w-4 h-4 text-teal-400 print:text-slate-800" />
                   <span>3. Vận Động &amp; Thói Quen Sống</span>
                 </div>
 
                 {isEditing ? (
                   <div>
-                    <label className="text-[11px] font-bold text-cyan-400 block mb-1">Hướng dẫn tập luyện &amp; thói quen:</label>
+                    <label className="text-[11px] font-bold text-teal-400 block mb-1">Hướng dẫn tập luyện &amp; thói quen:</label>
                     <textarea
                       value={exercise}
                       onChange={(e) => setExercise(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none min-h-[80px] resize-y"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-teal-500 focus:outline-none min-h-[80px] resize-y"
                     />
                   </div>
                 ) : (
                   <div className="space-y-2 text-xs text-slate-300 print:text-slate-800">
                     <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 print:bg-slate-50 print:border-slate-200">
-                      <p className="text-[11px] text-slate-300 leading-relaxed print:text-slate-700">
+                      <p className="text-[11px] text-slate-200 leading-relaxed print:text-slate-700">
                         {exercise}
                       </p>
                     </div>
@@ -961,19 +1045,19 @@ export default function PatientCareGuideModal({
 
               {/* 4. XỬ TRÍ CẤP CỨU & CẢNH BÁO NGUY HIỂM */}
               <div className="care-print-card bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-md print:bg-white print:border print:border-slate-300 print:rounded-lg print:p-3">
-                <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
-                  <AlertOctagon className="w-4 h-4 text-rose-400 print:text-slate-800" />
+                <div className="flex items-center gap-2 text-teal-300 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-800 print:text-slate-900 print:border-slate-300">
+                  <AlertOctagon className="w-4 h-4 text-teal-400 print:text-slate-800" />
                   <span>4. Cờ cảnh báo &amp; xử trí cấp cứu</span>
                 </div>
 
                 {isEditing ? (
                   <div className="space-y-2">
                     <div>
-                      <label className="text-[11px] font-bold text-rose-400 block mb-1">Cách xử trí cấp cứu:</label>
+                      <label className="text-[11px] font-bold text-teal-400 block mb-1">Cách xử trí cấp cứu:</label>
                       <textarea
                         value={warning}
                         onChange={(e) => setWarning(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-rose-500 focus:outline-none min-h-[60px] resize-y"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:border-teal-500 focus:outline-none min-h-[60px] resize-y"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -999,8 +1083,8 @@ export default function PatientCareGuideModal({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="bg-rose-950/30 p-2.5 rounded-xl border border-rose-800/40 text-xs space-y-1.5 print:bg-rose-50 print:border-rose-200">
-                      <div className="bg-slate-900/90 p-2 rounded-lg text-[11px] text-amber-300 font-medium print:bg-white print:text-slate-900 print:border print:border-slate-300">
+                    <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 text-xs space-y-1.5 print:bg-rose-50 print:border-rose-200">
+                      <div className="p-2 rounded-lg text-[11px] text-slate-200 font-medium print:bg-white print:text-slate-900 print:border print:border-slate-300">
                         {warning}
                       </div>
                     </div>
@@ -1009,7 +1093,7 @@ export default function PatientCareGuideModal({
                       <span className="flex items-center gap-1 font-bold text-teal-300 print:text-slate-900">
                         <PhoneCall className="w-3.5 h-3.5 text-teal-400" /> Hotline: 1900 8888
                       </span>
-                      <span className="max-w-[60%] text-right"><strong>{followUp}</strong></span>
+                      <span className="max-w-[60%] text-right text-slate-200"><strong>{followUp}</strong></span>
                     </div>
                   </div>
                 )}
@@ -1020,7 +1104,7 @@ export default function PatientCareGuideModal({
           </div>
 
           {/* 4. Modal Footer & Quick QR Info (Screen) / Signatures (Print) */}
-          
+
           {/* Screen Footer */}
           <div className="no-print p-4 sm:px-6 border-t border-white/10 bg-slate-950/90 flex items-center justify-between shrink-0 text-xs text-slate-400 flex-wrap gap-3">
             <div className="flex items-center gap-3">

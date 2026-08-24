@@ -13,7 +13,7 @@ class SourceReference(BaseModel):
 
 class DocumentCitation(BaseModel):
     citation_id: str
-    source_type: Literal["pdf"] = "pdf"
+    source_type: Literal["pdf", "ocr"] = "pdf"
     document_id: str
     document_name: str
     page_number: int

@@ -274,6 +274,7 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
         state.get("proposed_claims", []),
         state.get("retrieved_evidence", []),
     )
+    final_proposed = state.get("proposed_claims", [])
     # FALLBACK: If LLM-proposed claims failed verification, verify deterministic atomic claims!
     if not claims and state.get("retrieved_evidence"):
         fallback_proposed = compose_atomic_claims(state["retrieved_evidence"])
@@ -285,6 +286,7 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
             if fb_claims:
                 claims = fb_claims
                 verification_results = fb_ver
+                final_proposed = fallback_proposed
 
     qt = state.get("question_type")
     is_conversational = isinstance(qt, dict) and (
@@ -311,6 +313,7 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
         "claims": claims,
         "verification_results": verification_results,
         "status": status,
+        "proposed_claims": final_proposed,
     }
 
 
@@ -505,7 +508,23 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
         section_by_claim = {proposed.claim_id: proposed.section_code for proposed in state.get("proposed_claims", [])}
         sections = []
         for section_code, title in _SECTION_TITLES.items():
-            section_claims = [claim for claim in claims if section_by_claim.get(claim.claim_id) == section_code]
+            section_claims = []
+            for claim in claims:
+                s_code = section_by_claim.get(claim.claim_id)
+                if not s_code:
+                    t = claim.text.casefold()
+                    if t.startswith("thuốc") or "uống" in t or "tiêm" in t:
+                        s_code = "current_medications"
+                    elif t.startswith("chẩn đoán") or "tình trạng" in t or "tiền sử" in t:
+                        s_code = "active_conditions"
+                    elif "xét nghiệm" in t or "kết quả" in t or "diễn tiến" in t or "hba1c" in t or "creatinine" in t or "huyết áp" in t:
+                        s_code = "recent_results"
+                    elif "mâu thuẫn" in t or "chênh lệch" in t:
+                        s_code = "changes_to_review"
+                    else:
+                        s_code = "patient_overview"
+                if s_code == section_code:
+                    section_claims.append(claim)
             if section_claims:
                 sections.append(
                     ReviewSection(

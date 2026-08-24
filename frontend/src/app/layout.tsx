@@ -33,7 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className={`${inter.variable} ${serifFont.variable}`}>
-      <body className={`${inter.className} bg-[#06090e] text-slate-200 antialiased font-sans`}>
+      <body className={`${inter.className} bg-slate-100 dark:bg-[#0b1528] text-slate-900 dark:text-slate-200 antialiased font-sans transition-colors duration-300`}>
         <AuthProvider>
           <LanguageProvider>
             <RootLayoutWrapper>

@@ -4,7 +4,7 @@ import { useAppStore } from '@/lib/store';
 import { AlertTriangle, AlertCircle } from 'lucide-react';
 
 export default function PatientAlerts() {
-  const { currentReview, setFocusedCitation } = useAppStore();
+  const { currentReview, setFocusedCitation, notifyDrugConflict, notifyAbnormalLab } = useAppStore();
 
   const getCitationLabel = (cit: any) => {
     if (cit.source_type === 'pdf') {
@@ -29,33 +29,38 @@ export default function PatientAlerts() {
   const interactions = currentReview.drug_interactions || [];
   const qualityFlags = currentReview.data_quality_flags || [];
 
-  const hasHighAlerts = conflicts.length > 0 || interactions.some((i: any) => i.severity === 'high' || i.severity === 'moderate');
-  const hasMediumAlerts = qualityFlags.length > 0;
+  // Respect user notification toggles
+  const showHighAlerts = notifyDrugConflict && (conflicts.length > 0 || interactions.some((i: any) => i.severity === 'high' || i.severity === 'moderate'));
+  const showMediumAlerts = notifyAbnormalLab && qualityFlags.length > 0;
 
-  if (!hasHighAlerts && !hasMediumAlerts) return null;
+  if (!showHighAlerts && !showMediumAlerts) return null;
 
   return (
-    <div className="flex flex-col gap-3 mt-5 max-w-4xl">
+    <div className="flex flex-col gap-3 mb-2 max-w-full">
       {/* High Severity Alerts */}
-      {hasHighAlerts && (
-        <div className="bg-rose-950/40 border border-rose-900/50 rounded-xl p-4 flex items-start gap-4 shadow-lg shadow-rose-900/10 backdrop-blur-sm">
-          <div className="bg-rose-900/40 p-2 rounded-lg shrink-0">
-            <AlertTriangle className="w-5 h-5 text-rose-400" />
+      {showHighAlerts && (
+        <div className="clinical-card p-4 flex items-start gap-4 border-rose-300 dark:border-rose-900/60 shadow-sm">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center border bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/60 shrink-0">
+            <AlertTriangle className="w-5 h-5" />
           </div>
-          <div className="flex flex-col gap-3 w-full">
-            <h4 className="text-rose-400 font-semibold text-sm tracking-wide uppercase">Critical Clinical Alerts</h4>
+          <div className="flex flex-col gap-2.5 w-full">
+            <h4 className="text-rose-600 dark:text-rose-400 font-extrabold text-xs tracking-wider uppercase">
+              Cảnh báo Mâu thuẫn Lâm sàng &amp; Đơn thuốc
+            </h4>
             
             {conflicts.map((conflict: any) => (
-              <div key={conflict.conflict_id} className="text-sm text-slate-300 bg-black/20 p-3 rounded-lg border border-rose-900/30">
-                <div className="mb-2"><span className="font-medium text-rose-300">Data Conflict:</span> {conflict.description}</div>
+              <div key={conflict.conflict_id} className="clinical-subcard p-3 rounded-lg border">
+                <div className="mb-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                  <span className="text-rose-600 dark:text-rose-400 font-extrabold mr-1.5">[MÂU THUẪN]:</span> {conflict.description}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {conflict.source_a?.map((c: any, i: number) => (
-                    <button key={`${c.citation_id || 'sa'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
+                    <button key={`${c.citation_id || 'sa'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 rounded-md border font-semibold transition-colors cursor-pointer" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--accent-teal)' }}>
                       Nguồn A: {getCitationLabel(c)}
                     </button>
                   ))}
                   {conflict.source_b?.map((c: any, i: number) => (
-                    <button key={`${c.citation_id || 'sb'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
+                    <button key={`${c.citation_id || 'sb'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 rounded-md border font-semibold transition-colors cursor-pointer" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--accent-teal)' }}>
                       Nguồn B: {getCitationLabel(c)}
                     </button>
                   ))}
@@ -64,11 +69,13 @@ export default function PatientAlerts() {
             ))}
 
             {interactions.map((interaction: any, intIdx: number) => (
-              <div key={interaction.flag_id || intIdx} className="text-sm text-slate-300 bg-black/20 p-3 rounded-lg border border-rose-900/30">
-                <div className="mb-2"><span className="font-medium text-rose-300">Drug Interaction ({interaction.severity}):</span> {interaction.description}</div>
+              <div key={interaction.flag_id || intIdx} className="clinical-subcard p-3 rounded-lg border">
+                <div className="mb-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                  <span className="text-rose-600 dark:text-rose-400 font-extrabold mr-1.5">[TƯƠNG TÁC THUỐC {interaction.severity ? `(${interaction.severity.toUpperCase()})` : ''}]:</span> {interaction.description}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {interaction.citations?.map((c: any, i: number) => (
-                    <button key={`${c.citation_id || 'cit'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 bg-rose-900/30 text-rose-300 rounded-md hover:bg-rose-900/50 transition-colors border border-rose-800/30">
+                    <button key={`${c.citation_id || 'cit'}-${i}`} onClick={() => setFocusedCitation(c)} className="text-xs px-2.5 py-1 rounded-md border font-semibold transition-colors cursor-pointer" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--accent-teal)' }}>
                       {getCitationLabel(c)}
                     </button>
                   ))}
@@ -80,17 +87,19 @@ export default function PatientAlerts() {
       )}
 
       {/* Medium Severity Alerts */}
-      {hasMediumAlerts && (
-        <div className="bg-amber-950/30 border border-amber-900/40 rounded-xl p-4 flex items-start gap-4 shadow-lg shadow-amber-900/5 backdrop-blur-sm">
-          <div className="bg-amber-900/30 p-2 rounded-lg shrink-0">
-            <AlertCircle className="w-5 h-5 text-amber-400" />
+      {showMediumAlerts && (
+        <div className="clinical-card p-4 flex items-start gap-4 border-amber-300 dark:border-amber-900/60 shadow-sm">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center border bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/60 shrink-0">
+            <AlertCircle className="w-5 h-5" />
           </div>
           <div className="flex flex-col gap-2 w-full">
-            <h4 className="text-amber-400 font-semibold text-sm tracking-wide uppercase">Data & Quality Warnings</h4>
+            <h4 className="text-amber-600 dark:text-amber-400 font-extrabold text-xs tracking-wider uppercase">
+              Lưu ý Dữ liệu &amp; Chất lượng Hồ sơ
+            </h4>
             
             {qualityFlags.map((flag: any) => (
-              <div key={flag.flag_id} className="text-sm text-slate-300 flex items-start gap-2 bg-black/10 p-2.5 rounded-lg">
-                <span className="font-mono text-xs text-amber-500/70 mt-0.5 bg-amber-900/20 px-1.5 rounded">{flag.code}</span> 
+              <div key={flag.flag_id} className="clinical-subcard p-2.5 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 flex items-start gap-2 border">
+                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0 mt-0.5">{flag.code}</span> 
                 <span className="flex-1">{flag.message}</span>
               </div>
             ))}

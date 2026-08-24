@@ -18,7 +18,7 @@ class _ContractModel(BaseModel):
 
 class DocumentCitation(_ContractModel):
     citation_id: str
-    source_type: Literal["pdf"]
+    source_type: Literal["pdf", "ocr"]
     document_id: str
     document_name: str
     page_number: int = Field(ge=1)

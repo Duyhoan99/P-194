@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ingestions, patients } from '@/lib/api';
-import { AlertCircle, CheckCircle2, FileText, Loader2, UploadCloud, UserCheck, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FileText, Loader2, UploadCloud, UserCheck, X, Sparkles, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 
@@ -54,11 +54,15 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
 
   const addFiles = (files: File[]) => {
     setItems((current) => {
-      const known = new Set(current.map((item) => item.id));
-      const additions = files
-        .filter((file) => !known.has(fileId(file)))
-        .map((file) => ({ id: fileId(file), file, status: 'queued' as const, progress: 0 }));
-      return [...current, ...additions];
+      const newFileIds = new Set(files.map(fileId));
+      const remaining = current.filter((item) => !newFileIds.has(item.id));
+      const additions = files.map((file) => ({
+        id: fileId(file),
+        file,
+        status: 'queued' as const,
+        progress: 0,
+      }));
+      return [...remaining, ...additions];
     });
   };
 
@@ -67,38 +71,60 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
     event.target.value = '';
   };
 
-  const pollStatus = async (itemId: string, batchId: string) => {
-    for (let attempt = 1; attempt <= 30; attempt += 1) {
-      await sleep(2000);
-      const result = await ingestions.getStatus(batchId);
-      const status = result.status as UploadStatus;
-      updateItem(itemId, { status, progress: Math.min(90, attempt * 9) });
-      if (terminalStatuses.has(status)) return result;
-    }
-    throw new Error('Timed out while processing document.');
+  const handleRetryItem = (id: string) => {
+    updateItem(id, { status: 'queued', progress: 0, error: undefined });
   };
 
-  const handleUpload = async () => {
-    const queued = items.filter((item) => item.status === 'queued' || item.status === 'failed');
-    if (!queued.length || isUploading) return;
+  const handleRemoveItem = (id: string) => {
+    setItems((current) => current.filter((candidate) => candidate.id !== id));
+  };
+
+  const handleClearCompleted = () => {
+    setItems((current) => current.filter((item) => !item.status.includes('completed')));
+  };
+
+  const pollStatus = async (itemId: string, batchId: string) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await sleep(1500);
+      try {
+        const batch = await ingestions.getStatus(batchId);
+        const status = batch.status as UploadStatus;
+        if (terminalStatuses.has(status)) {
+          return { status, error: batch.error_message || undefined };
+        }
+      } catch (error) {
+        return {
+          status: 'failed' as const,
+          error: error instanceof Error ? error.message : 'Không thể kiểm tra tiến trình xử lý.',
+        };
+      }
+    }
+    return {
+      status: 'failed' as const,
+      error: 'Quá thời gian xử lý tài liệu.',
+    };
+  };
+
+  const handleUploadAll = async () => {
+    const queue = items.filter((item) => item.status === 'queued' || item.status === 'failed');
+    if (queue.length === 0 || isUploading) return;
 
     setIsUploading(true);
-    let targetPid = contextPatientId || (selectedTarget !== 'auto' && selectedTarget !== 'new' ? selectedTarget : undefined);
-    let targetName = selectedTarget === 'new' ? newPatientName : undefined;
+    let boundPid = contextPatientId || (selectedTarget !== 'auto' && selectedTarget !== 'new' ? selectedTarget : undefined);
+    let targetName = selectedTarget === 'new' && newPatientName.trim() ? newPatientName.trim() : undefined;
 
     try {
-      for (const item of queued) {
-        updateItem(item.id, { status: 'uploading', progress: 10, error: undefined });
+      for (const item of queue) {
+        updateItem(item.id, { status: 'uploading', progress: 15, error: undefined });
+
         try {
-          const result = await ingestions.upload(
-            item.file,
-            targetPid,
-            'auto',
-            targetName,
-          );
-          targetPid = targetPid || result.patient_id || '';
-          if (!targetPid) throw new Error('Backend did not return the patient created for this upload.');
-          targetName = undefined;
+          const result = await ingestions.upload(item.file, boundPid, targetName);
+          if (result.patient_id) {
+            boundPid = result.patient_id;
+          }
+          if (selectedTarget === 'new') {
+            targetName = undefined;
+          }
 
           const initialStatus = result.status as UploadStatus;
           updateItem(item.id, {
@@ -108,15 +134,14 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
           });
           if (!terminalStatuses.has(initialStatus)) {
             const finalResult = await pollStatus(item.id, result.batch_id);
-            updateItem(item.id, { status: finalResult.status, progress: 100 });
+            updateItem(item.id, { status: finalResult.status, progress: 100, error: finalResult.error });
           }
         } catch (error) {
           updateItem(item.id, {
             status: 'failed',
             progress: 100,
-            error: error instanceof Error ? error.message : 'Failed to process document.',
+            error: error instanceof Error ? error.message : 'Xử lý tài liệu thất bại.',
           });
-          if (!targetPid && !contextPatientId) break;
         }
       }
     } finally {
@@ -128,17 +153,86 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
   };
 
   const pendingCount = items.filter((item) => item.status === 'queued' || item.status === 'failed').length;
+  const failedCount = items.filter((item) => item.status === 'failed').length;
+  const completedCount = items.filter((item) => item.status.includes('completed')).length;
 
   return (
-    <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-2xl shadow-cyan-900/10">
-      <h3 className="text-sm font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-300 mb-4 flex items-center gap-2">
-        <UploadCloud className="w-4 h-4 text-cyan-400" aria-hidden="true" /> Upload Documents
+    <div className="clinical-card p-6 space-y-5 shadow-sm">
+      {/* Title */}
+      <h3 className="text-sm font-extrabold tracking-tight flex items-center gap-2" style={{ color: 'var(--accent-teal)' }}>
+        <UploadCloud className="w-4 h-4" />
+        <span>Tải lên Hồ sơ &amp; Tài liệu Lâm sàng</span>
       </h3>
 
+      {/* Target Patient Selector */}
+      {!contextPatientId && (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label htmlFor="target-patient" className="block text-xs font-bold text-slate-900 dark:text-slate-100">
+              Hồ sơ bệnh nhân đích (Target Patient)
+            </label>
+            <select
+              id="target-patient"
+              value={selectedTarget}
+              disabled={isUploading}
+              onChange={(e) => setSelectedTarget(e.target.value)}
+              className="clinical-input w-full px-4 py-2.5 text-xs font-semibold"
+            >
+              <option value="auto">✨ Tự động nhận diện từ tài liệu (AI Auto-detect)</option>
+              <option value="new">➕ Tạo mới hồ sơ bệnh nhân...</option>
+              <option disabled>────────── Danh sách hồ sơ có sẵn ──────────</option>
+              {patientList.map((p) => (
+                <option key={p.patient_id} value={p.patient_id}>
+                  👤 {p.pseudonym} ({p.patient_id})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedTarget === 'new' && (
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
+              <label htmlFor="new-patient-name" className="block text-xs font-bold text-slate-900 dark:text-slate-100">
+                Tên bệnh nhân mới
+              </label>
+              <input
+                id="new-patient-name"
+                type="text"
+                value={newPatientName}
+                disabled={isUploading}
+                onChange={(event) => setNewPatientName(event.target.value)}
+                placeholder="VD: Nguyễn Văn A..."
+                className="clinical-input w-full px-4 py-2.5 text-xs font-medium"
+              />
+            </motion.div>
+          )}
+        </div>
+      )}
+
+      {contextPatientId && (
+        <p className="text-xs font-medium flex items-center gap-1.5" style={{ color: 'var(--accent-teal)' }}>
+          <UserCheck className="w-4 h-4" />
+          Tất cả tệp sẽ được thêm vào bệnh nhân <span className="font-extrabold">{contextPatientId}</span>.
+        </p>
+      )}
+
+      {/* Hidden File Input */}
+      <input
+        id="file-upload"
+        type="file"
+        multiple
+        accept=".pdf,application/pdf,.json,application/json,image/png,image/jpeg,.png,.jpg,.jpeg"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        disabled={isUploading}
+      />
+
+      {/* Drop Zone Box */}
       <div
-        className={`border-2 border-dashed rounded-xl p-6 transition-colors bg-slate-950/40 ${
-          isDragging ? 'border-cyan-400 bg-cyan-950/30' : 'border-cyan-800/50 hover:border-cyan-400/50'
+        className={`clinical-subcard border-2 border-dashed rounded-2xl p-8 transition-all text-center cursor-pointer ${
+          isDragging ? 'border-teal-500 scale-[1.01]' : 'hover:border-teal-500'
         }`}
+        style={{ borderColor: isDragging ? 'var(--accent-teal)' : 'var(--accent-teal-border)' }}
         onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }}
         onDragOver={(event) => event.preventDefault()}
         onDragLeave={(event) => { event.preventDefault(); setIsDragging(false); }}
@@ -147,157 +241,124 @@ export default function UploadZone({ onUploadComplete }: { onUploadComplete?: ()
           setIsDragging(false);
           if (!isUploading) addFiles(Array.from(event.dataTransfer.files));
         }}
+        onClick={() => !isUploading && fileInputRef.current?.click()}
       >
-        {!contextPatientId && (
-          <div className="w-full mb-6 space-y-3">
-            <div>
-              <label htmlFor="target-patient" className="block text-left text-xs font-semibold text-cyan-400 uppercase tracking-widest mb-2">
-                Hồ sơ bệnh nhân đích
-              </label>
-              <select
-                id="target-patient"
-                value={selectedTarget}
-                disabled={isUploading}
-                onChange={(e) => setSelectedTarget(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500 disabled:opacity-50 transition-colors"
-              >
-                <option value="auto">✨ Tự động nhận diện từ tài liệu (AI Auto-detect)</option>
-                {patientList.map((p) => (
-                  <option key={p.patient_id} value={p.patient_id}>
-                    {p.pseudonym} ({p.patient_id})
-                  </option>
-                ))}
-                <option value="new">➕ Tạo bệnh nhân mới...</option>
-              </select>
-            </div>
-
-            {selectedTarget === 'new' && (
-              <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
-                <label htmlFor="new-patient-name" className="block text-left text-xs font-semibold text-teal-400 uppercase tracking-widest mb-2">
-                  Tên bệnh nhân mới
-                </label>
-                <input
-                  id="new-patient-name"
-                  type="text"
-                  value={newPatientName}
-                  disabled={isUploading}
-                  onChange={(event) => setNewPatientName(event.target.value)}
-                  placeholder="VD: Nguyễn Văn A..."
-                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500 disabled:opacity-50 transition-colors"
-                />
-              </motion.div>
-            )}
-          </div>
-        )}
-
-        {contextPatientId && (
-          <p className="mb-4 text-xs text-slate-400 flex items-center gap-1.5">
-            <UserCheck className="w-4 h-4 text-cyan-400" />
-            Tất cả tệp sẽ được thêm vào bệnh nhân <span className="font-semibold text-cyan-300">{contextPatientId}</span>.
-          </p>
-        )}
-
-
-        <input
-          id="file-upload"
-          type="file"
-          multiple
-          accept=".pdf,application/pdf,.json,application/json,image/png,image/jpeg,.png,.jpg,.jpeg"
-          className="hidden"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          disabled={isUploading}
-        />
-
-        <button
-          type="button"
-          disabled={isUploading}
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full min-h-32 flex flex-col items-center justify-center rounded-lg hover:bg-cyan-950/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:opacity-50 transition-colors"
-          aria-label="Chọn nhiều tài liệu để tải lên"
-        >
-          <span className="w-14 h-14 rounded-full bg-cyan-950/80 flex items-center justify-center mb-3 border border-cyan-800/50 shadow-inner shadow-cyan-500/20">
-            <UploadCloud className="w-6 h-6 text-cyan-400" aria-hidden="true" />
-          </span>
-          <span className="text-sm font-semibold text-slate-200">Chọn nhiều tệp hoặc kéo thả vào đây</span>
-          <span className="text-xs text-slate-400 mt-2">PDF, PNG/JPG hoặc FHIR R4 JSON</span>
-        </button>
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center border shadow-sm mx-auto mb-3.5 transition-transform hover:scale-105" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+          <UploadCloud className="w-8 h-8" />
+        </div>
+        <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+          Chọn nhiều tệp hoặc kéo thả vào đây
+        </p>
+        <p className="text-xs font-semibold mt-1" style={{ color: 'var(--text-secondary)' }}>
+          Hỗ trợ: PDF, PNG/JPG hoặc FHIR R4 JSON
+        </p>
       </div>
 
+      {/* Upload Item Queue */}
       {items.length > 0 && (
-        <div className="mt-4 space-y-3" aria-live="polite" aria-label="Danh sách tài liệu tải lên">
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Danh sách tệp ({items.length})
+            </span>
+            {completedCount > 0 && !isUploading && (
+              <button
+                type="button"
+                onClick={handleClearCompleted}
+                className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+              >
+                Dọn tệp đã xong
+              </button>
+            )}
+          </div>
+
           {items.map((item) => (
-            <div key={item.id} className="p-3 bg-slate-950/50 rounded-lg border border-slate-800">
-              <div className="flex items-center gap-3">
-                <FileText className="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-200">{item.file.name}</p>
-                  <p className="text-xs text-slate-500">{(item.file.size / 1024).toFixed(1)} KB</p>
+            <div key={item.id} className="clinical-subcard p-3.5 rounded-xl border flex flex-col gap-2 shadow-sm" style={{ borderColor: 'var(--border-card)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-card)', color: 'var(--accent-teal)' }}>
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold text-slate-900 dark:text-slate-100">{item.file.name}</p>
+                    <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{(item.file.size / 1024).toFixed(1)} KB</p>
+                  </div>
                 </div>
-                <span className={`text-xs font-medium ${
-                  item.status === 'failed' ? 'text-red-400' :
-                  item.status.includes('completed') ? 'text-emerald-400' : 'text-cyan-400'
-                }`}>
-                  {item.status}
-                </span>
-                {item.status === 'queued' && !isUploading && (
-                  <button
-                    type="button"
-                    onClick={() => setItems((current) => current.filter((candidate) => candidate.id !== item.id))}
-                    className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-950/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-                    aria-label={`Xóa ${item.file.name}`}
-                  >
-                    <X className="w-4 h-4" aria-hidden="true" />
-                  </button>
-                )}
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                    item.status === 'failed' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800' :
+                    item.status.includes('completed') ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' :
+                    item.status === 'uploading' || item.status === 'processing' ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800' :
+                    'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                  }`}>
+                    {item.status === 'queued' ? 'Chờ tải lên' :
+                     item.status === 'uploading' ? 'Đang tải...' :
+                     item.status === 'processing' ? 'Đang phân tích...' :
+                     item.status.includes('completed') ? 'Hoàn tất' : 'Lỗi'}
+                  </span>
+
+                  {item.status === 'failed' && !isUploading && (
+                    <button
+                      type="button"
+                      onClick={() => handleRetryItem(item.id)}
+                      className="px-2 py-1 text-[11px] font-bold rounded-lg bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 hover:bg-teal-100 transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Thử lại tệp này"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Thử lại</span>
+                    </button>
+                  )}
+
+                  {!isUploading && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.id)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                      title="Xóa tệp khỏi danh sách"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {item.status !== 'queued' && (
-                <div className="mt-2">
-                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                    <motion.div
-                      className={`h-1.5 rounded-full ${item.status === 'failed' ? 'bg-red-500' : 'bg-gradient-to-r from-cyan-500 to-teal-400'}`}
-                      initial={false}
-                      animate={{ width: `${item.progress}%` }}
-                      transition={{ duration: 0.25 }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
-                    {item.status === 'uploading' || item.status === 'processing' ? (
-                      <Loader2 className="w-4 h-4 text-teal-400 animate-spin" aria-hidden="true" />
-                    ) : item.status.includes('completed') ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-red-400" aria-hidden="true" />
-                    )}
-                    <span role={item.status === 'failed' ? 'alert' : undefined}>
-                      {item.error || (item.status.includes('completed') ? 'Evidence đã sẵn sàng cho AI Copilot' : 'Đang xử lý tài liệu...')}
-                    </span>
-                  </div>
+              {item.error && (
+                <div className="text-[11px] font-medium text-rose-600 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/30 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900/50 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{item.error}</span>
                 </div>
               )}
             </div>
           ))}
 
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={handleUpload}
-              disabled={!pendingCount || isUploading}
-              className="min-h-11 px-6 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg shadow-lg shadow-cyan-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
-            >
-              {isUploading ? 'Đang tải lên...' : `Tải lên ${pendingCount} tệp`}
-            </button>
-            {!isUploading && items.some((item) => terminalStatuses.has(item.status)) && (
+          {/* Action Bar */}
+          {pendingCount > 0 && (
+            <div className="pt-2 flex justify-end">
               <button
                 type="button"
-                onClick={() => setItems((current) => current.filter((item) => !terminalStatuses.has(item.status)))}
-                className="min-h-11 px-4 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                disabled={isUploading}
+                onClick={handleUploadAll}
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-2 cursor-pointer transition-all"
               >
-                Xóa tệp đã xử lý
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang xử lý hồ sơ...</span>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="w-4 h-4" />
+                    <span>
+                      {failedCount > 0 && pendingCount === failedCount
+                        ? `Thử lại tất cả (${failedCount} tệp lỗi)`
+                        : `Tiến hành tải lên (${pendingCount} tệp)`}
+                    </span>
+                  </>
+                )}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

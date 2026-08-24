@@ -307,32 +307,42 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
   }, [yDomain, activeThreshold]);
 
   return (
-    <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl mb-6 relative overflow-hidden">
+    <div className="clinical-card p-6 mb-6 relative overflow-hidden">
       {/* Ambient background glow */}
       <div className="absolute top-0 right-1/4 w-96 h-32 bg-cyan-500/5 blur-3xl pointer-events-none -z-10" />
       <div className="absolute bottom-0 left-1/4 w-96 h-32 bg-rose-500/5 blur-3xl pointer-events-none -z-10" />
 
       {/* Top Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 shadow-[0_0_15px_rgba(34,211,238,0.2)] shrink-0">
             <Activity className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-100">Diễn tiến Chỉ số & Ngưỡng Lâm sàng</h3>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-white/5 font-mono">
-                {selectedMetric.label}
-              </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-extrabold">Diễn tiến Chỉ số &amp; Ngưỡng Lâm sàng</h3>
+              {latestPoint ? (
+                <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold font-mono border ${
+                  latestPoint.isGood
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800'
+                }`}>
+                  {selectedMetric.label}: {latestPoint.value} {activeUnit}
+                </span>
+              ) : (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-white/5 font-mono">
+                  {selectedMetric.label}
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">{selectedMetric.fullName}</p>
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold mt-0.5">{selectedMetric.fullName}</p>
           </div>
         </div>
 
         {/* Right side controls: Metric pills & Latest Status */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Metric Selector Pills */}
-          <div className="flex gap-1 bg-slate-950/60 p-1 rounded-xl border border-white/5 shadow-inner">
+          <div className="flex flex-wrap gap-1 clinical-subcard p-1 rounded-xl">
             {METRIC_OPTIONS.map((m) => {
               const isSelected = selectedMetric.code === m.code;
               return (
@@ -341,8 +351,8 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                   onClick={() => handleMetricChange(m)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.15)]'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                      ? 'bg-teal-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
                   {m.label}
@@ -354,7 +364,7 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
           {/* Latest Measured Value Status Badge */}
           {latestPoint && (
             <div
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-semibold text-xs shadow-sm ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border font-semibold text-xs shadow-sm shrink-0 ${
                 latestPoint.isGood
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
                   : 'bg-rose-500/10 border-rose-500/30 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.15)]'
@@ -365,15 +375,15 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
               ) : (
                 <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
               )}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
                 <span className="text-slate-300 font-normal">Gần nhất:</span>
-                <span className="font-bold font-mono text-sm">
+                <span className="font-bold font-mono text-sm text-slate-100">
                   {latestPoint.value} {activeUnit}
                 </span>
                 {trendDirection === 'up' && <TrendingUp className="w-3.5 h-3.5 text-slate-300 ml-0.5" />}
                 {trendDirection === 'down' && <TrendingDown className="w-3.5 h-3.5 text-slate-300 ml-0.5" />}
               </div>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium uppercase tracking-wider bg-black/20">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider bg-black/30">
                 {latestPoint.isGood ? 'Tốt' : 'Cảnh báo'}
               </span>
             </div>
@@ -476,21 +486,21 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
                 </linearGradient>
               </defs>
 
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-card)" vertical={false} />
 
               {/* X Axis */}
               <XAxis
                 dataKey="date"
-                stroke="#64748b"
+                stroke="var(--text-muted)"
                 fontSize={11}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                axisLine={{ stroke: 'var(--border-card)' }}
               />
 
               {/* Y Axis: Ascending order with highlighted Threshold Tick */}
               <YAxis
                 width={38}
-                stroke="#64748b"
+                stroke="var(--text-muted)"
                 tickLine={false}
                 axisLine={false}
                 domain={yDomain}
@@ -582,7 +592,7 @@ export default function PatientMetricsChart({ patientId }: { patientId: string }
 
                       <div className="flex items-baseline justify-between mb-1.5">
                         <span className="text-xs text-slate-400">{selectedMetric.label}:</span>
-                        <span className="text-base font-bold font-mono text-slate-100">
+                        <span className="text-base font-bold font-mono text-slate-900 dark:text-slate-100 font-extrabold">
                           {pt.value} <span className="text-xs font-normal text-slate-400">{activeUnit}</span>
                         </span>
                       </div>

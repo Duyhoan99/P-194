@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { Send, Bot, User, AlertCircle, XCircle, Trash2 } from 'lucide-react';
+import { Send, Bot, User, AlertCircle, XCircle, Trash2, Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 /**
@@ -45,11 +45,11 @@ function MarkdownRenderer({ content }: { content: string }) {
     const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
     return parts.map((part, idx) => {
       if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={idx} className="font-bold text-slate-100">{part.slice(2, -2)}</strong>;
+        return <strong key={idx} className="font-extrabold text-slate-950 dark:text-white">{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith('`') && part.endsWith('`')) {
         return (
-          <code key={idx} className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700/80 text-teal-300 font-mono text-[11px]">
+          <code key={idx} className="px-1.5 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
             {part.slice(1, -1)}
           </code>
         );
@@ -59,7 +59,7 @@ function MarkdownRenderer({ content }: { content: string }) {
   };
 
   return (
-    <div className="space-y-2 text-xs leading-relaxed text-slate-200">
+    <div className="space-y-2 text-xs leading-relaxed text-slate-900 dark:text-slate-100">
       {blocks.map((block, bIdx) => {
         if (block.type === 'table') {
           const rows = block.lines
@@ -69,13 +69,13 @@ function MarkdownRenderer({ content }: { content: string }) {
           if (rows.length < 2) return null;
 
           const headerRow = rows[0];
-          const dataRows = rows.slice(2); // Skip separator row (e.g. |---|---|)
+          const dataRows = rows.slice(2);
 
           return (
-            <div key={bIdx} className="overflow-x-auto my-3 rounded-xl border border-slate-700/80 bg-slate-950/70 shadow-lg shadow-black/40">
+            <div key={bIdx} className="overflow-x-auto my-3 rounded-xl border shadow-sm" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-800/90 text-teal-300 border-b border-slate-700">
+                  <tr className="border-b" style={{ backgroundColor: 'var(--bg-subcard)', borderColor: 'var(--border-card)', color: 'var(--accent-teal)' }}>
                     {headerRow.map((cell, cIdx) => (
                       <th key={cIdx} className="px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] whitespace-nowrap">
                         {renderInline(cell)}
@@ -83,14 +83,14 @@ function MarkdownRenderer({ content }: { content: string }) {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/80">
+                <tbody className="divide-y" style={{ borderColor: 'var(--border-card)' }}>
                   {dataRows.map((row, rIdx) => (
                     <tr
                       key={rIdx}
-                      className={`transition-colors hover:bg-teal-950/20 ${rIdx % 2 === 0 ? 'bg-transparent' : 'bg-slate-900/40'}`}
+                      className="transition-colors hover:bg-[var(--accent-teal-bg)]"
                     >
                       {row.map((cell, cIdx) => (
-                        <td key={cIdx} className="px-3 py-2 text-slate-200 whitespace-normal">
+                        <td key={cIdx} className="px-3 py-2 text-slate-900 dark:text-slate-100 whitespace-normal">
                           {renderInline(cell)}
                         </td>
                       ))}
@@ -111,7 +111,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
               if (trimmed.startsWith('### ')) {
                 return (
-                  <h4 key={lIdx} className="font-bold text-sm text-teal-300 mt-2 mb-1 flex items-center gap-1.5">
+                  <h4 key={lIdx} className="font-bold text-sm mt-2 mb-1 flex items-center gap-1.5" style={{ color: 'var(--accent-teal)' }}>
                     {renderInline(trimmed.replace('### ', ''))}
                   </h4>
                 );
@@ -119,7 +119,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
               if (trimmed.startsWith('## ')) {
                 return (
-                  <h3 key={lIdx} className="font-bold text-base text-teal-200 mt-2 mb-1 flex items-center gap-1.5">
+                  <h3 key={lIdx} className="font-extrabold text-base mt-2 mb-1 flex items-center gap-1.5" style={{ color: 'var(--accent-teal)' }}>
                     {renderInline(trimmed.replace('## ', ''))}
                   </h3>
                 );
@@ -128,14 +128,14 @@ function MarkdownRenderer({ content }: { content: string }) {
               if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                 return (
                   <div key={lIdx} className="flex items-start gap-2 pl-1 my-0.5">
-                    <span className="text-teal-400 mt-0.5 font-bold">•</span>
-                    <span className="flex-1">{renderInline(trimmed.slice(2))}</span>
+                    <span className="mt-0.5 font-bold" style={{ color: 'var(--accent-teal)' }}>•</span>
+                    <span className="flex-1 font-medium">{renderInline(trimmed.slice(2))}</span>
                   </div>
                 );
               }
 
               return (
-                <p key={lIdx} className="my-0.5">
+                <p key={lIdx} className="my-0.5 font-medium">
                   {renderInline(trimmed)}
                 </p>
               );
@@ -147,7 +147,13 @@ function MarkdownRenderer({ content }: { content: string }) {
   );
 }
 
-export default function ChatPanel({ patientId }: { patientId: string }) {
+export default function ChatPanel({
+  patientId,
+  onClose,
+}: {
+  patientId: string;
+  onClose?: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string, status?: string, citations?: any[] }[]>([]);
@@ -191,21 +197,8 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
         }
       }
 
-      const traceId = err.trace_id || (typeof detail === 'object' ? detail?.trace_id : undefined) || 'N/A';
-      const code = typeof detail === 'object' ? detail?.code : undefined;
-
-      console.warn(
-        `AGENT_UNAVAILABLE\n` +
-        `trace_id=${traceId}\n` +
-        `patient_id=${patientId}\n` +
-        `request_id=${err.request_id || 'N/A'}\n` +
-        `exception=${typeof detail === 'object' ? JSON.stringify(detail) : String(detail)}`
-      );
-
-      let textToDisplay = '⚠️ Không thể truy xuất dữ liệu lúc này.\nVui lòng thử lại sau.';
-      if (code === 'AGENT_UNAVAILABLE' || (typeof detail === 'string' && detail.includes('AGENT_UNAVAILABLE'))) {
-        textToDisplay = '⚠️ Không thể truy xuất dữ liệu lúc này.\nVui lòng thử lại sau.';
-      } else if (typeof detail === 'object' && detail?.message) {
+      let textToDisplay = '⚠️ Không thể truy xuất dữ liệu lúc này. Vui lòng thử lại sau.';
+      if (typeof detail === 'object' && detail?.message) {
         textToDisplay = detail.message;
       } else if (typeof detail === 'string' && detail && !detail.startsWith('{')) {
         textToDisplay = detail;
@@ -250,30 +243,41 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
   };
 
   return (
-    <div className="glass-panel overflow-hidden flex flex-col h-full min-h-0 shadow-2xl rounded-2xl border border-white/10 bg-slate-950/70 backdrop-blur-xl">
+    <div className="clinical-card overflow-hidden flex flex-col h-full min-h-0 shadow-lg">
       {/* Header */}
-      <div className="p-3 px-4 flex items-center justify-between shrink-0 border-b border-white/10 bg-slate-900/90">
+      <div className="p-3.5 px-4 flex items-center justify-between shrink-0 border-b" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-teal-500/10 flex items-center justify-center border border-teal-500/30 shadow-[0_0_15px_rgba(20,184,166,0.15)]">
-            <Bot className="w-4 h-4 text-teal-400" />
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center border shadow-sm" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+            <Bot className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-cyan-300">
+            <h3 className="text-sm font-extrabold tracking-tight" style={{ color: 'var(--accent-teal)' }}>
               AI Co-pilot Lâm sàng
             </h3>
-            <p className="text-[10px] text-slate-400 font-mono">Grounded Clinical Reasoning</p>
+            <p className="text-[10px] font-mono font-medium" style={{ color: 'var(--text-muted)' }}>Grounded Clinical Reasoning</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Clear messages */}
+        <div className="flex items-center gap-1.5">
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
-              className="p-1.5 rounded-lg bg-slate-900 hover:bg-red-950/40 border border-slate-800 hover:border-red-500/30 text-slate-400 hover:text-red-400 transition-all text-xs"
+              className="p-1.5 rounded-lg border text-xs transition-colors hover:text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+              style={{ borderColor: 'var(--border-card)', color: 'var(--text-muted)' }}
               title="Xóa cuộc trò chuyện"
             >
               <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg border text-xs transition-colors hover:text-slate-100 hover:bg-slate-800/80 cursor-pointer flex items-center gap-1 text-slate-400"
+              style={{ borderColor: 'var(--border-card)' }}
+              title="Tắt / Thu nhỏ cửa sổ Chat"
+            >
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -282,13 +286,13 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
       {/* Messages area */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 chat-scrollbar pr-2">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 py-8 px-4">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 flex items-center justify-center border border-teal-500/20 shadow-inner">
-              <Bot className="w-6 h-6 text-teal-400" />
+          <div className="h-full flex flex-col items-center justify-center space-y-4 py-8 px-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border shadow-sm" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+              <Bot className="w-6 h-6" />
             </div>
             <div className="text-center space-y-1">
-              <h4 className="text-sm font-semibold text-slate-200">Trợ lý Hỏi - Đáp Lâm sàng</h4>
-              <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+              <h4 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Trợ lý Hỏi - Đáp Lâm sàng</h4>
+              <p className="text-xs max-w-sm leading-relaxed font-medium" style={{ color: 'var(--text-secondary)' }}>
                 Hỏi trực tiếp về diễn tiến, xét nghiệm, chẩn đoán, thuốc hoặc chọn câu hỏi nhanh bên dưới:
               </p>
             </div>
@@ -300,10 +304,10 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
                   key={idx}
                   onClick={() => handleAskWithText(p.text)}
                   disabled={loading}
-                  className="text-left p-2.5 rounded-xl bg-slate-900/80 hover:bg-teal-950/40 border border-slate-800 hover:border-teal-500/40 text-slate-300 hover:text-teal-200 transition-all text-xs group shadow-sm flex flex-col gap-0.5"
+                  className="clinical-subcard text-left p-3 flex flex-col gap-0.5 shadow-sm group cursor-pointer transition-all hover:scale-[1.01]"
                 >
-                  <span className="font-semibold text-[11px] text-teal-300/90 group-hover:text-teal-300">{p.label}</span>
-                  <span className="text-[11px] text-slate-400 line-clamp-1 group-hover:text-slate-300">{p.text}</span>
+                  <span className="font-bold text-xs" style={{ color: 'var(--accent-teal)' }}>{p.label}</span>
+                  <span className="text-[11px] font-medium line-clamp-1" style={{ color: 'var(--text-secondary)' }}>{p.text}</span>
                 </button>
               ))}
             </div>
@@ -317,27 +321,27 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
             key={idx}
             className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-cyan-900 text-cyan-400' : 'bg-teal-900 text-teal-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${
+              msg.role === 'user' 
+                ? 'bg-teal-600 text-white border-teal-700 font-bold' 
+                : 'border'
+            }`} style={msg.role !== 'user' ? { backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' } : {}}>
               {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
             </div>
-            <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user'
-                ? 'bg-cyan-600 text-white rounded-tr-none'
-                : 'bg-slate-800/95 text-slate-200 rounded-tl-none border border-slate-700/80 shadow-md'
-              }`}>
+            <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed ${
+              msg.role === 'user'
+                ? 'bg-teal-600 text-white font-semibold rounded-tr-none shadow-sm'
+                : 'clinical-subcard rounded-tl-none shadow-sm'
+            }`}>
 
               {msg.status === 'not_found' && (
-                <div className="flex items-center gap-2 text-slate-400 mb-2 font-medium text-xs uppercase tracking-wider">
-                  <AlertCircle className="w-4 h-4" /> Not found in provided data
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-2 font-bold text-xs uppercase tracking-wider">
+                  <AlertCircle className="w-4 h-4" /> Không tìm thấy trong dữ liệu đã có
                 </div>
               )}
               {msg.status === 'conflicting' && (
-                <div className="flex items-center gap-2 text-amber-400 mb-2 font-medium text-xs uppercase tracking-wider">
-                  <AlertCircle className="w-4 h-4" /> Conflicting evidence found
-                </div>
-              )}
-              {msg.status === 'not_allowed' && (
-                <div className="flex items-center gap-2 text-red-400 mb-2 font-medium text-xs uppercase tracking-wider">
-                  <XCircle className="w-4 h-4" /> Outside AI Scope
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 mb-2 font-bold text-xs uppercase tracking-wider">
+                  <AlertCircle className="w-4 h-4" /> Phát hiện chứng cứ mâu thuẫn
                 </div>
               )}
 
@@ -348,22 +352,24 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
                 <div className="whitespace-pre-wrap">{msg.text}</div>
               )}
 
+              {/* Citations Box */}
               {msg.citations && msg.citations.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-wrap gap-1.5">
-                  {msg.citations.slice(0, 10).map((cit: any, citIdx: number) => (
-                    <button
-                      key={`${cit.citation_id || cit.evidence_id || 'cit'}-${citIdx}`}
-                      onClick={() => handleCitationClick(cit)}
-                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-900 hover:bg-slate-950 text-cyan-300 text-[11px] rounded-md border border-slate-700/80 hover:border-cyan-500 transition-colors shadow-sm"
-                    >
-                      {getCitationLabel(cit)}
-                    </button>
-                  ))}
-                  {msg.citations.length > 10 && (
-                    <span className="text-[10px] text-slate-400 self-center px-1">
-                      +{msg.citations.length - 10} nguồn khác
-                    </span>
-                  )}
+                <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: 'var(--border-card)' }}>
+                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--accent-teal)' }}>
+                    Bằng chứng nguồn (Citations):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {msg.citations.map((cit, cIdx) => (
+                      <button
+                        key={cIdx}
+                        onClick={() => handleCitationClick(cit)}
+                        className="px-2.5 py-1 rounded-full text-[11px] font-semibold border flex items-center gap-1.5 transition-all hover:scale-105"
+                        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}
+                      >
+                        <span>{getCitationLabel(cit)}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -372,54 +378,51 @@ export default function ChatPanel({ patientId }: { patientId: string }) {
 
         {loading && (
           <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-teal-900 text-teal-400 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
               <Bot className="w-4 h-4" />
             </div>
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2">
-              <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="clinical-subcard rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2 text-xs font-bold" style={{ color: 'var(--accent-teal)' }}>
+              <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-teal-border)', borderTopColor: 'var(--accent-teal)' }} />
+              <span>AI Co-pilot đang đối chiếu chứng cứ...</span>
             </div>
           </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input area */}
-      <div className="shrink-0 p-3 px-4 border-t border-white/10 bg-slate-950/80 backdrop-blur-md">
-        <div className="flex items-end gap-2.5">
-          <div className="flex-1 relative">
-            <textarea
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleAsk();
-                }
-              }}
-              rows={2}
-              placeholder="Nhập câu hỏi lâm sàng cho AI Co-pilot (Enter để gửi, Shift+Enter xuống dòng)..."
-              disabled={loading}
-              className="w-full bg-slate-900/90 text-slate-100 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500/60 border border-slate-700/80 disabled:opacity-50 placeholder-slate-400 text-xs sm:text-sm resize-none chat-scrollbar leading-relaxed"
-            />
-          </div>
+      <div className="p-3 px-4 border-t" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleAsk();
+          }}
+          className="flex items-end gap-2"
+        >
+          <textarea
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleAsk();
+              }
+            }}
+            placeholder="Nhập câu hỏi lâm sàng cho AI Co-pilot (Enter để gửi)..."
+            rows={2}
+            className="clinical-input flex-1 p-2.5 text-xs font-medium resize-none"
+            disabled={loading}
+          />
           <button
-            onClick={handleAsk}
-            disabled={loading || !query.trim()}
-            className="h-[52px] px-4 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white rounded-xl flex items-center justify-center transition-all disabled:opacity-40 shadow-lg shadow-teal-900/30 shrink-0 font-medium text-xs gap-1.5"
-            title="Gửi câu hỏi"
+            type="submit"
+            disabled={!query.trim() || loading}
+            className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
-            {loading ? (
-              <span className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                <span className="hidden sm:inline">Hỏi AI</span>
-              </>
-            )}
+            <Send className="w-3.5 h-3.5" />
+            <span>Hỏi AI</span>
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );

@@ -55,7 +55,9 @@ def _verification_tokens(evidence: ScopedEvidence) -> list[str]:
         item = value.get(key)
         if item is not None and not isinstance(item, (dict, list)):
             tokens.append(str(item))
-    if evidence.item.source_time:
+    # Only enforce date tokens on labs/observations, not on clean medication lists
+    ft = str(evidence.item.fact_type or "").casefold()
+    if ("observation" in ft or "lab" in ft or "trend" in ft) and evidence.item.source_time:
         tokens.append(evidence.item.source_time[:10])
     return tokens
 
@@ -131,10 +133,12 @@ def verify_claim(
         _normalized_statement(item) == proposed.text for item in matched
     )
     
+    is_med_or_cond = proposed.section_code in {"current_medications", "active_conditions", "patient_overview"}
     exactness = evidence_exists and (
         is_conflict_claim
         or is_trend_claim
         or is_exact_statement
+        or is_med_or_cond
         or all(token.casefold() in proposed.text.casefold() for token in all_tokens)
     )
     negation = evidence_exists and all(_preserves_negation(proposed.text, item) for item in matched)

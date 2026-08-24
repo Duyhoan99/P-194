@@ -120,7 +120,37 @@ async def ingest_file(
     parsed_doc = None
     full_markdown = ""
 
-    if not is_json:
+    parsed_json_fhir = None
+    if is_json:
+        try:
+            import json
+            parsed_json_fhir = json.loads(content)
+            extracted_pid = None
+            extracted_name = None
+            if isinstance(parsed_json_fhir, dict):
+                for entry in parsed_json_fhir.get("entry", []):
+                    res = entry.get("resource", {}) if isinstance(entry, dict) else {}
+                    if res.get("resourceType") == "Patient":
+                        extracted_pid = res.get("id")
+                        names = res.get("name", [])
+                        if names and isinstance(names, list) and isinstance(names[0], dict):
+                            extracted_name = names[0].get("text") or " ".join(names[0].get("given", []) + [names[0].get("family", "")]).strip()
+                        break
+                    if not extracted_pid:
+                        ref_pid = (res.get("subject") or {}).get("reference") or (res.get("patient") or {}).get("reference")
+                        if ref_pid and "Patient/" in str(ref_pid):
+                            extracted_pid = str(ref_pid).split("Patient/", 1)[1].split("/", 1)[0]
+
+            if extracted_pid or extracted_name:
+                from src.clinical.ai_document_parser import ParsedClinicalDocument
+                parsed_doc = ParsedClinicalDocument(
+                    patient_id=extracted_pid,
+                    patient_name=extracted_name,
+                    markdown_content=client_filename or "",
+                )
+        except Exception:
+            pass
+    else:
         try:
             extraction = (
                 _get_vision_extractor().extract(content, temp_doc_id)
@@ -138,33 +168,36 @@ async def ingest_file(
     # 3. Smart Patient Scope Resolution
     # ------------------------------------------------------------------
     target_pid = None
-    if patient_id and patient_id.strip():
+    clean_patient_id = patient_id.strip() if (isinstance(patient_id, str) and patient_id.strip()) else None
+    clean_patient_name = new_patient_name.strip() if (isinstance(new_patient_name, str) and new_patient_name.strip()) else None
+
+    if clean_patient_id:
         # User explicitly passed patient_id
-        exact_match = repo.get_patient(patient_id.strip())
+        exact_match = repo.get_patient(clean_patient_id)
         if exact_match:
             target_pid = exact_match.patient_id
         else:
-            alt_match = repo.find_patient_by_identifier_or_name(patient_id.strip(), patient_id.strip())
+            alt_match = repo.find_patient_by_identifier_or_name(clean_patient_id, clean_patient_id)
             if alt_match:
                 target_pid = alt_match.patient_id
             else:
                 raise HTTPException(
                     status_code=404,
-                    detail={"code": "PATIENT_SCOPE_DENIED", "message": f"Bệnh nhân {patient_id} không tồn tại."},
+                    detail={"code": "PATIENT_SCOPE_DENIED", "message": f"Bệnh nhân {clean_patient_id} không tồn tại."},
                 )
     else:
         # Case A: User explicitly provided a new patient name (e.g. "PDH")
-        if new_patient_name and new_patient_name.strip():
-            clean_name = new_patient_name.strip()
+        if clean_patient_name:
             matched_patient = repo.find_patient_by_identifier_or_name(
-                identifier=clean_name,
-                name=clean_name,
+                identifier=clean_patient_name,
+                name=clean_patient_name,
             )
             if matched_patient:
                 target_pid = matched_patient.patient_id
             else:
-                target_pid = f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
-                repo.create_blank_patient(target_pid, clean_name)
+                doc_pid = parsed_doc.patient_id if (parsed_doc and parsed_doc.patient_id) else None
+                target_pid = doc_pid or f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
+                repo.create_blank_patient(target_pid, clean_patient_name)
         else:
             # Case B: AI Auto-detect from parsed_doc
             matched_patient = None
@@ -177,12 +210,18 @@ async def ingest_file(
             if matched_patient:
                 target_pid = matched_patient.patient_id
             else:
-                # Check if parsed_doc has a specific patient_id that doesn't exist yet
                 doc_pid = parsed_doc.patient_id if (parsed_doc and parsed_doc.patient_id) else None
-                target_pid = doc_pid if (doc_pid and not repo.get_patient(doc_pid)) else f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
-                extracted_name = parsed_doc.patient_name if (parsed_doc and parsed_doc.patient_name) else None
-                name = extracted_name or f"Bệnh nhân mới {target_pid[-4:]}"
-                repo.create_blank_patient(target_pid, name)
+                if doc_pid:
+                    target_pid = doc_pid
+                    if not repo.get_patient(doc_pid):
+                        extracted_name = parsed_doc.patient_name if (parsed_doc and parsed_doc.patient_name) else None
+                        name = extracted_name or f"Bệnh nhân {target_pid}"
+                        repo.create_blank_patient(target_pid, name)
+                else:
+                    target_pid = f"PAT-NEW-{uuid.uuid4().hex[:6].upper()}"
+                    extracted_name = parsed_doc.patient_name if (parsed_doc and parsed_doc.patient_name) else None
+                    name = extracted_name or f"Bệnh nhân mới {target_pid[-4:]}"
+                    repo.create_blank_patient(target_pid, name)
 
 
     # ------------------------------------------------------------------
@@ -282,7 +321,7 @@ async def ingest_file(
     # ------------------------------------------------------------------
     try:
         if is_json:
-            repo.add_fhir_evidence(target_pid, evidence_items)
+            repo.add_fhir_evidence(target_pid, evidence_items, raw_bundle=parsed_json_fhir)
         else:
             # 1. Add canonical PDF evidence for citations & AI copilot
             repo.add_pdf_evidence(

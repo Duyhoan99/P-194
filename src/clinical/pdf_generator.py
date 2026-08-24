@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import os
+import re
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -448,21 +449,96 @@ def generate_review_pdf(review: ReviewResponse, patient: PatientSummary | None =
                 [_notice_box("Ghi chú của bác sĩ", section.clinician_text.strip(), styles), Spacer(1, 2.5 * mm)]
             )
 
-        if section.claims:
-            first_claim = section.claims[0]
+        # Deduplicate claims and clean trend statements
+        raw_claims = section.claims or []
+        clean_claims = []
+        seen_claim_keys = set()
+        for clm in raw_claims:
+            clm_text = _clean_claim_text(clm.text or "")
+            if ";" in clm_text and "diễn tiến" in clm_text.lower():
+                parts = [p.strip() for p in clm_text.split(";")]
+                seen_parts = set()
+                uniq_parts = []
+                for p in parts:
+                    norm_p = re.sub(r"(\d+)\.0(?=\s|$|[^\d])", r"\1", p).lower().strip()
+                    if norm_p not in seen_parts:
+                        seen_parts.add(norm_p)
+                        uniq_parts.append(p)
+                clm_text = "; ".join(uniq_parts)
+                if not clm_text.endswith("."):
+                    clm_text += "."
+
+            t = clm_text.lower().replace("\n", " ").strip()
+            sec_code = section.section_code or ""
+            if sec_code == "current_medications" or "thuốc" in t:
+                clean_med = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", t)
+                clean_med = re.sub(r"thuốc(?:\s+hiện\s+tại)?:\s*", "", clean_med)
+                clean_med = re.sub(r"(?:trạng thái|ghi nhận|đang duy trì|đang sử dụng|active|stopped|discontinued).*", "", clean_med)
+                clean_med = re.sub(r"\(.*?\)", "", clean_med).strip()
+                med_match = re.search(r"^([a-z\s]+?\d+(?:\.\d+)?\s*(?:mg|g|ml|mcg|ui|iu)?)", clean_med)
+                if med_match:
+                    drug_key = re.sub(r"\s+", " ", med_match.group(1)).strip()
+                    norm_key = f"med:{drug_key}"
+                else:
+                    norm_key = f"med:{clean_med[:30].strip()}"
+            elif sec_code == "recent_results" or "xét nghiệm" in t:
+                date_match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", t)
+                date_key = date_match.group(1) if date_match else "no_date"
+                without_date = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", t)
+                val_match = re.search(r"(?:kết quả|kết quả:|\:)\s*(\d+(?:\.\d+)?)", without_date) or re.search(r"(\d+(?:\.\d+)?)\s*(?:%|mmol/l|µmol/l|umol/l|mg/dl|ml/min|mmhg|mm\[hg\])?", without_date)
+                val_str = val_match.group(1) if val_match else ""
+                val_norm = re.sub(r"\.0$", "", val_str)
+
+                if "hba1c" in without_date:
+                    test_key = "hba1c"
+                elif "glucose" in without_date or "đường huyết" in without_date:
+                    test_key = "glucose"
+                elif "creatinine" in without_date:
+                    test_key = "creatinine"
+                elif "egfr" in without_date:
+                    test_key = "egfr"
+                elif "tâm thu" in without_date or "systolic" in without_date:
+                    test_key = "bp_sys"
+                elif "tâm trương" in without_date or "diastolic" in without_date:
+                    test_key = "bp_dia"
+                elif "huyết áp" in without_date or "blood pressure" in without_date:
+                    try:
+                        num_val = float(val_norm)
+                        test_key = "bp_sys" if num_val >= 100 else "bp_dia"
+                    except Exception:
+                        test_key = "bp"
+                else:
+                    test_key = without_date[:20].strip()
+
+                norm_key = f"lab:{test_key}:{date_key}:{val_norm}"
+            elif sec_code == "active_conditions" or "chẩn đoán" in t:
+                cond_clean = re.sub(r"\(.*?\)", "", t)
+                cond_clean = re.sub(r"chẩn đoán/tình trạng bệnh:\s*", "", cond_clean)
+                cond_clean = re.sub(r"ghi nhận\s+\d{4}-\d{2}-\d{2}", "", cond_clean).strip()
+                norm_key = f"cond:{cond_clean}"
+            else:
+                norm_key = re.sub(r"(\d+)\.0(?=\s|$|[^\d])", r"\1", clm_text).lower().strip()
+                norm_key = re.sub(r"\s+", " ", norm_key)
+
+            if norm_key not in seen_claim_keys:
+                seen_claim_keys.add(norm_key)
+                clean_claims.append((clm_text, clm.status))
+
+        if clean_claims:
+            first_text, first_status_code = clean_claims[0]
             first_status = ""
-            if first_claim.status != "verified":
+            if first_status_code != "verified":
                 first_status = " <font color='#B45309'><b>[Cần kiểm tra]</b></font>"
             opening.append(
-                Paragraph(f"- {_safe(_clean_claim_text(first_claim.text))}{first_status}", styles["body"])
+                Paragraph(f"- {_safe(first_text)}{first_status}", styles["body"])
             )
             story.append(KeepTogether(opening))
 
-            for claim in section.claims[1:]:
+            for c_text, c_status_code in clean_claims[1:]:
                 status = ""
-                if claim.status != "verified":
+                if c_status_code != "verified":
                     status = " <font color='#B45309'><b>[Cần kiểm tra]</b></font>"
-                story.append(Paragraph(f"- {_safe(_clean_claim_text(claim.text))}{status}", styles["body"]))
+                story.append(Paragraph(f"- {_safe(c_text)}{status}", styles["body"]))
         else:
             opening.append(Paragraph("Chưa ghi nhận thông tin trong mục này.", styles["note"]))
             story.append(KeepTogether(opening))
@@ -565,4 +641,6 @@ def generate_review_pdf(review: ReviewResponse, patient: PatientSummary | None =
     )
 
     doc.build(story, onFirstPage=_page_chrome, onLaterPages=_page_chrome)
-    return buffer.getvalue()
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    return pdf_content
