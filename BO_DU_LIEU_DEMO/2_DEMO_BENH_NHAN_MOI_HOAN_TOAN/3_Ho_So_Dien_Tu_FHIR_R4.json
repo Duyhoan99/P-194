@@ -1,0 +1,273 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "id": "bundle-PAT-PDH-001",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "PAT-PDH-001",
+        "name": [
+          {
+            "text": "PDH",
+            "family": "Phạm",
+            "given": [
+              "Đức",
+              "Huy"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1974-05-15"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-pdh-1",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "code": "active"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/icd-10",
+              "code": "E11",
+              "display": "Đái tháo đường Type 2"
+            }
+          ],
+          "text": "Đái tháo đường Type 2"
+        },
+        "recordedDate": "2026-08-23T08:00:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-pdh-2",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "code": "active"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/icd-10",
+              "code": "I10",
+              "display": "Tăng huyết áp độ 2"
+            }
+          ],
+          "text": "Tăng huyết áp độ 2"
+        },
+        "recordedDate": "2026-08-23T08:00:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-pdh-hba1c",
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4548-4",
+              "display": "HbA1c"
+            }
+          ],
+          "text": "HbA1c"
+        },
+        "valueQuantity": {
+          "value": 8.4,
+          "unit": "%"
+        },
+        "effectiveDateTime": "2026-08-23T08:30:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-pdh-glu",
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2339-0",
+              "display": "Glucose"
+            }
+          ],
+          "text": "Glucose"
+        },
+        "valueQuantity": {
+          "value": 9.6,
+          "unit": "mmol/L"
+        },
+        "effectiveDateTime": "2026-08-23T08:30:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-pdh-egfr",
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "33914-3",
+              "display": "eGFR"
+            }
+          ],
+          "text": "eGFR"
+        },
+        "valueQuantity": {
+          "value": 58.2,
+          "unit": "mL/min/1.73m2"
+        },
+        "effectiveDateTime": "2026-08-23T08:30:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-pdh-creat",
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2160-0",
+              "display": "Creatinine"
+            }
+          ],
+          "text": "Creatinine"
+        },
+        "valueQuantity": {
+          "value": 118.0,
+          "unit": "umol/L"
+        },
+        "effectiveDateTime": "2026-08-23T08:30:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-pdh-bp-sys",
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8480-6",
+              "display": "BP Systolic"
+            }
+          ],
+          "text": "BP Systolic"
+        },
+        "valueQuantity": {
+          "value": 145.0,
+          "unit": "mmHg"
+        },
+        "effectiveDateTime": "2026-08-23T08:30:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-pdh-bp-dia",
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8462-4",
+              "display": "BP Diastolic"
+            }
+          ],
+          "text": "BP Diastolic"
+        },
+        "valueQuantity": {
+          "value": 92.0,
+          "unit": "mmHg"
+        },
+        "effectiveDateTime": "2026-08-23T08:30:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-pdh-1",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "text": "Metformin 1000 mg (Glucophage)"
+        },
+        "dosageInstruction": [
+          {
+            "text": "Uong 1 vien x 2 lan/ngay (Sau bua an sang - toi)"
+          }
+        ],
+        "authoredOn": "2026-08-23T09:00:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-pdh-2",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "text": "Amlodipine 5 mg (Amlor)"
+        },
+        "dosageInstruction": [
+          {
+            "text": "Uong 1 vien/ngay vao buoi sang"
+          }
+        ],
+        "authoredOn": "2026-08-23T09:00:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-pdh-3",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "text": "Atorvastatin 20 mg (Lipitor)"
+        },
+        "dosageInstruction": [
+          {
+            "text": "Uong 1 vien/ngay vao buoi toi truoc khi di ngu"
+          }
+        ],
+        "authoredOn": "2026-08-23T09:00:00+07:00"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-pdh-4",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "text": "Empagliflozin 10 mg (Jardiance)"
+        },
+        "dosageInstruction": [
+          {
+            "text": "Uong 1 vien/ngay vao buoi sang"
+          }
+        ],
+        "authoredOn": "2026-08-23T09:00:00+07:00"
+      }
+    }
+  ]
+}
