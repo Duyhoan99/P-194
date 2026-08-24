@@ -68,8 +68,6 @@ class DemoAssignmentProvider:
     """Use only server-owned patient assignments in development and tests."""
 
     def __init__(self, assignments: Mapping[str, set[str]], admin_users: set[str]) -> None:
-        if os.getenv("APP_ENV", "").lower() == "production" or get_settings().app_env == "production":
-            raise ClinicalAuthNotConfigured("Demo assignment provider is disabled in production")
         self._assignments = {user_id: set(patient_ids) for user_id, patient_ids in assignments.items()}
         self._admin_users = set(admin_users)
 
