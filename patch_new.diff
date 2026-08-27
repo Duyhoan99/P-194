@@ -1,0 +1,116 @@
+--- a/src/agents/nodes/clinical_nodes.py
++++ b/src/agents/nodes/clinical_nodes.py
+@@ -51,6 +51,56 @@ def validate_scope_node(state: ClinicalReviewState) -> dict:
+     return {"status": "running", "errors": [], "evidence_packet": packet}
+ 
+ 
++
++def contextualize_question_node(state: ClinicalReviewState) -> dict:
++    request = state["request"]
++    current_q = request.question or ""
++
++    if not current_q or request.task_type != "ask_chart":
++        return {}
++
++    from src.agents.policy import RequestCategory, classify_prompt_category
++    cat_info = classify_prompt_category(current_q, "")
++    if cat_info.get("category") == RequestCategory.SIMPLE:
++        return {"messages": [("human", current_q)]}
++
++    chat_history = []
++    history = state.get("messages", [])
++    for msg in history:
++        from langchain_core.messages import BaseMessage
++        if isinstance(msg, BaseMessage):
++            if msg.type in ("human", "ai") and isinstance(msg.content, str):
++                chat_history.append((msg.type, msg.content))
++        elif isinstance(msg, tuple) and len(msg) == 2:
++            chat_history.append((msg[0], msg[1]))
++
++    if chat_history and chat_history[-1][0] == "human" and chat_history[-1][1] == current_q:
++        chat_history = chat_history[:-1]
++
++    if not chat_history:
++        return {"messages": [("human", current_q)]}
++
++    runtime = get_llm_runtime()
++    if not runtime.available:
++        return {"messages": [("human", current_q)]}
++
++    prompt = f"System: Viết lại câu hỏi sau thành một câu hoàn chỉnh, độc lập, bao gồm đầy đủ danh từ/chủ thể được nhắc đến trong ngữ cảnh của lịch sử trò chuyện. KHÔNG trả lời câu hỏi, chỉ viết lại. Nếu câu hỏi không liên quan đến lâm sàng, giữ nguyên.\n\nLịch sử trò chuyện:\n{chr(10).join([f'{role}: {text}' for role, text in chat_history[-4:]])}\n\nUser: {current_q}\nAssistant:"
++    rewritten_q = runtime.client.generate_text(prompt)
++    if not rewritten_q or len(rewritten_q) < 5 or "không thể" in rewritten_q.lower():
++        rewritten_q = current_q
++
++    return {
++        "messages": [("human", current_q)],
++        "request": request.model_copy(update={"question": rewritten_q})
++    }
++
++
+ def classify_question_node(state: ClinicalReviewState) -> dict:
+     return {"question_type": classify_request(state["request"])}
+ 
+@@ -144,15 +194,26 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
+     runtime = get_llm_runtime()
+ 
+     qt = state.get("question_type")
+-    is_conversational = isinstance(qt, dict) and (qt.get("task_type") == "conversation" or not qt.get("retrieval_required", True))
++    is_conversational = isinstance(qt, dict) and (qt.get("task_type") in {"conversation", "conversation_reference", "clarification"} or not qt.get("retrieval_required", True))
+ 
+     if is_conversational:
+         from src.agents.generation import ProposedClaim
+         normalized_question = (request.question or "").strip().casefold()
+         if isinstance(qt, dict) and qt.get("strict_intent") == "UNKNOWN":
+             greeting_text = "Bạn muốn xem bệnh/chẩn đoán, chỉ số lần khám gần nhất, thuốc hay các chỉ số đang cảnh báo?"
++        elif isinstance(qt, dict) and qt.get("strict_intent") == "user_identity":
++            greeting_text = "Xin chào! Tôi là AI Co-pilot hỗ trợ rà soát hồ sơ bệnh án. Tôi có thể giúp gì cho bạn hôm nay?"
+         elif isinstance(qt, dict) and qt.get("task_type") == "clarification":
+-            greeting_text = "Tôi chưa hiểu câu hỏi. Bạn có thể diễn đạt rõ hơn nội dung cần tra cứu không?"
++            greeting_text = qt.get("extracted_entity") or "Tôi chưa hiểu câu hỏi. Bạn có thể diễn đạt rõ hơn nội dung cần tra cứu không?"
++        elif isinstance(qt, dict) and qt.get("task_type") == "conversation_reference":
++            history = state.get("messages", [])
++            human_msgs = [m for m in history if (getattr(m, "type", "") == "human") or (isinstance(m, tuple) and m[0] == "human")]
++            if len(human_msgs) >= 2:
++                prev_q = human_msgs[-2]
++                text = prev_q.content if hasattr(prev_q, "content") else prev_q[1]
++                greeting_text = f'Câu hỏi trước đó của bạn là: "{text}"'
++            else:
++                greeting_text = "Bạn chưa có câu hỏi nào trước đó trong phiên này."
+         elif normalized_question in {"tạm biệt", "hẹn gặp lại", "bye", "goodbye"}:
+             greeting_text = "Tạm biệt! Khi cần rà soát hồ sơ, bạn cứ nhắn tôi nhé."
+         elif any(marker in normalized_question for marker in ("cảm ơn", "thanks", "thank you")):
+@@ -539,6 +600,20 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
+         confidence = "high"
+     elif status == "conflicting":
+         confidence = "low"
++    qt = state.get("question_type")
++    is_conversational = isinstance(qt, dict) and (
++        qt.get("task_type") in {"conversation", "clarification"}
++        or not qt.get("retrieval_required", True)
++    )
++    status = state.get("status")
++
++    if request.task_type not in {"ask_chart", "review_generation"} or is_conversational or status in {"not_allowed", "not_allowed_interaction", "not_found", "error"}:
++        final_citations = []
++    else:
++        from src.agents.contracts import VerifiedClaim
++        valid_claims = [c for c in claims if getattr(c, 'status', 'verified') == "verified"]
++        final_citations = _deduplicate_citations(valid_claims)
++
+     result = AgentResult(
+         task_type=request.task_type,
+         status=status,
+@@ -549,7 +624,10 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
+         claims=claims,
+         unsupported_claims=unsupported_verified,
+         conflicts=conflicts if request.task_type == "review_generation" else [],
+-        citations=citations,
++        citations=final_citations,
+         errors=state.get("errors", []),
+     )
+-    return {"public_response": result}
++    output_state = {"public_response": result}
++    if answer:
++        output_state["messages"] = [("ai", answer)]
++    return output_state

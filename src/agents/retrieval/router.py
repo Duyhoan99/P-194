@@ -5,7 +5,7 @@ from src.agents.llm_client import get_llm_runtime
 from src.agents.retrieval.concepts import resolve_concept
 
 QueryRoute = Literal["STRUCTURED", "NARRATIVE", "MIXED", "TEMPORAL", "SUMMARY", "OUT_OF_SCOPE", "CONVERSATION"]
-StrictIntent = Literal["PATIENT_OVERVIEW", "WARNING_STATUS", "LATEST_VISIT", "PREVIOUS_VISIT", "DISEASE", "LAB_RESULT", "VITAL_SIGN", "MEDICATION", "VISIT", "HISTORY", "COMPARISON", "SPECIFIC_TEST", "UNKNOWN", "NONE"]
+StrictIntent = Literal["PATIENT_OVERVIEW", "WARNING_STATUS", "LATEST_VISIT", "PREVIOUS_VISIT", "DISEASE", "LAB_RESULT", "VITAL_SIGN", "MEDICATION", "VISIT", "HISTORY", "COMPARISON", "SPECIFIC_TEST", "UNKNOWN", "NONE", "user_identity", "unclear_query"]
 
 _SUMMARY_INTENT_MARKERS = (
     "tóm tắt",
@@ -35,7 +35,33 @@ _CLINICAL_CONTEXT_MARKERS = (
     "biến chứng", "thần kinh", "ngoại biên", "dị ứng", "allergy", "tiền sử", "tình trạng",
     "thận", "tim", "phổi", "gan", "mắt", "võng mạc", "loét", "bàn chân", "ghi nhận",
 )
-_LOW_INFORMATION_TERMS = {"thế", "nào", "rồi", "sao", "vậy", "à", "ừ", "ờ", "hả"}
+_LOW_INFORMATION_TERMS = {
+    "thế", "nào", "rồi", "sao", "vậy", "à", "ừ", "ờ", "hả",
+    "can", "you", "fix", "it", "help", "me", "what", "is", "this", "please",
+}
+
+def _is_vague_missing_info_query(question: str) -> tuple[bool, str]:
+    q_lower = question.lower()
+    entity = _extract_entity(question)
+    
+    # Exclude requests for "all" or specific patient indicators
+    if any(k in q_lower for k in ["tất cả", "toàn bộ", "các", "của bệnh nhân"]):
+        return False, "none"
+        
+    # "Chỉ số xét nghiệm thế nào?"
+    if "xét nghiệm" in q_lower or "chỉ số" in q_lower:
+        if not entity: return True, "lab"
+        
+    # "Thuốc uống thế nào?"
+    if "thuốc" in q_lower:
+        if not entity: return True, "medication"
+        
+    # "Can you fix it?" or other vague questions without clear entities
+    if "fix it" in q_lower or "thế nào" in q_lower:
+        if not entity: return True, "all"
+        
+    return False, "none"
+
 
 
 def _extract_entity(question: str) -> str | None:
@@ -46,7 +72,7 @@ def _extract_entity(question: str) -> str | None:
 def _has_clinical_signal(question: str) -> bool:
     domain_markers = (
         "bệnh", "chẩn đoán", "thuốc", "medication", "xét nghiệm", "lab",
-        "kết quả", "huyết áp", "nhịp tim", "mạch", "cân nặng", "ghi chú", "note",
+        "kết quả", "chỉ số", "cận lâm sàng", "huyết áp", "nhịp tim", "mạch", "cân nặng", "ghi chú", "note",
     )
     return _extract_entity(question) is not None or any(
         marker in question for marker in domain_markers + _CLINICAL_CONTEXT_MARKERS
@@ -97,7 +123,7 @@ class DomainNeed(BaseModel):
     temporal: TemporalIntent = Field(default_factory=TemporalIntent)
 
 class RetrievalPlan(BaseModel):
-    task_type: Literal["conversation", "clarification", "clinical_question", "summary", "conflict_check", "out_of_scope"]
+    task_type: Literal["conversation", "conversation_reference", "clarification", "clinical_question", "summary", "conflict_check", "out_of_scope"]
     needs: list[DomainNeed] = Field(default_factory=list)
     use_structured: bool = True
     use_semantic: bool = True
@@ -110,7 +136,7 @@ class RetrievalPlan(BaseModel):
     @property
     def route(self) -> str:
         """Helper to map back to legacy QueryRoute for compatibility, or return a custom one."""
-        if self.task_type in {"conversation", "clarification"}: return "CONVERSATION"
+        if self.task_type in {"conversation", "conversation_reference", "clarification"}: return "CONVERSATION"
         if self.task_type == "summary": return "SUMMARY"
         if self.task_type == "conflict_check": return "MIXED"
         if self.task_type == "out_of_scope": return "OUT_OF_SCOPE"
@@ -233,11 +259,21 @@ class PlanValidator:
                     "đổi", "ra", "sao", "so", "với", "nửa", "năm", "trước", "tháng",
                     "gần", "đây", "theo", "thời", "gian", "hiện", "tại", "một", "hai",
                     "ba", "bốn", "sáu", "bảy", "tám", "chín", "mười",
+                    "tất", "cả", "toàn", "bộ", "cụ", "thể", "danh", "sách",
+                    "cho", "biết", "tôi", "xem", "những", "mọi", "hết",
                 }
                 tokens = re.findall(r"[\w%/.+-]+", q, flags=re.UNICODE)
                 residue = [token for token in tokens if len(token) > 1 and token not in generic_lab_terms]
                 residue = [token for token in residue if token not in {"thay", "đổi", "thời", "gian", "xu", "hướng", "so", "sánh"}]
                 entity = " ".join(residue) or None
+
+            is_full_lab_listing = any(m in q for m in (
+                "tất cả", "toàn bộ", "các chỉ số", "chỉ số của bệnh nhân", "chỉ số bệnh nhân",
+                "danh sách chỉ số", "các xét nghiệm", "tất cả chỉ số", "toàn bộ chỉ số",
+                "danh sách xét nghiệm", "cụ thể tất cả", "những chỉ số", "các kết quả"
+            ))
+            if is_full_lab_listing and concept is None:
+                entity = None
                 
         # Temporal parsing
         if comparison_required or any(marker in q for marker in _TREND_MARKERS + ("biến động", "biến chuyển")):
@@ -336,6 +372,15 @@ class QueryPlanner:
             return RetrievalPlan(task_type="conversation", retrieval_required=False)
         if "bạn" in q and any(marker in q for marker in ("giúp", "hỗ trợ", "làm được", "khả năng")):
             return RetrievalPlan(task_type="conversation", retrieval_required=False)
+        is_missing_info, missing_domain = _is_vague_missing_info_query(question)
+        if is_missing_info:
+            return RetrievalPlan(
+                task_type="clarification",
+                strict_intent="UNKNOWN",
+                extracted_entity=missing_domain,
+                retrieval_required=False,
+            )
+
         if _is_low_information(q):
             return RetrievalPlan(task_type="clarification", strict_intent="UNKNOWN", retrieval_required=False)
 
@@ -344,15 +389,6 @@ class QueryPlanner:
                 task_type="conflict_check", needs=[DomainNeed(domain="all")],
                 use_structured=True, use_semantic=False, use_lexical=False,
             ), question)
-
-        runtime = get_llm_runtime()
-        if runtime.available:
-            try:
-                llm_plan = self._llm_plan(question)
-                if llm_plan and isinstance(llm_plan, RetrievalPlan):
-                    return self.validator.validate(llm_plan, question)
-            except Exception:
-                pass
 
         # 2. Fast path: summary
         if any(marker in q for marker in _SUMMARY_INTENT_MARKERS):
@@ -389,16 +425,25 @@ class QueryPlanner:
                 deterministic.strict_intent = "LAB_RESULT"
         elif any(marker in q for marker in ["huyết áp", "nhịp tim", "mạch", "cân nặng"]):
             deterministic.strict_intent = "VITAL_SIGN"
-        elif not is_dated_query and any(marker in q for marker in ["lần khám gần nhất", "buổi khám gần đây nhất", "khám gần nhất", "chỉ số sức khỏe mới nhất", "chỉ số mới nhất", "chỉ số gần nhất", "các chỉ số sức khỏe", "các chỉ số mới nhất", "các chỉ số gần nhất"]):
+        elif not is_dated_query and any(marker in q for marker in [
+            "lần khám gần nhất", "buổi khám gần đây nhất", "khám gần nhất", "tái khám gần nhất",
+            "tái khám gần đây", "lần tái khám gần nhất", "tái khám",
+            "chỉ số sức khỏe mới nhất", "chỉ số mới nhất", "chỉ số gần nhất",
+            "các chỉ số sức khỏe", "các chỉ số mới nhất", "các chỉ số gần nhất",
+        ]):
             deterministic.strict_intent = "LATEST_VISIT"
         elif not is_dated_query and any(marker in q for marker in ["buổi khám trước", "lần khám trước", "khám lần trước"]):
             deterministic.strict_intent = "PREVIOUS_VISIT"
         elif not is_dated_query and any(marker in q for marker in ["buổi khám ngày", "khám ngày", "ngày", "buổi khám"]):
             deterministic.strict_intent = "VISIT"
-        elif "bệnh gì" in q or q == "bệnh nhân bị bệnh gì?":
+        elif any(marker in q for marker in ["bệnh gì", "mắc bệnh gì", "bị bệnh gì", "bệnh lý gì"]) or q.strip() in {"bệnh", "chẩn đoán", "bệnh lý"}:
             deterministic.strict_intent = "DISEASE"
         elif "thuốc" in q and "đang dùng" in q:
             deterministic.strict_intent = "MEDICATION"
+
+        if deterministic.strict_intent not in {"NONE", "UNKNOWN"}:
+            deterministic.task_type = "clinical_question"
+            return self.validator.validate(deterministic, question)
 
         runtime = get_llm_runtime()
         if runtime.available or hasattr(self._llm_plan, "assert_called") or hasattr(self._llm_plan, "mock_calls"):
@@ -410,9 +455,6 @@ class QueryPlanner:
                 pass
 
         needs = deterministic.needs
-        if deterministic.strict_intent != "NONE":
-            deterministic.task_type = "clinical_question"
-            return self.validator.validate(deterministic, question)
         if deterministic.task_type != "clinical_question" or (
             needs and needs[0].domain != "diagnosis" and needs[0].domain != "all"
         ):

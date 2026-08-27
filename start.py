@@ -105,13 +105,13 @@ def main():
     frontend = subprocess.Popen("npm --prefix frontend run dev", shell=True, env=frontend_env)
     
     print("\n" + "=" * 60)
-    print("🚀 HE THONG DA SAN SANG!")
-    print(f"💻 Web App may tinh: http://localhost:3000")
+    print("HE THONG DA SAN SANG!")
+    print(f"Web App may tinh: http://localhost:3000")
     if tunnel_url:
-        print(f"📱 Link QR dien thoai: {tunnel_url}")
+        print(f"Link QR dien thoai: {tunnel_url}")
         print("   (Quet ma QR tren PDF se mo duoc tren moi mang 3G/4G/Wifi)")
     else:
-        print(f"📱 Link QR noi bo (cung Wifi): http://{lan_ip}:8000")
+        print(f"Link QR noi bo (cung Wifi): http://{lan_ip}:8000")
     print("=" * 60 + "\n")
     
     time.sleep(4)

@@ -1,0 +1,29 @@
+diff a/src/agents/nodes/clinical_nodes.py b/src/agents/nodes/clinical_nodes.py	(rejected hunks)
+@@ -144,15 +194,26 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
+     runtime = get_llm_runtime()
+ 
+     qt = state.get("question_type")
+-    is_conversational = isinstance(qt, dict) and (qt.get("task_type") == "conversation" or not qt.get("retrieval_required", True))
++    is_conversational = isinstance(qt, dict) and (qt.get("task_type") in {"conversation", "conversation_reference", "clarification"} or not qt.get("retrieval_required", True))
+ 
+     if is_conversational:
+         from src.agents.generation import ProposedClaim
+         normalized_question = (request.question or "").strip().casefold()
+         if isinstance(qt, dict) and qt.get("strict_intent") == "UNKNOWN":
+             greeting_text = "B?n mu?n xem b?nh/ch?n doán, ch? s? l?n khám g?n nh?t, thu?c hay các ch? s? dang c?nh báo?"
++        elif isinstance(qt, dict) and qt.get("strict_intent") == "user_identity":
++            greeting_text = "Xin chào! Tôi là AI Co-pilot h? tr? rà soát h? so b?nh án. Tôi có th? giúp gì cho b?n hôm nay?"
+         elif isinstance(qt, dict) and qt.get("task_type") == "clarification":
+             greeting_text = "Tôi chua hi?u câu h?i. B?n có th? di?n d?t rõ hon n?i dung c?n tra c?u không?"
++        elif isinstance(qt, dict) and qt.get("task_type") == "conversation_reference":
++            history = state.get("messages", [])
++            human_msgs = [m for m in history if (getattr(m, "type", "") == "human") or (isinstance(m, tuple) and m[0] == "human")]
++            if len(human_msgs) >= 2:
++                prev_q = human_msgs[-2]
++                text = prev_q.content if hasattr(prev_q, "content") else prev_q[1]
++                greeting_text = f'Câu h?i tru?c dó c?a b?n là: "{text}"'
++            else:
++                greeting_text = "B?n chua có câu h?i nào tru?c dó trong phiên này."
+         elif normalized_question in {"t?m bi?t", "h?n g?p l?i", "bye", "goodbye"}:
+             greeting_text = "T?m bi?t! Khi c?n rà soát h? so, b?n c? nh?n tôi nhé."
+         elif any(marker in normalized_question for marker in ("c?m on", "thanks", "thank you")):

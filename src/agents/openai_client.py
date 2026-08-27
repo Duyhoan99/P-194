@@ -46,7 +46,7 @@ RESPONSE SCOPE RULES:
 
 Ví dụ:
 User: "Bệnh nhân bị bệnh gì?"
-Assistant: "Bệnh nhân bị tiểu đường."
+Assistant: "Theo hồ sơ ghi nhận, bệnh nhân hiện đang được theo dõi bệnh lý gồm: Tiểu đường."
 User: "Ngày khám của bệnh nhân?"
 Assistant: "Ngày khám: 12/08/2026."
 User: "Bệnh nhân có những vấn đề sức khỏe nào?"
@@ -68,6 +68,7 @@ class OpenAIClinicalClientBase(abc.ABC):
         evidence_items: list[dict[str, Any]],
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> list[dict[str, Any]] | None:
         """Generate atomic claims grounded in the provided evidence.
 
@@ -93,6 +94,7 @@ class NullOpenAIClinicalClient(OpenAIClinicalClientBase):
         evidence_items: list[dict[str, Any]],
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> list[dict[str, Any]] | None:
         return None
 
@@ -121,6 +123,7 @@ class MockOpenAIClinicalClient(OpenAIClinicalClientBase):
         evidence_items: list[dict[str, Any]],
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> list[dict[str, Any]] | None:
         if self._raise_error:
             raise RuntimeError("Mock OpenAI error")
@@ -144,6 +147,7 @@ class RealOpenAIClinicalClient(OpenAIClinicalClientBase):
         evidence_items: list[dict[str, Any]],
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> list[dict[str, Any]] | None:
         try:
             from openai import OpenAI  # noqa: PLC0415 — optional dependency
@@ -167,14 +171,16 @@ class RealOpenAIClinicalClient(OpenAIClinicalClientBase):
                 "evidence_items": evidence_block,
             }, ensure_ascii=False)
 
+            messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
+            if chat_history:
+                messages.extend(chat_history)
+            messages.append({"role": "user", "content": user_content})
+
             response = client.chat.completions.create(
                 model=self._model_name,
                 temperature=temperature,
                 store=False,  # No data retention
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
+                messages=messages,
                 response_format={"type": "json_object"},
                 max_tokens=2048,
             )

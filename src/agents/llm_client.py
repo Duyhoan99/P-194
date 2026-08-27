@@ -54,7 +54,7 @@ RESPONSE SCOPE RULES:
 
 Ví dụ:
 User: "Bệnh nhân bị bệnh gì?"
-Assistant: "Bệnh nhân bị tiểu đường."
+Assistant: "Theo hồ sơ ghi nhận, bệnh nhân hiện đang được theo dõi bệnh lý gồm: Tiểu đường."
 User: "Ngày khám của bệnh nhân?"
 Assistant: "Ngày khám: 12/08/2026."
 User: "Bệnh nhân có những vấn đề sức khỏe nào?"
@@ -93,6 +93,7 @@ class LLMClinicalClientBase(abc.ABC):
         evidence_packet: Any,
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any] | None:
         """Generate atomic claims grounded in the provided EvidencePacket.
 
@@ -127,6 +128,15 @@ class LLMClinicalClientBase(abc.ABC):
     ) -> bool:
         """Return whether bounded evidence fully entails one claim."""
 
+    @abc.abstractmethod
+    def generate_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.0,
+    ) -> str:
+        """Generate raw text from a prompt (e.g. for query rewriting)."""
+
 
 class NullLLMClinicalClient(LLMClinicalClientBase):
     """No-op client used when API key is absent. Always returns None (fallback)."""
@@ -137,6 +147,7 @@ class NullLLMClinicalClient(LLMClinicalClientBase):
         evidence_packet: Any,
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any] | None:
         return None
         
@@ -156,6 +167,14 @@ class NullLLMClinicalClient(LLMClinicalClientBase):
         temperature: float = 0.0,
     ) -> bool:
         return False
+
+    def generate_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.0,
+    ) -> str:
+        return ""
 
 
 class MockLLMClinicalClient(LLMClinicalClientBase):
@@ -179,6 +198,7 @@ class MockLLMClinicalClient(LLMClinicalClientBase):
         evidence_packet: Any,
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any] | None:
         if self._raise_error:
             raise RuntimeError("Mock LLM error")
@@ -206,6 +226,16 @@ class MockLLMClinicalClient(LLMClinicalClientBase):
         if self._raise_error:
             raise RuntimeError("Mock LLM error")
         return self._mock_entailment
+
+    def generate_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.0,
+    ) -> str:
+        if self._raise_error:
+            raise RuntimeError("Mock LLM error")
+        return "mock rewritten question"
 
 
 def _parse_and_validate_claims(raw_text: str) -> dict[str, Any] | None:
@@ -259,20 +289,23 @@ class UniversalOpenAIClient(LLMClinicalClientBase):
         evidence_packet: Any,
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any] | None:
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=self._api_key, base_url=self._base_url if self._base_url else None)
+            client = OpenAI(api_key=self._api_key, base_url=self._base_url if self._base_url else None, timeout=12.0)
             
             user_content = _build_user_content(question, evidence_packet)
+
+            messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
+            if chat_history:
+                messages.extend(chat_history)
+            messages.append({"role": "user", "content": user_content})
 
             response = client.chat.completions.create(
                 model=self._model_name,
                 temperature=temperature,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
+                messages=messages,
                 response_format={"type": "json_object"},
                 max_tokens=8192,
             )
@@ -294,7 +327,7 @@ class UniversalOpenAIClient(LLMClinicalClientBase):
         try:
             from openai import OpenAI
             import json
-            client = OpenAI(api_key=self._api_key, base_url=self._base_url if self._base_url else None)
+            client = OpenAI(api_key=self._api_key, base_url=self._base_url if self._base_url else None, timeout=12.0)
             
             system_prompt = '''You are a clinical query planner.
 Output a JSON matching this exact schema:
@@ -336,7 +369,7 @@ Output a JSON matching this exact schema:
         try:
             from openai import OpenAI
 
-            client = OpenAI(api_key=self._api_key, base_url=self._base_url or None)
+            client = OpenAI(api_key=self._api_key, base_url=self._base_url or None, timeout=12.0)
             response = client.chat.completions.create(
                 model=self._model_name,
                 temperature=temperature,
@@ -358,6 +391,26 @@ Output a JSON matching this exact schema:
         except Exception as exc:
             logger.warning("Universal OpenAI verification failed: %s", exc)
             return False
+
+    def generate_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.0,
+    ) -> str:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=self._api_key, base_url=self._base_url or None, timeout=12.0)
+            response = client.chat.completions.create(
+                model=self._model_name,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=256,
+            )
+            return (response.choices[0].message.content or "").strip()
+        except Exception as exc:
+            logger.warning("Universal OpenAI text generation failed: %s", exc)
+            return ""
 
 
 def _gemini_json_config(model_name: str, *, temperature: float, max_output_tokens: int):
@@ -392,6 +445,7 @@ class NativeGeminiClient(LLMClinicalClientBase):
         evidence_packet: Any,
         *,
         temperature: float = 0.0,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any] | None:
         try:
             from google import genai
@@ -401,14 +455,22 @@ class NativeGeminiClient(LLMClinicalClientBase):
             
             user_content = _build_user_content(question, evidence_packet)
             
+            contents = []
+            if chat_history:
+                for msg in chat_history:
+                    role = "model" if msg["role"] == "assistant" else "user"
+                    contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg["content"])]))
+            
+            contents.append(
+                types.Content(role="user", parts=[
+                    types.Part.from_text(text=_SYSTEM_PROMPT),
+                    types.Part.from_text(text=user_content)
+                ])
+            )
+            
             response = client.models.generate_content(
                 model=self._model_name,
-                contents=[
-                    types.Content(role="user", parts=[
-                        types.Part.from_text(text=_SYSTEM_PROMPT),
-                        types.Part.from_text(text=user_content)
-                    ])
-                ],
+                contents=contents,
                 config=_gemini_json_config(
                     self._model_name,
                     temperature=temperature,
@@ -510,6 +572,30 @@ Output a JSON matching this exact schema:
         except Exception as exc:
             logger.warning("Native Gemini verification failed: %s", exc)
             return False
+
+    def generate_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.0,
+    ) -> str:
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=self._api_key)
+            response = client.models.generate_content(
+                model=self._model_name,
+                contents=[prompt],
+                config=types.GenerateContentConfig(
+                    temperature=temperature,
+                    max_output_tokens=256,
+                ),
+            )
+            return (response.text or "").strip()
+        except Exception as exc:
+            logger.warning("Native Gemini text generation failed: %s", exc)
+            return ""
 
 def build_llm_client(api_key: str, model_name: str, base_url: str | None = None) -> LLMClinicalClientBase:
     """Factory: return NativeGemini or UniversalOpenAI based on model_name."""

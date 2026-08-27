@@ -8,6 +8,7 @@ It never treats pending adapter cases as passes.
 from __future__ import annotations
 
 import json
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -107,7 +108,10 @@ def _agent_state(request: AgentRequest):
             "status": "running",
             "errors": [],
         },
-        config={"recursion_limit": 16},
+        config={
+            "configurable": {"thread_id": str(uuid.uuid4())},
+            "recursion_limit": 16
+        },
     )
 
 
