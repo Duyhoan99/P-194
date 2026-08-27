@@ -87,7 +87,7 @@ export default function PatientCareGuideModal({
   const [exercise, setExercise] = useState('');
   const [warning, setWarning] = useState('');
   const [followUp, setFollowUp] = useState('Tái khám theo lịch được bác sĩ xác nhận.');
-  const [doctorSignName, setDoctorSignName] = useState('BS. Lâm Sàng (P-194)');
+  const [doctorSignName, setDoctorSignName] = useState('Chưa ký duyệt');
   const [isGeneratingLLM, setIsGeneratingLLM] = useState(false);
   const [agentBadge, setAgentBadge] = useState('Agent hỗ trợ bệnh lý');
   const [generationMode, setGenerationMode] = useState('deterministic_grounded');
@@ -352,13 +352,17 @@ export default function PatientCareGuideModal({
   };
 
   const handleExportPdf = async () => {
-    if (!patientId || isExportingPdf) return;
-    let signer = doctorSignName.trim();
-    if (!signer || signer.toLowerCase() === 'chưa ký duyệt' || signer.toLowerCase() === 'chưa xác nhận') {
-      signer = 'BS. Lâm Sàng (P-194)';
-      setDoctorSignName(signer);
+    if (!patientId || isExportingPdf || requiresReview) {
+      if (requiresReview) {
+        setGenerationError('Bác sĩ cần bấm “Bác sĩ tùy biến”, ghi rõ tên và bấm “Ký duyệt lời dặn” trước khi xuất PDF.');
+      }
+      return;
     }
-    setRequiresReview(false);
+    const signer = doctorSignName.trim();
+    if (!signer || signer.toLowerCase() === 'chưa ký duyệt' || signer.toLowerCase() === 'chưa xác nhận') {
+      setGenerationError('Bác sĩ cần bấm “Bác sĩ tùy biến”, ghi rõ tên và bấm “Ký duyệt lời dặn” trước khi xuất PDF.');
+      return;
+    }
     setIsExportingPdf(true);
     setGenerationError('');
     try {
@@ -410,12 +414,15 @@ export default function PatientCareGuideModal({
     if (!isEditing) {
       setRequiresReview(true);
       setGenerationError('');
+      if (doctorSignName === 'Chưa ký duyệt') {
+        setDoctorSignName('');
+      }
       setIsEditing(true);
       return;
     }
-    const signer = doctorSignName.trim().toLocaleLowerCase('vi-VN');
-    if (!signer || signer === 'chưa ký duyệt' || signer === 'chưa xác nhận') {
-      setGenerationError('Bác sĩ cần ghi rõ tên người ký duyệt trước khi phát hành hướng dẫn cho bệnh nhân.');
+    const signer = doctorSignName.trim();
+    if (!signer || signer.toLowerCase() === 'chưa ký duyệt' || signer.toLowerCase() === 'chưa xác nhận') {
+      setGenerationError('Bác sĩ cần ghi rõ họ tên người ký duyệt trước khi phát hành hướng dẫn cho bệnh nhân.');
       return;
     }
     setRequiresReview(false);
@@ -597,8 +604,12 @@ export default function PatientCareGuideModal({
                     <h3 className="text-base sm:text-lg font-bold text-slate-100">
                       Phiếu Hướng Dẫn Điều Trị &amp; Chăm Sóc Tại Nhà
                     </h3>
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                      <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                      requiresReview
+                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                        : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    }`}>
+                      <UserCheck className={`w-3.5 h-3.5 ${requiresReview ? 'text-amber-400' : 'text-emerald-400'}`} />
                       {requiresReview ? 'Bản nháp — Chưa phê duyệt' : `Đã duyệt bởi ${doctorSignName}`}
                     </span>
                   </div>
@@ -1073,12 +1084,13 @@ export default function PatientCareGuideModal({
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-slate-400 block">Tên Bác sĩ ký:</label>
+                        <label className="text-[10px] text-teal-400 font-bold block mb-1">Tên Bác sĩ ký duyệt (*):</label>
                         <input
                           type="text"
                           value={doctorSignName}
                           onChange={(e) => setDoctorSignName(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs text-slate-200"
+                          placeholder="Nhập họ tên bác sĩ..."
+                          className="w-full bg-slate-950 border border-teal-500/50 focus:border-teal-400 rounded p-1.5 text-xs text-slate-100 placeholder-slate-500"
                         />
                       </div>
                     </div>
@@ -1122,8 +1134,10 @@ export default function PatientCareGuideModal({
             <div className="flex items-center gap-2">
               <button
                 onClick={handleExportPdf}
-                disabled={isExportingPdf}
-                className="px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-teal-950/40 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                disabled={isExportingPdf || requiresReview}
+                aria-disabled={isExportingPdf || requiresReview}
+                title={requiresReview ? 'Bác sĩ cần bấm "Bác sĩ tùy biến" và bấm "Ký duyệt lời dặn" trước khi xuất PDF' : 'Xuất file PDF phiếu hướng dẫn điều trị'}
+                className="px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-teal-950/40 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>{isExportingPdf ? 'Đang tạo PDF...' : 'Xuất hướng dẫn PDF'}</span>
