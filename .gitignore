@@ -72,3 +72,5 @@ out/
 TEST_FILES_CHO_BAN_GIAM_KHAO/
 demo_sample_files/
 
+
+.data/

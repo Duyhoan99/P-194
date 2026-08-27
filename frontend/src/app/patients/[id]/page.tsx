@@ -173,7 +173,7 @@ export default function PatientWorkspace() {
           <div className="h-full max-w-[1700px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
 
             {/* LEFT COLUMN: Clinical Workspace with 4 Core Medical Tabs (Expands to 12 cols when Chat is closed!) */}
-            <div className={`${showChat ? 'lg:col-span-7' : 'lg:col-span-12'} flex flex-col h-full overflow-hidden gap-3 min-w-0 transition-all duration-300`}>
+            <div className={`${showChat ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col h-full overflow-hidden gap-3 min-w-0 transition-all duration-300`}>
 
               {/* Navigation Tabs Bar - 4 High-Value Clinical Tabs */}
               <div className="shrink-0 flex items-center justify-between clinical-card p-1.5 rounded-2xl">
@@ -265,7 +265,7 @@ export default function PatientWorkspace() {
 
             {/* RIGHT COLUMN: AI Co-pilot Assistant (Shown when showChat is true) */}
             {showChat && (
-              <div className="lg:col-span-5 flex flex-col h-full overflow-hidden min-w-0 animate-in fade-in slide-in-from-right-4 duration-200">
+              <div className="lg:col-span-7 flex flex-col h-full overflow-hidden min-w-0 animate-in fade-in slide-in-from-right-4 duration-200">
                 <ChatPanel patientId={patientId} onClose={() => setShowChat(false)} />
               </div>
             )}

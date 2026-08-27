@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from src.agents.adapter import AgentRequestAdapter
-from src.agents.graph import run_agent
+from src.agents.graph import clinical_agent, run_agent
 from src.api.auth_routes import DEFAULT_CLINICIAN
 from src.api.dependencies import get_demo_repository
+from src.api.session_manager import ChatSession, session_manager
 from src.clinical.canonical import Citation
 from src.clinical.care_plan_agent import CarePlanResponse, care_plan_agent
 from src.clinical.demo_repository import DemoRepository
@@ -80,6 +81,7 @@ class Lookback(BaseModel):
 class AskRequest(BaseModel):
     question: str
     lookback: Lookback | None = None
+    session_id: str | None = None
 
 
 class AskResponse(BaseModel):
@@ -88,6 +90,15 @@ class AskResponse(BaseModel):
     confidence: Literal["high", "medium", "low"] | None = "high"
     citations: list[Citation] = Field(default_factory=list)
     data_watermark: str
+
+
+class HistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: list[HistoryMessage]
 
 
 @router.post("/patients/{patient_id}/ask", response_model=AskResponse)
@@ -162,6 +173,7 @@ async def ask_patient_chart(
             "patient_id": patient_id,
             "request_id": request_id,
         },
+        session_id=payload.session_id,
     )
     if agent_result.status == "error" or agent_result.answer is None:
         trace_id = next((e.trace_id for e in agent_result.errors if getattr(e, "trace_id", None)), None)
@@ -173,6 +185,9 @@ async def ask_patient_chart(
             status_code=503,
             detail=detail,
         )
+    if payload.session_id:
+        session_manager.upsert_session(payload.session_id, patient_id, payload.question)
+
     response.headers["X-Request-ID"] = request_id
     return AskResponse(
         status=agent_result.status,
@@ -181,3 +196,63 @@ async def ask_patient_chart(
         citations=[citation.model_dump(mode="json") for citation in agent_result.citations],
         data_watermark=agent_result.data_watermark,
     )
+
+
+@router.get("/patients/{patient_id}/ask/history", response_model=ChatHistoryResponse)
+def get_chat_history(
+    patient_id: str,
+    session_id: str,
+    repo: DemoRepository = Depends(get_demo_repository),
+) -> ChatHistoryResponse:
+    patient = repo.get_patient(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Bệnh nhân không tồn tại.")
+
+    thread_id = f"{DEFAULT_CLINICIAN.tenant_id}:{patient_id}:{session_id}"
+    try:
+        state_snapshot = clinical_agent.get_state({"configurable": {"thread_id": thread_id}})
+    except Exception:
+        return ChatHistoryResponse(messages=[])
+
+    if not state_snapshot or not state_snapshot.values:
+        return ChatHistoryResponse(messages=[])
+
+    messages = state_snapshot.values.get("messages", [])
+    history = []
+
+    for msg in messages:
+        if isinstance(msg, tuple) and len(msg) == 2:
+            role = "user" if msg[0] == "human" else "assistant"
+            history.append(HistoryMessage(role=role, text=msg[1]))
+        elif hasattr(msg, "type") and hasattr(msg, "content"):
+            role = "user" if msg.type == "human" else "assistant"
+            history.append(HistoryMessage(role=role, text=str(msg.content)))
+
+    return ChatHistoryResponse(messages=history)
+
+
+@router.get("/patients/{patient_id}/ask/sessions", response_model=list[ChatSession])
+def list_chat_sessions(patient_id: str, repo: DemoRepository = Depends(get_demo_repository)):
+    if not repo.get_patient(patient_id):
+        raise HTTPException(status_code=404, detail="Bệnh nhân không tồn tại.")
+    return session_manager.get_sessions(patient_id)
+
+
+class RenameSessionRequest(BaseModel):
+    title: str
+
+
+@router.put("/patients/{patient_id}/ask/sessions/{session_id}")
+def rename_chat_session(patient_id: str, session_id: str, req: RenameSessionRequest):
+    success = session_manager.rename_session(session_id, req.title)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session không tồn tại.")
+    return {"success": True}
+
+
+@router.delete("/patients/{patient_id}/ask/sessions/{session_id}")
+def delete_chat_session(patient_id: str, session_id: str):
+    success = session_manager.delete_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session không tồn tại.")
+    return {"success": True}

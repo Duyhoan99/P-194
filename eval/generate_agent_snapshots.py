@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import uuid
 from pathlib import Path
 
 from src.agents.contracts import AgentRequest
@@ -54,7 +56,10 @@ def main() -> None:
             "status": "running",
             "errors": [],
         },
-        config={"recursion_limit": 16},
+        config={
+            "configurable": {"thread_id": str(uuid.uuid4())},
+            "recursion_limit": 16
+        },
     )
     verification = [
         {

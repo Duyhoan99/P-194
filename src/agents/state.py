@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
+from langgraph.graph.message import add_messages
 
 from src.agents.contracts import AgentError, AgentRequest, AgentResult, VerifiedClaim
 from src.agents.evidence import ScopedEvidence
@@ -32,7 +33,8 @@ class RuntimeScope(TypedDict):
 
 class ClinicalReviewState(TypedDict, total=False):
     """Internal state from ARCHITECTURE.md 11.2; never returned directly."""
-
+    messages: Annotated[list, add_messages]
+    active_focus_entities: list[str]
     request: AgentRequest
     runtime_scope: RuntimeScope
     question_type: QuestionType

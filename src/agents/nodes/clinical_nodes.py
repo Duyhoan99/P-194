@@ -51,6 +51,50 @@ def validate_scope_node(state: ClinicalReviewState) -> dict:
     return {"status": "running", "errors": [], "evidence_packet": packet}
 
 
+
+def contextualize_question_node(state: ClinicalReviewState) -> dict:
+    request = state["request"]
+    current_q = request.question or ""
+
+    if not current_q or request.task_type != "ask_chart":
+        return {}
+
+    from src.agents.policy import RequestCategory, classify_prompt_category
+    cat_info = classify_prompt_category(current_q, "")
+    if cat_info.get("category") == RequestCategory.SIMPLE:
+        return {"messages": [("human", current_q)]}
+
+    chat_history = []
+    history = state.get("messages", [])
+    for msg in history:
+        from langchain_core.messages import BaseMessage
+        if isinstance(msg, BaseMessage):
+            if msg.type in ("human", "ai") and isinstance(msg.content, str):
+                chat_history.append((msg.type, msg.content))
+        elif isinstance(msg, tuple) and len(msg) == 2:
+            chat_history.append((msg[0], msg[1]))
+
+    if chat_history and chat_history[-1][0] == "human" and chat_history[-1][1] == current_q:
+        chat_history = chat_history[:-1]
+
+    if not chat_history:
+        return {"messages": [("human", current_q)]}
+
+    runtime = get_llm_runtime()
+    if not runtime.available:
+        return {"messages": [("human", current_q)]}
+
+    prompt = f"System: Viết lại câu hỏi sau thành một câu hoàn chỉnh, độc lập, bao gồm đầy đủ danh từ/chủ thể được nhắc đến trong ngữ cảnh của lịch sử trò chuyện. KHÔNG trả lời câu hỏi, chỉ viết lại. Nếu câu hỏi không liên quan đến lâm sàng, giữ nguyên.\n\nLịch sử trò chuyện:\n{chr(10).join([f'{role}: {text}' for role, text in chat_history[-4:]])}\n\nUser: {current_q}\nAssistant:"
+    rewritten_q = runtime.client.generate_text(prompt)
+    if not rewritten_q or len(rewritten_q) < 5 or "không thể" in rewritten_q.lower() or "{" in rewritten_q:
+        rewritten_q = current_q
+
+    return {
+        "messages": [("human", current_q)],
+        "request": request.model_copy(update={"question": rewritten_q})
+    }
+
+
 def classify_question_node(state: ClinicalReviewState) -> dict:
     return {"question_type": classify_request(state["request"])}
 
@@ -144,15 +188,32 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
     runtime = get_llm_runtime()
 
     qt = state.get("question_type")
-    is_conversational = isinstance(qt, dict) and (qt.get("task_type") == "conversation" or not qt.get("retrieval_required", True))
+    is_conversational = isinstance(qt, dict) and (qt.get("task_type") in {"conversation", "conversation_reference", "clarification"} or not qt.get("retrieval_required", True))
 
     if is_conversational:
         from src.agents.generation import ProposedClaim
         normalized_question = (request.question or "").strip().casefold()
-        if isinstance(qt, dict) and qt.get("strict_intent") == "UNKNOWN":
+        if isinstance(qt, dict) and qt.get("task_type") == "clarification":
+            entity = qt.get("extracted_entity")
+            if entity == "lab":
+                greeting_text = "Bạn muốn hỏi về chỉ số xét nghiệm nào? Ví dụ: HbA1c, chức năng thận, mỡ máu..."
+            elif entity == "medication":
+                greeting_text = "Bạn muốn hỏi về loại thuốc nào? Ví dụ: Metformin, Insulin, huyết áp..."
+            else:
+                greeting_text = "Câu hỏi của bạn chưa đủ thông tin. Bạn có thể diễn đạt rõ hơn nội dung cần tra cứu không?"
+        elif isinstance(qt, dict) and qt.get("strict_intent") == "UNKNOWN":
             greeting_text = "Bạn muốn xem bệnh/chẩn đoán, chỉ số lần khám gần nhất, thuốc hay các chỉ số đang cảnh báo?"
-        elif isinstance(qt, dict) and qt.get("task_type") == "clarification":
-            greeting_text = "Tôi chưa hiểu câu hỏi. Bạn có thể diễn đạt rõ hơn nội dung cần tra cứu không?"
+        elif isinstance(qt, dict) and qt.get("strict_intent") == "user_identity":
+            greeting_text = "Xin chào! Tôi là AI Co-pilot hỗ trợ rà soát hồ sơ bệnh án. Tôi có thể giúp gì cho bạn hôm nay?"
+        elif isinstance(qt, dict) and qt.get("task_type") == "conversation_reference":
+            history = state.get("messages", [])
+            human_msgs = [m for m in history if (getattr(m, "type", "") == "human") or (isinstance(m, tuple) and m[0] == "human")]
+            if len(human_msgs) >= 2:
+                prev_q = human_msgs[-2]
+                text = prev_q.content if hasattr(prev_q, "content") else prev_q[1]
+                greeting_text = f'Câu hỏi trước đó của bạn là: "{text}"'
+            else:
+                greeting_text = "Bạn chưa có câu hỏi nào trước đó trong phiên này."
         elif normalized_question in {"tạm biệt", "hẹn gặp lại", "bye", "goodbye"}:
             greeting_text = "Tạm biệt! Khi cần rà soát hồ sơ, bạn cứ nhắn tôi nhé."
         elif any(marker in normalized_question for marker in ("cảm ơn", "thanks", "thank you")):
@@ -270,6 +331,11 @@ def generate_grounded_node(state: ClinicalReviewState) -> dict:
 
 
 def verify_claims_node(state: ClinicalReviewState) -> dict:
+    import sys
+    print(f"\nDEBUG verify_claims_node:", file=sys.stderr)
+    print(f"proposed_claims: {len(state.get('proposed_claims', []))}", file=sys.stderr)
+    print(f"retrieved_evidence: {len(state.get('retrieved_evidence', []))}", file=sys.stderr)
+    print(f"question_type: {state.get('question_type')}", file=sys.stderr)
     claims, verification_results = verify_claims(
         state.get("proposed_claims", []),
         state.get("retrieved_evidence", []),
@@ -277,12 +343,16 @@ def verify_claims_node(state: ClinicalReviewState) -> dict:
     final_proposed = state.get("proposed_claims", [])
     # FALLBACK: If LLM-proposed claims failed verification, verify deterministic atomic claims!
     if not claims and state.get("retrieved_evidence"):
+        import sys
+        print(f"DEBUG: fallback_proposed running. retrieved_evidence length: {len(state.get('retrieved_evidence'))}", file=sys.stderr)
         fallback_proposed = compose_atomic_claims(state["retrieved_evidence"])
+        print(f"DEBUG: fallback_proposed length: {len(fallback_proposed)}", file=sys.stderr)
         if fallback_proposed:
             fb_claims, fb_ver = verify_claims(
                 fallback_proposed,
                 state["retrieved_evidence"],
             )
+            print(f"DEBUG: fb_claims length: {len(fb_claims)}", file=sys.stderr)
             if fb_claims:
                 claims = fb_claims
                 verification_results = fb_ver
@@ -322,7 +392,7 @@ def abstain_node(state: ClinicalReviewState) -> dict:
     if status == "error":
         return {}
     qt = state.get("question_type")
-    if qt == "not_allowed" or qt == "not_allowed_interaction":
+    if isinstance(qt, str) and qt in {"not_allowed", "not_allowed_interaction", "not_allowed_treatment", "not_allowed_tampering"}:
         return {"status": "not_allowed", "claims": [], "verification_results": []}
     if isinstance(qt, dict) and qt.get("strict_intent") in {"WARNING_STATUS", "SPECIFIC_TEST"}:
         return {"status": "answered", "claims": [], "verification_results": []}
@@ -500,6 +570,10 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
         elif status == "not_allowed":
             if qt == "not_allowed_interaction":
                 answer = "⚠️ Tính năng kiểm tra tương tác thuốc hiện chưa khả dụng."
+            elif qt == "not_allowed_treatment":
+                answer = "⚠️ Cảnh báo an toàn lâm sàng: AI Co-pilot không đưa ra quyết định điều trị, thay đổi liều lượng hoặc kê đơn thuốc mới. Vui lòng tham vấn bác sĩ chuyên khoa."
+            elif qt == "not_allowed_tampering":
+                answer = "⚠️ Cảnh báo an toàn: Bạn không có quyền xóa dữ liệu hoặc can thiệp thay đổi hồ sơ bệnh án."
             else:
                 answer = _NOT_ALLOWED
         elif status == "not_found":
@@ -539,6 +613,20 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
         confidence = "high"
     elif status == "conflicting":
         confidence = "low"
+    qt = state.get("question_type")
+    is_conversational = isinstance(qt, dict) and (
+        qt.get("task_type") in {"conversation", "clarification"}
+        or not qt.get("retrieval_required", True)
+    )
+    status = state.get("status")
+
+    if request.task_type not in {"ask_chart", "review_generation"} or is_conversational or status in {"not_allowed", "not_allowed_interaction", "not_found", "error"}:
+        final_citations = []
+    else:
+        from src.agents.contracts import VerifiedClaim
+        valid_claims = [c for c in claims if getattr(c, 'status', 'verified') == "verified"]
+        final_citations = _deduplicate_citations(valid_claims)
+
     result = AgentResult(
         task_type=request.task_type,
         status=status,
@@ -549,7 +637,10 @@ def finalize_response_node(state: ClinicalReviewState) -> dict:
         claims=claims,
         unsupported_claims=unsupported_verified,
         conflicts=conflicts if request.task_type == "review_generation" else [],
-        citations=citations,
+        citations=final_citations,
         errors=state.get("errors", []),
     )
-    return {"public_response": result}
+    output_state = {"public_response": result}
+    if answer:
+        output_state["messages"] = [("ai", answer)]
+    return output_state

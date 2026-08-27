@@ -182,10 +182,25 @@ export const patients = {
   getMemory: (patient_id: string) => 
     request<any>(`/patients/${patient_id}/memory`),
     
-  ask: (patient_id: string, question: string) =>
+  getChatHistory: (patient_id: string, session_id: string) =>
+    request<{ messages: { role: 'user' | 'assistant', text: string }[] }>(`/patients/${patient_id}/ask/history?session_id=${session_id}`),
+
+  getSessions: (patient_id: string) =>
+    request<{ id: string; patient_id: string; title: string; created_at: string; updated_at: string }[]>(`/patients/${patient_id}/ask/sessions`),
+
+  renameSession: (patient_id: string, session_id: string, title: string) =>
+    request<any>(`/patients/${patient_id}/ask/sessions/${session_id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title })
+    }),
+
+  deleteSession: (patient_id: string, session_id: string) =>
+    request<any>(`/patients/${patient_id}/ask/sessions/${session_id}`, { method: 'DELETE' }),
+    
+  ask: (patient_id: string, question: string, session_id?: string) =>
     request<any>(`/patients/${patient_id}/ask`, {
       method: 'POST',
-      body: JSON.stringify({ question })
+      body: JSON.stringify({ question, session_id })
     }),
 
   generateReview: (patient_id: string, profile_versions: string[]) =>

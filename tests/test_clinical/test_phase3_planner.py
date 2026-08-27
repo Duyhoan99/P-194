@@ -69,7 +69,7 @@ def test_planner_ambiguous_llm(mock_llm):
         needs=[DomainNeed(domain="diagnosis")],
         use_structured=True, use_semantic=True, use_lexical=True, retrieval_required=True
     )
-    req = _mock_req("Bệnh nhân mắc bệnh gì?")
+    req = _mock_req("Bệnh nhân có đau ngực không?")
     plan = classify_request(req)
     assert plan["task_type"] == "clinical_question"
     assert plan["needs"][0]["domain"] == "diagnosis"

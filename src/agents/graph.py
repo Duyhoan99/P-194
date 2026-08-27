@@ -4,10 +4,22 @@ import uuid
 
 logger = logging.getLogger(__name__)
 from langgraph.graph import END, START, StateGraph
+from langgraph.checkpoint.memory import MemorySaver
+import os
+
+try:
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    import sqlite3
+    os.makedirs(".data", exist_ok=True)
+    conn = sqlite3.connect(".data/checkpoints.sqlite", check_same_thread=False)
+    checkpointer = SqliteSaver(conn)
+except ImportError:
+    checkpointer = MemorySaver()
 
 from src.agents.contracts import AgentError, AgentRequest, AgentResult
 from src.agents.nodes.clinical_nodes import (
     abstain_node,
+    contextualize_question_node,
     classify_question_node,
     finalize_response_node,
     generate_grounded_node,
@@ -49,12 +61,12 @@ agent = legacy_demo_agent
 
 
 def _route_after_scope(state: ClinicalReviewState) -> str:
-    return "finalize" if state.get("status") == "error" else "classify"
+    return "finalize" if state.get("status") == "error" else "contextualize"
 
 
 def _route_after_classification(state: ClinicalReviewState) -> str:
     qt = state.get("question_type")
-    return "abstain" if qt == "not_allowed" or qt == "not_allowed_interaction" else "retrieve"
+    return "abstain" if isinstance(qt, str) and qt in {"not_allowed", "not_allowed_interaction", "not_allowed_treatment", "not_allowed_tampering"} else "retrieve"
 
 
 def _route_after_retrieval(state: ClinicalReviewState) -> str:
@@ -75,6 +87,7 @@ def build_clinical_graph():
     """Build the fixture/backend-adapter graph specified in ARCHITECTURE.md 11.3."""
     graph = StateGraph(ClinicalReviewState)
     graph.add_node("validate_scope", validate_scope_node)
+    graph.add_node("contextualize", contextualize_question_node)
     graph.add_node("classify", classify_question_node)
     graph.add_node("retrieve", retrieve_evidence_node)
     graph.add_node("generate", generate_grounded_node)
@@ -85,8 +98,9 @@ def build_clinical_graph():
     graph.add_conditional_edges(
         "validate_scope",
         _route_after_scope,
-        {"classify": "classify", "finalize": "finalize"},
+        {"contextualize": "contextualize", "finalize": "finalize"},
     )
+    graph.add_edge("contextualize", "classify")
     graph.add_conditional_edges(
         "classify",
         _route_after_classification,
@@ -105,7 +119,7 @@ def build_clinical_graph():
     )
     graph.add_edge("abstain", "finalize")
     graph.add_edge("finalize", END)
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 clinical_agent = build_clinical_graph()
@@ -115,6 +129,7 @@ def run_agent(
     request: AgentRequest | dict[str, Any],
     *,
     runtime_scope: RuntimeScope | None = None,
+    session_id: str | None = None,
 ) -> AgentResult:
     """Run WP2 with a locked scope and return only the contract public result."""
     validated = request if isinstance(request, AgentRequest) else AgentRequest.model_validate(request)
@@ -123,8 +138,26 @@ def run_agent(
         "patient_id": validated.patient_id,
         "request_id": validated.request_id,
     }
+    thread_id = f"{locked_scope['tenant_id']}:{locked_scope['patient_id']}:{session_id or uuid.uuid4()}"
     trace_id = str(uuid.uuid4())
     try:
+        # --- DEBUG LOGGING BEFORE ---
+        state_before = clinical_agent.get_state({"configurable": {"thread_id": thread_id}})
+        history_before = state_before.values.get("messages", []) if state_before and hasattr(state_before, "values") and state_before.values else []
+        logger.info("="*50)
+        logger.info(f"session_id: {session_id}")
+        logger.info(f"thread_id: {thread_id}")
+        logger.info(f"number_of_history_messages (before): {len(history_before)}")
+        if history_before:
+            logger.info("chat_history before processing:")
+            for m in history_before:
+                role = getattr(m, 'type', m[0] if isinstance(m, tuple) else type(m))
+                content = getattr(m, 'content', m[1] if isinstance(m, tuple) else str(m))
+                logger.info(f"  - {role}: {content}")
+        else:
+            logger.info("chat_history before processing: EMPTY")
+        # ---------------------------
+
         state = clinical_agent.invoke(
             {
                 "request": validated,
@@ -132,8 +165,27 @@ def run_agent(
                 "status": "running",
                 "errors": [],
             },
-            config={"recursion_limit": 16},
+            config={
+                "configurable": {"thread_id": thread_id},
+                "recursion_limit": 16,
+            },
         )
+
+        # --- DEBUG LOGGING AFTER ---
+        state_after = clinical_agent.get_state({"configurable": {"thread_id": thread_id}})
+        history_after = state_after.values.get("messages", []) if state_after and hasattr(state_after, "values") and state_after.values else []
+        logger.info(f"number_of_history_messages (after): {len(history_after)}")
+        if history_after:
+            logger.info("chat_history after processing:")
+            for m in history_after:
+                role = getattr(m, 'type', m[0] if isinstance(m, tuple) else type(m))
+                content = getattr(m, 'content', m[1] if isinstance(m, tuple) else str(m))
+                logger.info(f"  - {role}: {content}")
+        else:
+            logger.info("chat_history after processing: EMPTY")
+        logger.info("="*50)
+        # ---------------------------
+
         result = state.get("public_response")
         if isinstance(result, AgentResult):
             return result

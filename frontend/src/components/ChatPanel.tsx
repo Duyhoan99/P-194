@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { patients } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { Send, Bot, User, AlertCircle, XCircle, Trash2, Sparkles, X } from 'lucide-react';
+import { Send, Bot, User, AlertCircle, XCircle, Trash2, Sparkles, X, MessageSquarePlus, MessageSquare, Edit2, Check, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 /**
@@ -156,9 +156,52 @@ export default function ChatPanel({
 }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessionId] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const key = `chat_session_${patientId}`;
+    let sid = localStorage.getItem(key);
+    if (!sid) {
+      sid = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+      localStorage.setItem(key, sid);
+    }
+    return sid;
+  });
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', text: string, status?: string, citations?: any[] }[]>([]);
+  const [sessions, setSessions] = useState<{ id: string, title: string, updated_at: string }[]>([]);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [activeSessionId, setActiveSessionId] = useState(sessionId);
   const { setFocusedCitation } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch sessions
+  const loadSessions = () => {
+    patients.getSessions(patientId).then(res => {
+      if (Array.isArray(res)) {
+        setSessions(res);
+      }
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    loadSessions();
+  }, [patientId]);
+
+  // Fetch history on session change
+  useEffect(() => {
+    if (!activeSessionId) return;
+    setMessages([]);
+    patients.getChatHistory(patientId, activeSessionId).then((res) => {
+      if (res.messages && res.messages.length > 0) {
+        setMessages(res.messages);
+      }
+    }).catch(() => {
+      // Ignore errors for history fetch
+    });
+    // Save to local storage
+    const key = `chat_session_${patientId}`;
+    localStorage.setItem(key, activeSessionId);
+  }, [patientId, activeSessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -180,7 +223,8 @@ export default function ChatPanel({
     setLoading(true);
 
     try {
-      const res = await patients.ask(patientId, userQuery);
+      const res = await patients.ask(patientId, userQuery, activeSessionId);
+      loadSessions();
       setMessages(prev => [...prev, {
         role: 'assistant',
         text: res.answer || res.message || 'No clear answer provided.',
@@ -242,8 +286,38 @@ export default function ChatPanel({
     return `📎 Nguồn hồ sơ${dateStr ? ` · ${dateStr}` : ''}`;
   };
 
+  const handleNewChat = () => {
+    const newSid = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+    setActiveSessionId(newSid);
+    setMessages([]);
+  };
+
+  const handleDeleteSession = async (e: React.MouseEvent, sid: string) => {
+    e.stopPropagation();
+    if (!confirm('Bạn có chắc chắn muốn xóa cuộc trò chuyện này?')) return;
+    try {
+      await patients.deleteSession(patientId, sid);
+      if (activeSessionId === sid) {
+        handleNewChat();
+      }
+      loadSessions();
+    } catch {}
+  };
+
+  const handleRenameSession = async (e: React.MouseEvent, sid: string) => {
+    e.stopPropagation();
+    if (!editingTitle.trim()) return;
+    try {
+      await patients.renameSession(patientId, sid, editingTitle.trim());
+      setEditingSessionId(null);
+      loadSessions();
+    } catch {}
+  };
+
   return (
-    <div className="clinical-card overflow-hidden flex flex-col h-full min-h-0 shadow-lg">
+    <div className="flex h-full w-full rounded-2xl overflow-hidden shadow-lg border" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
+      {/* Main Chat Area */}
+      <div className="flex-1 overflow-hidden flex flex-col h-full min-h-0 bg-transparent">
       {/* Header */}
       <div className="p-3.5 px-4 flex items-center justify-between shrink-0 border-b" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
         <div className="flex items-center gap-3">
@@ -424,6 +498,84 @@ export default function ChatPanel({
           </button>
         </form>
       </div>
+      </div>
+
+      {/* Sidebar */}
+      <div className="w-64 border-l flex flex-col shrink-0" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-subcard)' }}>
+        <div className="p-3 border-b" style={{ borderColor: 'var(--border-card)' }}>
+          <button
+            onClick={handleNewChat}
+            className="w-full py-2 px-3 flex items-center justify-center gap-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02]"
+            style={{ backgroundColor: 'var(--accent-teal)' }}
+          >
+            <MessageSquarePlus className="w-4 h-4" />
+            Tạo đoạn chat mới
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-1 chat-scrollbar">
+          {sessions.map(s => (
+            <div
+              key={s.id}
+              onClick={() => {
+                if (editingSessionId !== s.id) setActiveSessionId(s.id);
+              }}
+              className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+                activeSessionId === s.id ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400' : 'hover:bg-slate-500/5'
+              }`}
+            >
+              {editingSessionId === s.id ? (
+                <div className="flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+                  <input 
+                    type="text" 
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    className="flex-1 text-xs bg-transparent border-b focus:outline-none px-1 py-0.5"
+                    style={{ borderColor: 'var(--accent-teal)' }}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameSession(e as any, s.id);
+                    }}
+                  />
+                  <button onClick={(e) => handleRenameSession(e, s.id)} className="text-teal-600 p-1 hover:bg-teal-500/20 rounded">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setEditingSessionId(null)} className="text-slate-400 p-1 hover:bg-slate-500/20 rounded">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <MessageSquare className="w-4 h-4 shrink-0 opacity-70" />
+                    <span className="text-xs font-semibold truncate select-none">{s.title || 'Cuộc trò chuyện mới'}</span>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSessionId(s.id);
+                        setEditingTitle(s.title);
+                      }}
+                      className="p-1 text-slate-400 hover:text-teal-600 transition-colors"
+                      title="Đổi tên"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                    <button 
+                      onClick={(e) => handleDeleteSession(e, s.id)}
+                      className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                      title="Xóa"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
