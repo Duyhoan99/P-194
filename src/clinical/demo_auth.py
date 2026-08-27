@@ -21,6 +21,8 @@ _CONTRACT_TEST_PASSWORD: Final = "demo-password"
 
 def authenticate_demo_credentials(username: str, password: str) -> str:
     """Validate fixed local credentials without exposing account details."""
+    settings = get_settings()
+    _require_demo_environment(settings)
     from src.clinical.operations import operational_store
 
     target_user = username.strip().lower()
@@ -113,8 +115,8 @@ def _verify_session(token: str, settings: Settings) -> dict[str, object]:
 
 
 def _require_demo_environment(settings: Settings) -> None:
-    # Enabled for local, test and cloud demo deployments
-    pass
+    if settings.app_env == "production":
+        raise ClinicalAuthNotConfigured("Demo authentication is disabled in production")
 
 
 def _session_secret(settings: Settings) -> bytes:

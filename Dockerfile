@@ -17,7 +17,7 @@ WORKDIR /app
 
 # Vietnamese-capable fonts for server-side clinical PDF exports.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && apt-get install -y --no-install-recommends fonts-dejavu fonts-dejavu-extra \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtualenv from builder

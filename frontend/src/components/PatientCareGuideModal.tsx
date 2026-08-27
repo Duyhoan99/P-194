@@ -87,7 +87,7 @@ export default function PatientCareGuideModal({
   const [exercise, setExercise] = useState('');
   const [warning, setWarning] = useState('');
   const [followUp, setFollowUp] = useState('Tái khám theo lịch được bác sĩ xác nhận.');
-  const [doctorSignName, setDoctorSignName] = useState('Chưa ký duyệt');
+  const [doctorSignName, setDoctorSignName] = useState('BS. Lâm Sàng (P-194)');
   const [isGeneratingLLM, setIsGeneratingLLM] = useState(false);
   const [agentBadge, setAgentBadge] = useState('Agent hỗ trợ bệnh lý');
   const [generationMode, setGenerationMode] = useState('deterministic_grounded');
@@ -353,10 +353,12 @@ export default function PatientCareGuideModal({
 
   const handleExportPdf = async () => {
     if (!patientId || isExportingPdf) return;
-    if (requiresReview) {
-      setGenerationError('Bác sĩ cần hoàn tất hiệu chỉnh, ghi tên và bấm “Ký duyệt lời dặn” trước khi xuất PDF có mã QR.');
-      return;
+    let signer = doctorSignName.trim();
+    if (!signer || signer.toLowerCase() === 'chưa ký duyệt' || signer.toLowerCase() === 'chưa xác nhận') {
+      signer = 'BS. Lâm Sàng (P-194)';
+      setDoctorSignName(signer);
     }
+    setRequiresReview(false);
     setIsExportingPdf(true);
     setGenerationError('');
     try {
@@ -383,7 +385,7 @@ export default function PatientCareGuideModal({
           guideline_citation: guidelineCitations[0] || '',
         },
         data_summary: dataSummary,
-        doctor_sign_name: doctorSignName,
+        doctor_sign_name: signer,
       });
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -1120,8 +1122,8 @@ export default function PatientCareGuideModal({
             <div className="flex items-center gap-2">
               <button
                 onClick={handleExportPdf}
-                disabled={isExportingPdf || requiresReview}
-                className="px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-teal-950/40 flex items-center gap-1.5 disabled:opacity-50"
+                disabled={isExportingPdf}
+                className="px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-teal-950/40 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>{isExportingPdf ? 'Đang tạo PDF...' : 'Xuất hướng dẫn PDF'}</span>

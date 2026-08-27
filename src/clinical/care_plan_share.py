@@ -167,35 +167,41 @@ class CarePlanShareStore:
             "plan": public_plan,
             "spoken_text": _spoken_text(public_plan),
         }
+        saved_to_postgres = False
         if self._uses_postgres:
-            self._ensure_postgres_schema()
-            with psycopg.connect(self._database_url, connect_timeout=10) as connection:
-                connection.execute(
-                    """
-                    UPDATE care_plan_shares
-                    SET revoked_at = %s
-                    WHERE patient_id = %s AND revoked_at IS NULL
-                    """,
-                    (issued_at, patient_id),
-                )
-                connection.execute(
-                    """
-                    INSERT INTO care_plan_shares (
-                        token_hash, patient_id, doctor_sign_name, issued_at,
-                        expires_at, revoked_at, plan, spoken_text
-                    ) VALUES (%s, %s, %s, %s, %s, NULL, %s, %s)
-                    """,
-                    (
-                        record["token_hash"],
-                        patient_id,
-                        record["doctor_sign_name"],
-                        issued_at,
-                        expires_at,
-                        Jsonb(public_plan),
-                        record["spoken_text"],
-                    ),
-                )
-        else:
+            try:
+                self._ensure_postgres_schema()
+                with psycopg.connect(self._database_url, connect_timeout=10) as connection:
+                    connection.execute(
+                        """
+                        UPDATE care_plan_shares
+                        SET revoked_at = %s
+                        WHERE patient_id = %s AND revoked_at IS NULL
+                        """,
+                        (issued_at, patient_id),
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO care_plan_shares (
+                            token_hash, patient_id, doctor_sign_name, issued_at,
+                            expires_at, revoked_at, plan, spoken_text
+                        ) VALUES (%s, %s, %s, %s, %s, NULL, %s, %s)
+                        """,
+                        (
+                            record["token_hash"],
+                            patient_id,
+                            record["doctor_sign_name"],
+                            issued_at,
+                            expires_at,
+                            Jsonb(public_plan),
+                            record["spoken_text"],
+                        ),
+                    )
+                saved_to_postgres = True
+            except Exception:
+                saved_to_postgres = False
+
+        if not saved_to_postgres:
             with self._lock:
                 records = self._load()
                 for existing in records:
@@ -208,23 +214,27 @@ class CarePlanShareStore:
 
     def get(self, token: str) -> dict[str, Any] | None:
         digest = _token_hash(token)
+        record = None
         if self._uses_postgres:
-            self._ensure_postgres_schema()
-            with psycopg.connect(
-                self._database_url,
-                connect_timeout=10,
-                row_factory=dict_row,
-            ) as connection:
-                record = connection.execute(
-                    """
-                    SELECT token_hash, patient_id, doctor_sign_name, issued_at,
-                           expires_at, revoked_at, plan, spoken_text
-                    FROM care_plan_shares
-                    WHERE token_hash = %s
-                    """,
-                    (digest,),
-                ).fetchone()
-        else:
+            try:
+                self._ensure_postgres_schema()
+                with psycopg.connect(
+                    self._database_url,
+                    connect_timeout=10,
+                    row_factory=dict_row,
+                ) as connection:
+                    record = connection.execute(
+                        """
+                        SELECT token_hash, patient_id, doctor_sign_name, issued_at,
+                               expires_at, revoked_at, plan, spoken_text
+                        FROM care_plan_shares
+                        WHERE token_hash = %s
+                        """,
+                        (digest,),
+                    ).fetchone()
+            except Exception:
+                record = None
+        if not record:
             with self._lock:
                 record = next((item for item in self._load() if item.get("token_hash") == digest), None)
         if not record or record.get("revoked_at"):

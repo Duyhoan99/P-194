@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,6 +37,16 @@ class Settings(BaseSettings):
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"
+
+    @model_validator(mode="before")
+    @classmethod
+    def strip_string_inputs(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {
+                k: (v.strip() if isinstance(v, str) else v)
+                for k, v in data.items()
+            }
+        return data
 
     @model_validator(mode="after")
     def validate_production_configuration(self) -> "Settings":

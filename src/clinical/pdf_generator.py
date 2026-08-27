@@ -65,16 +65,7 @@ def _font_candidates() -> list[dict[str, str]]:
 
     candidates.extend(
         [
-            {
-                "regular": r"C:\Windows\Fonts\arial.ttf",
-                "bold": r"C:\Windows\Fonts\arialbd.ttf",
-                "italic": r"C:\Windows\Fonts\ariali.ttf",
-            },
-            {
-                "regular": r"C:\Windows\Fonts\DejaVuSans.ttf",
-                "bold": r"C:\Windows\Fonts\DejaVuSans-Bold.ttf",
-                "italic": r"C:\Windows\Fonts\DejaVuSans-Oblique.ttf",
-            },
+            # Linux Debian / Ubuntu DejaVu
             {
                 "regular": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                 "bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -85,20 +76,46 @@ def _font_candidates() -> list[dict[str, str]]:
                 "bold": "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
                 "italic": "/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf",
             },
+            # Linux Liberation
+            {
+                "regular": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                "bold": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "italic": "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
+            },
+            # Windows Arial
+            {
+                "regular": r"C:\Windows\Fonts\arial.ttf",
+                "bold": r"C:\Windows\Fonts\arialbd.ttf",
+                "italic": r"C:\Windows\Fonts\ariali.ttf",
+            },
+            # Windows DejaVu
+            {
+                "regular": r"C:\Windows\Fonts\DejaVuSans.ttf",
+                "bold": r"C:\Windows\Fonts\DejaVuSans-Bold.ttf",
+                "italic": r"C:\Windows\Fonts\DejaVuSans-Oblique.ttf",
+            },
         ]
     )
     return candidates
 
 
 def _register_fonts() -> tuple[str, str, str]:
-    """Register a Vietnamese-capable font family on Windows and Linux."""
+    """Register a Vietnamese-capable font family with graceful fallbacks."""
     for candidate in _font_candidates():
-        if not all(Path(path).is_file() for path in candidate.values()):
+        reg = candidate.get("regular", "")
+        if not Path(reg).is_file():
             continue
+
+        bold = candidate.get("bold", "")
+        bold_path = bold if Path(bold).is_file() else reg
+
+        italic = candidate.get("italic", "")
+        italic_path = italic if Path(italic).is_file() else reg
+
         try:
-            pdfmetrics.registerFont(TTFont("ClinicalSans", candidate["regular"]))
-            pdfmetrics.registerFont(TTFont("ClinicalSans-Bold", candidate["bold"]))
-            pdfmetrics.registerFont(TTFont("ClinicalSans-Italic", candidate["italic"]))
+            pdfmetrics.registerFont(TTFont("ClinicalSans", reg))
+            pdfmetrics.registerFont(TTFont("ClinicalSans-Bold", bold_path))
+            pdfmetrics.registerFont(TTFont("ClinicalSans-Italic", italic_path))
             pdfmetrics.registerFontFamily(
                 "ClinicalSans",
                 normal="ClinicalSans",
@@ -110,7 +127,7 @@ def _register_fonts() -> tuple[str, str, str]:
         except Exception:
             continue
 
-    # Docker installs DejaVu Sans; this remains a last-resort fallback.
+    # Fallback only when no TTF font is found on disk
     return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
 
 
