@@ -104,6 +104,16 @@ CLINICAL_THRESHOLDS: dict[str, dict[str, Any]] = {
 }
 
 
+# Mapping of diagnosis keywords to highly relevant LOINC codes
+DIAGNOSIS_TO_METRICS: dict[str, list[str]] = {
+    "thận": ["33914-3", "2160-0"],         # eGFR, Creatinine
+    "tiểu đường": ["4548-4", "2339-0"],    # HbA1c, Glucose
+    "đái tháo đường": ["4548-4", "2339-0"], # HbA1c, Glucose
+    "huyết áp": ["8480-6", "8462-4"],      # Systolic, Diastolic
+    "tim": ["8480-6", "8462-4"],           # Systolic, Diastolic (can add others like Lipid panel)
+}
+
+
 def _clean_text(s: str) -> str:
     return re.sub(r"\s+", " ", str(s)).strip().casefold()
 

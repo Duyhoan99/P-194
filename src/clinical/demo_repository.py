@@ -33,8 +33,84 @@ from src.config import get_settings
 from src.services.medication_safety import MedicationSafetyService
 
 
+def _fhir_snippet(resource: dict) -> str:
+    """Extract a human-readable summary from a FHIR resource for display as a citation snippet."""
+    rtype = resource.get("resourceType", "")
+    parts: list[str] = []
+
+    if rtype == "Condition":
+        code = resource.get("code", {})
+        name = (
+            code.get("text")
+            or (code.get("coding") or [{}])[0].get("display")
+            or "Chẩn đoán"
+        )
+        status = resource.get("clinicalStatus", {}).get("coding", [{}])[0].get("code", "")
+        parts.append(f"• {rtype}: {name}")
+        if status:
+            parts.append(f"Trạng thái: {status}")
+
+    elif rtype == "MedicationRequest":
+        med = resource.get("medicationCodeableConcept", {})
+        name = (
+            med.get("text")
+            or (med.get("coding") or [{}])[0].get("display")
+            or "Thuốc"
+        )
+        status = resource.get("status", "")
+        dosage = resource.get("dosageInstruction", [{}])[0].get("text", "")
+        parts.append(f"• Thuốc: {name}")
+        if dosage:
+            parts.append(f"Liều dùng: {dosage}")
+        if status:
+            parts.append(f"Trạng thái: {status}")
+
+    elif rtype == "Observation":
+        code = resource.get("code", {})
+        name = (
+            code.get("text")
+            or (code.get("coding") or [{}])[0].get("display")
+            or "Chỉ số"
+        )
+        vq = resource.get("valueQuantity", {})
+        value_str = f"{vq.get('value', '')} {vq.get('unit', '')}".strip() if vq else ""
+        parts.append(f"• {name}: {value_str}" if value_str else f"• {name}")
+        date = resource.get("effectiveDateTime", "")
+        if date:
+            parts.append(f"Ngày: {date[:10]}")
+
+    elif rtype == "AllergyIntolerance":
+        code = resource.get("code", {})
+        name = (
+            code.get("text")
+            or (code.get("coding") or [{}])[0].get("display")
+            or "Dị ứng"
+        )
+        parts.append(f"• Dị ứng: {name}")
+
+    elif rtype == "Encounter":
+        enc_type = resource.get("type", [{}])[0].get("text", "Lượt khám")
+        period = resource.get("period", {})
+        start = period.get("start", "")[:10]
+        parts.append(f"• Khám: {enc_type}")
+        if start:
+            parts.append(f"Ngày: {start}")
+
+    else:
+        for key in ("text", "display", "name", "description", "title"):
+            val = resource.get(key)
+            if val and isinstance(val, str):
+                parts.append(val)
+                break
+        if not parts:
+            parts.append(f"{rtype} — {resource.get('id', 'unknown')}")
+
+    return " | ".join(parts)[:250]
+
+
 class DemoRepository:
     """In-memory & JSON backed repository for demo_mvp_v1 baseline dataset."""
+
 
     def __init__(
         self,
@@ -64,6 +140,7 @@ class DemoRepository:
 
         self._load_baseline()
         self._load_review_state()
+        self._load_bundle_state()
 
     def _load_review_state(self) -> None:
         """Restore clinician review approvals for the persistent demo runtime."""
@@ -86,6 +163,58 @@ class DemoRepository:
         except (OSError, ValueError, TypeError):
             self._reviews = {}
             self._memories = {}
+
+    def _bundle_state_path(self) -> Path | None:
+        if self.state_path is None:
+            return None
+        return self.state_path.parent / "bundle_state.json"
+
+    def _persist_bundle_state(self) -> None:
+        """Persist PDF-derived bundle entries so they survive server restarts."""
+        path = self._bundle_state_path()
+        if path is None:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Save only entries that came from uploaded PDFs (have meta.source_type in pdf/ocr)
+        pdf_entries: dict[str, list[dict]] = {}
+        for patient_id, bundle in self._bundles.items():
+            entries = [
+                e for e in bundle.get("entry", [])
+                if isinstance(e, dict)
+                and isinstance(e.get("resource"), dict)
+                and e["resource"].get("meta", {}).get("source_type") in ("pdf", "ocr")
+            ]
+            if entries:
+                pdf_entries[patient_id] = entries
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(pdf_entries, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(path)
+
+    def _load_bundle_state(self) -> None:
+        """Restore PDF-derived bundle entries that were persisted from a previous run."""
+        path = self._bundle_state_path()
+        if path is None or not path.is_file():
+            return
+        try:
+            pdf_entries: dict[str, list[dict]] = json.loads(path.read_text(encoding="utf-8"))
+            for patient_id, entries in pdf_entries.items():
+                if patient_id not in self._patients:
+                    continue
+                bundle = self._bundles.setdefault(
+                    patient_id, {"resourceType": "Bundle", "type": "collection", "entry": []}
+                )
+                existing_ids = {
+                    e.get("resource", {}).get("id")
+                    for e in bundle.get("entry", [])
+                    if isinstance(e, dict)
+                }
+                for entry in entries:
+                    rid = entry.get("resource", {}).get("id")
+                    if rid not in existing_ids:
+                        bundle["entry"].append(entry)
+                        existing_ids.add(rid)
+        except (OSError, ValueError, TypeError):
+            pass
 
     def _persist_review_state(self) -> None:
         if self.state_path is None:
@@ -392,7 +521,7 @@ class DemoRepository:
                     document_name=doc_name,
                     page_number=1,
                     block_id=r_id,
-                    snippet=json.dumps(res, ensure_ascii=False)[:100],
+                    snippet=_fhir_snippet(res),
                     source_checksum="sha256:baseline",
                 )
             else:
@@ -401,7 +530,7 @@ class DemoRepository:
                     document_id=doc_id,
                     resource_type=r_type,
                     resource_id=r_id,
-                    snippet=json.dumps(res, ensure_ascii=False)[:100],
+                    snippet=_fhir_snippet(res),
                     source_checksum="sha256:baseline",
                 )
 
@@ -434,6 +563,8 @@ class DemoRepository:
                 )
             elif r_type in ("MedicationStatement", "MedicationRequest"):
                 med_name = res.get("medicationCodeableConcept", {}).get("text") or "Thuốc"
+                if re.match(r"^\d+(?:\.\d+)?\s*(?:mg|g|ml|mcg|ui|iu)?$", med_name.strip(), re.IGNORECASE):
+                    continue
                 raw_events.append(
                     TimelineEvent(
                         event_id=f"evt_{r_id}",
@@ -503,6 +634,12 @@ class DemoRepository:
                 if matched:
                     raw_v = res.get("valueQuantity", {}).get("value")
                     raw_u = res.get("valueQuantity", {}).get("unit", "")
+                    
+                    if display_name == code:
+                        display_name = res.get("code", {}).get("text") or (codings[0].get("display") if codings else code)
+                    if not target_unit:
+                        target_unit = raw_u
+
                     t_str = res.get("effectiveDateTime", "2026-01-01T08:00:00+07:00")
                     r_id = res.get("id", "res_obs")
                     meta = res.get("meta", {}) if isinstance(res.get("meta"), dict) else {}
@@ -778,7 +915,10 @@ class DemoRepository:
             if not has_duplicate_med:
                 entries.append({"resource": med_resource})
 
-        # 5. Update patient summary
+        # 5. Persist bundle so data survives server restarts
+        self._persist_bundle_state()
+
+        # 6. Update patient summary
         pat = self._patients.get(patient_id)
         if pat:
             pat.last_encounter_at = occurred_iso
@@ -841,7 +981,7 @@ class DemoRepository:
                     document_name=doc_name,
                     page_number=1,
                     block_id=resource_id,
-                    snippet=json.dumps(resource, ensure_ascii=False)[:200],
+                    snippet=_fhir_snippet(resource),
                     source_checksum="sha256:baseline",
                 ).model_dump(mode="json")
                 records[(resource_type, resource_id)] = (resource, [citation])
@@ -851,7 +991,7 @@ class DemoRepository:
                     document_id=doc_id,
                     resource_type=resource_type,
                     resource_id=resource_id,
-                    snippet=json.dumps(resource, ensure_ascii=False)[:200],
+                    snippet=_fhir_snippet(resource),
                     source_checksum="sha256:baseline",
                 ).model_dump(mode="json")
                 records[(resource_type, resource_id)] = (resource, [fhir_cit])
@@ -998,7 +1138,24 @@ class DemoRepository:
         # Keep the established C3-agent contract focused on the profiled HbA1c
         # series. Care-plan personalization reads all metrics from
         # latest_observations without inflating unrelated chat citations.
-        trend_codes = ("4548-4",)
+        # Dynamically find all unique observation codes that have values
+        trend_codes = set()
+        bundle = self._bundles.get(patient_id, {})
+        for entry in bundle.get("entry", []):
+            res = entry.get("resource", {})
+            if res.get("resourceType") == "Observation":
+                if str(res.get("status", "")).casefold() == "entered-in-error":
+                    continue
+                val = res.get("valueQuantity", {}).get("value")
+                if val is not None:
+                    codings = res.get("code", {}).get("coding", [])
+                    if codings and codings[0].get("code"):
+                        trend_codes.add(codings[0].get("code"))
+                    else:
+                        txt = res.get("code", {}).get("text")
+                        if txt:
+                            trend_codes.add(txt)
+
         lab_trends: dict[str, list[dict[str, Any]]] = {}
         for code in trend_codes:
             _, _, points = self.get_trends(patient_id, code)
@@ -1265,6 +1422,23 @@ class DemoRepository:
                 "checksum": f"sha256:{r.review_version_id}",
             })
         return out
+
+    def delete_review_version(self, review_id: str, review_version_id: str) -> bool:
+        """Delete a specific review version. Raises if it's approved or the latest."""
+        patient_id = review_id.replace("rev_", "")
+        revs = self._reviews.get(patient_id, [])
+        target = next((r for r in revs if r.review_version_id == review_version_id), None)
+        if not target:
+            raise ValueError("NOT_FOUND")
+        if target.status == "approved":
+            raise ValueError("CANNOT_DELETE_APPROVED")
+        # latest = highest version number
+        latest = max(revs, key=lambda r: r.version)
+        if target.review_version_id == latest.review_version_id:
+            raise ValueError("CANNOT_DELETE_LATEST")
+        self._reviews[patient_id] = [r for r in revs if r.review_version_id != review_version_id]
+        self._persist_review_state()
+        return True
 
     def _create_patient_memory(self, patient_id: str, approved_review: ReviewResponse) -> PatientMemory:
         mems = self._memories.get(patient_id, [])

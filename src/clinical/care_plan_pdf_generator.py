@@ -24,7 +24,7 @@ from reportlab.platypus import (
 
 from src.clinical.canonical import PatientSummary
 from src.clinical.care_plan_agent import CarePlanDataSummary, CarePlanDraft
-from src.clinical.pdf_generator import FONT_BOLD, FONT_ITALIC, FONT_REGULAR
+from src.clinical.pdf_generator import FONT as FONT_REGULAR, FONT_B as FONT_BOLD, FONT_I as FONT_ITALIC
 
 BLACK = colors.black
 DARK = colors.Color(0.14, 0.14, 0.14)

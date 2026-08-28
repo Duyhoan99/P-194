@@ -205,7 +205,19 @@ def _timeline_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, An
 def _trend_facts(packet: dict[str, Any], tenant_id: str) -> list[dict[str, Any]]:
     facts: list[dict[str, Any]] = []
     patient_id = str(packet["patient_id"])
-    display_by_code = {"4548-4": "HbA1c", "2339-0": "Glucose", "2160-0": "Creatinine"}
+    display_by_code = {
+        "4548-4": "HbA1c",
+        "2339-0": "Glucose",
+        "2160-0": "Creatinine",
+        "33914-3": "eGFR",
+        "8480-6": "Huyết áp tâm thu",
+        "8462-4": "Huyết áp tâm trương",
+        "1742-6": "ALT",
+        "13457-7": "LDL-C",
+        "718-7": "Hemoglobin",
+        "29463-7": "Cân nặng",
+        "8867-4": "Nhịp tim",
+    }
     for code, raw_points in packet.get("lab_trends", {}).items():
         points = [_mapping(point) for point in raw_points]
         usable = [point for point in points if _citations(point.get("citations"))]
@@ -396,6 +408,8 @@ def _consolidate_structured_facts(facts: list[dict[str, Any]]) -> list[dict[str,
             clean_med = re.sub(r"thuốc(?:\s+hiện\s+tại)?:\s*", "", clean_med)
             clean_med = re.sub(r"(?:trạng thái|ghi nhận|đang duy trì|đang sử dụng|active|stopped|discontinued).*", "", clean_med)
             clean_med = re.sub(r"\(.*?\)", "", clean_med).strip()
+            if re.match(r"^\d+(?:\.\d+)?\s*(?:mg|g|ml|mcg|ui|iu)?$", clean_med):
+                continue
             med_match = re.search(r"^([a-z\s]+?\d+(?:\.\d+)?\s*(?:mg|g|ml|mcg|ui|iu)?)", clean_med)
             if med_match:
                 drug_key = re.sub(r"\s+", " ", med_match.group(1)).strip()

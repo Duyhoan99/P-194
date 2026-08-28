@@ -141,11 +141,18 @@ def retrieve_evidence_node(state: ClinicalReviewState) -> dict:
             "conflicts": conflicts,
         }
 
-    retrieved = retrieve_evidence(
-        packet,
-        route=question_type,
-        question=request.question if request.task_type == "ask_chart" else None,
-    )
+    if request.task_type == "review_generation":
+        retrieved = [
+            item for item in packet
+            if getattr(item, "record_status", None) not in {"entered-in-error", "entered-inerror"}
+            and getattr(getattr(item, "item", None), "record_status", None) not in {"entered-in-error", "entered-inerror"}
+        ]
+    else:
+        retrieved = retrieve_evidence(
+            packet,
+            route=question_type,
+            question=request.question if request.task_type == "ask_chart" else None,
+        )
 
     all_packet_items = [item.item for item in packet]
     detected_conflicts = detect_conflicts(all_packet_items)

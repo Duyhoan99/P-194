@@ -334,6 +334,9 @@ export const reviews = {
 
   listVersions: (review_id: string, page: number = 1) =>
     request<any>(`/reviews/${review_id}/versions`, { params: { page } }),
+
+  deleteVersion: (review_id: string, review_version_id: string) =>
+    request<void>(`/reviews/${review_id}/versions/${encodeURIComponent(review_version_id)}`, { method: 'DELETE' }),
 };
 
 /* ========== Admin Types & API ========== */

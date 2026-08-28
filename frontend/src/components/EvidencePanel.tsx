@@ -5,6 +5,91 @@ import { X, FileText, Activity, AlertTriangle, ShieldCheck, ExternalLink, BookOp
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 
+/** Extract a value for a key from a raw (possibly truncated) JSON string using regex. */
+function extractJsonField(raw: string, key: string): string {
+  const m = raw.match(new RegExp(`"${key}"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`));
+  return m ? m[1] : '';
+}
+
+function extractJsonNumber(raw: string, key: string): string {
+  const m = raw.match(new RegExp(`"${key}"\\s*:\\s*([0-9.]+)`));
+  return m ? m[1] : '';
+}
+
+/** Convert a raw FHIR JSON snippet string into human-readable text.
+ *  Works even when the JSON is truncated (which is common with old persisted state). */
+function parseFhirSnippet(snippet: string | undefined | null): string {
+  if (!snippet) return 'Không có nội dung trích dẫn.';
+  const s = snippet.trim();
+  if (!s.startsWith('{')) return s;
+
+  // Extract resourceType via regex — works on truncated JSON
+  const rtype = extractJsonField(s, 'resourceType');
+
+  if (rtype === 'Condition') {
+    const name = extractJsonField(s, 'text') || extractJsonField(s, 'display') || 'Chẩn đoán';
+    const status = extractJsonField(s, 'code') || '';
+    // clinicalStatus code is nested; try to get the "code" value after "clinicalStatus"
+    const clinStatus = (() => {
+      const m = s.match(/"clinicalStatus"[^}]*?"code"\s*:\s*"([^"]+)"/);
+      return m ? m[1] : '';
+    })();
+    const parts = [`• Condition: ${name}`];
+    if (clinStatus) parts.push(`Trạng thái: ${clinStatus}`);
+    return parts.join(' | ');
+  }
+
+  if (rtype === 'MedicationRequest' || rtype === 'MedicationStatement') {
+    const name = extractJsonField(s, 'text') || extractJsonField(s, 'display') || 'Thuốc';
+    const status = extractJsonField(s, 'status') || '';
+    const dosage = (() => {
+      const m = s.match(/"dosageInstruction"[^}]*?"text"\s*:\s*"([^"]+)"/);
+      return m ? m[1] : '';
+    })();
+    const parts = [`• Thuốc: ${name}`];
+    if (dosage) parts.push(`Liều dùng: ${dosage}`);
+    if (status) parts.push(`Trạng thái: ${status}`);
+    return parts.join(' | ');
+  }
+
+  if (rtype === 'Observation') {
+    const codeName = extractJsonField(s, 'text') || extractJsonField(s, 'display') || 'Chỉ số';
+    const value = extractJsonNumber(s, 'value');
+    const unit = extractJsonField(s, 'unit');
+    const date = extractJsonField(s, 'effectiveDateTime');
+    const valStr = value ? `${value}${unit ? ' ' + unit : ''}` : '';
+    const parts = [valStr ? `• ${codeName}: ${valStr}` : `• ${codeName}`];
+    if (date) parts.push(`Ngày: ${date.slice(0, 10)}`);
+    return parts.join(' | ');
+  }
+
+  if (rtype === 'AllergyIntolerance') {
+    const name = extractJsonField(s, 'text') || extractJsonField(s, 'display') || 'Dị ứng';
+    return `• Dị ứng: ${name}`;
+  }
+
+  if (rtype === 'Encounter') {
+    const encType = extractJsonField(s, 'text') || 'Lượt khám';
+    const start = (() => {
+      const m = s.match(/"start"\s*:\s*"([^"]+)"/);
+      return m ? m[1].slice(0, 10) : '';
+    })();
+    const parts = [`• Khám: ${encType}`];
+    if (start) parts.push(`Ngày: ${start}`);
+    return parts.join(' | ');
+  }
+
+  if (rtype) {
+    const id = extractJsonField(s, 'id') || 'unknown';
+    const name = extractJsonField(s, 'text') || extractJsonField(s, 'display') || extractJsonField(s, 'name');
+    return name ? `• ${rtype}: ${name}` : `• ${rtype} — ${id}`;
+  }
+
+  // Fallback: not recognizable JSON
+  return s.slice(0, 200);
+}
+
+
 export default function EvidencePanel() {
   const { isEvidencePanelOpen, setEvidencePanelOpen, focusedCitation } = useAppStore();
   const [viewMode, setViewMode] = useState<'snippet' | 'document'>('snippet');
@@ -128,7 +213,7 @@ export default function EvidencePanel() {
                           Referenced Text
                         </div>
                         <p className="text-sm text-cyan-200 font-medium leading-relaxed">
-                          &ldquo;{focusedCitation.snippet}&rdquo;
+                          &ldquo;{parseFhirSnippet(focusedCitation.snippet)}&rdquo;
                         </p>
                       </div>
                       
@@ -169,7 +254,7 @@ export default function EvidencePanel() {
                             <span className="absolute -top-2 left-2 text-[8px] font-bold uppercase tracking-wider bg-teal-500 text-black px-1.5 py-0.2 rounded">
                               Target BBox Grounded
                             </span>
-                            &ldquo;{focusedCitation.snippet}&rdquo;
+                            &ldquo;{parseFhirSnippet(focusedCitation.snippet)}&rdquo;
                           </div>
                         </div>
 

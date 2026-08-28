@@ -211,6 +211,25 @@ def list_review_versions(
     return VersionListResponse(items=items[start:start + page_size], page=page, page_size=page_size, total=total)
 
 
+@router.delete("/reviews/{review_id}/versions/{review_version_id}", status_code=204)
+def delete_review_version(
+    review_id: str,
+    review_version_id: str,
+    repo: DemoRepository = Depends(get_demo_repository),
+) -> None:
+    """Delete a specific (non-approved, non-latest) review version."""
+    try:
+        repo.delete_review_version(review_id, review_version_id)
+    except ValueError as e:
+        code = str(e)
+        if code == "NOT_FOUND":
+            raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Không tìm thấy phiên bản này."})
+        if code == "CANNOT_DELETE_APPROVED":
+            raise HTTPException(status_code=409, detail={"code": "CANNOT_DELETE_APPROVED", "message": "Không thể xóa phiên bản đã duyệt."})
+        if code == "CANNOT_DELETE_LATEST":
+            raise HTTPException(status_code=409, detail={"code": "CANNOT_DELETE_LATEST", "message": "Không thể xóa phiên bản hiện tại mới nhất."})
+        raise HTTPException(status_code=400, detail={"code": "DELETE_FAILED", "message": str(e)})
+
 @router.get("/reviews/{review_id}/export.pdf")
 def export_pdf(
     review_id: str,

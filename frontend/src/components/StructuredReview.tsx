@@ -18,7 +18,8 @@ import {
     Ban,
     HeartPulse,
     Eye,
-    RotateCcw
+    RotateCcw,
+    Trash2
 } from 'lucide-react';
 import PatientCareGuideModal from './PatientCareGuideModal';
 
@@ -314,6 +315,19 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
             setError(getSafeError(err, `Không thể tải phiên bản v${targetVersion}`));
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDeleteVersion = async (reviewVersionId: string, versionNum: number) => {
+        if (!review) return;
+        if (!window.confirm(`Xóa phiên bản v${versionNum}? Hành động này không thể hoàn tác.`)) return;
+        try {
+            await reviews.deleteVersion(review.review_id, reviewVersionId);
+            // Reload version list
+            const res = await reviews.listVersions(review.review_id);
+            setVersions(res.items || []);
+        } catch (err: any) {
+            alert(getSafeError(err, `Không thể xóa phiên bản v${versionNum}`));
         }
     };
 
@@ -965,6 +979,8 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                             ) : (
                                 versions.map((v: any) => {
                                     const isCurrent = v.version === review?.version;
+                                    const isLatest = v.version === Math.max(...versions.map((x: any) => x.version));
+                                    const canDelete = !isCurrent && v.status !== 'approved' && !isLatest;
                                     return (
                                         <div
                                             key={v.review_version_id}
@@ -1016,6 +1032,18 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                                     >
                                                         <Eye className="w-3.5 h-3.5" />
                                                         <span>Xem</span>
+                                                    </button>
+                                                )}
+                                                {canDelete && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteVersion(v.review_version_id, v.version);
+                                                        }}
+                                                        title="Xóa phiên bản này"
+                                                        className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-all"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
                                                 )}
                                             </div>

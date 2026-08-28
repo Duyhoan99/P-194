@@ -128,36 +128,96 @@ class SafeTool:
         ]
 
     def execute_summary(self, limit: int) -> list[RetrievalCandidate]:
-        """Round-robin clinical domains so a bounded summary is not one-domain-heavy."""
-        buckets: dict[str, list[RetrievalCandidate]] = {domain: [] for domain in SUMMARY_DOMAINS}
-        unmatched: list[RetrievalCandidate] = []
-        for candidate in self.packet:
-            matched_domain = next(
-                (domain for domain in SUMMARY_DOMAINS if self._matches(candidate, domain)),
-                None,
-            )
-            if matched_domain is None:
-                unmatched.append(candidate)
-            else:
-                buckets[matched_domain].append(candidate)
+        """Prioritize clinical domains based on medical severity (warnings) and diagnosis relevance."""
+        from src.clinical.guidelines import parse_and_evaluate_metric, DIAGNOSIS_TO_METRICS
+        import datetime
 
-        selected: list[RetrievalCandidate] = []
-        offset = 0
-        while len(selected) < limit:
-            added = False
-            for domain in SUMMARY_DOMAINS:
-                bucket = buckets[domain]
-                if offset < len(bucket):
-                    selected.append(bucket[offset])
-                    added = True
-                    if len(selected) == limit:
-                        return selected
-            if not added:
-                break
-            offset += 1
+        active_conditions_text = ""
+        for c in self.packet:
+            ft = c.fact_type.casefold() if c.fact_type else ""
+            if "diagnosis" in ft or "condition" in ft:
+                src = c.scoped.item.source_value
+                active_conditions_text += " " + (" ".join(str(v) for v in src.values()) if isinstance(src, dict) else str(src)).casefold()
 
-        for candidate in unmatched:
-            if len(selected) == limit:
+        def score_candidate(candidate: RetrievalCandidate) -> float:
+            score = 0.0
+            fact_type = candidate.fact_type.casefold() if candidate.fact_type else ""
+            src = candidate.scoped.item.source_value
+            nv = candidate.scoped.item.normalized_value
+            src_text = (" ".join(str(v) for v in src.values()) if isinstance(src, dict) else str(src)).casefold()
+            
+            # Base domain scores
+            if "diagnosis" in fact_type or "condition" in fact_type:
+                score += 30.0
+            elif "medication" in fact_type:
+                score += 20.0
+            elif "observation" in fact_type or "lab" in fact_type or "vital" in fact_type:
+                score += 10.0
+
+            # Evaluate metrics for warnings and diagnosis relevance
+            if "observation" in fact_type or "lab" in fact_type or "vital" in fact_type:
+                name = ""
+                val = None
+                unit = ""
+                if isinstance(src, dict):
+                    name = str(src.get("title", "")).replace("Xét nghiệm:", "").strip()
+                    val = str(src.get("summary", "")).replace("Kết quả:", "").strip()
+                elif isinstance(nv, dict):
+                    name = str(nv.get("statement", "")).split(":")[0] if "statement" in nv else (nv.get("name") or nv.get("code") or "")
+                    val = nv.get("statement") or nv.get("value")
+                    unit = nv.get("unit", "")
+                elif isinstance(nv, str):
+                    name = nv.split(":")[0] if ":" in nv else nv
+                    val = nv
+                
+                if name:
+                    # Relevance to diagnosis
+                    for diag_key, codes in DIAGNOSIS_TO_METRICS.items():
+                        if diag_key in active_conditions_text:
+                            if any(c in name.casefold() for c in codes) or any(c in src_text for c in codes):
+                                score += 40.0
+                    
+                    # Anomaly check
+                    eval_result = parse_and_evaluate_metric(name, val, unit)
+                    if eval_result and eval_result.is_warning:
+                        score += 50.0
+
+            # Recency boost
+            time_str = candidate.scoped.item.source_time
+            if time_str:
+                try:
+                    dt = datetime.datetime.fromisoformat(str(time_str).replace("Z", "+00:00"))
+                    now = datetime.datetime.now(dt.tzinfo) if dt.tzinfo else datetime.datetime.now()
+                    days_old = (now - dt).days
+                    if days_old < 0: days_old = 0
+                    score += max(0, 10 - (days_old / 30.0))
+                except Exception:
+                    pass
+
+            return score
+
+        scored = [(c, score_candidate(c)) for c in self.packet]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        
+        # Select top items ensuring at least some diversity if possible
+        selected = []
+        seen_domains = set()
+        
+        # First pass: try to get the top scored items while capturing top 3 unique domains
+        for c, s in scored:
+            domain = next((d for d in SUMMARY_DOMAINS if self._matches(c, d)), "other")
+            if len(selected) < limit:
+                if domain not in seen_domains and len(seen_domains) < 3:
+                    selected.append(c)
+                    seen_domains.add(domain)
+        
+        # Second pass: fill the rest with highest scored items not yet selected
+        for c, s in scored:
+            if len(selected) >= limit:
                 break
-            selected.append(candidate)
+            if c not in selected:
+                selected.append(c)
+                
+        # Maintain chronological order for readability if they are roughly same score, 
+        # but here we just return the highest clinical priority first
         return selected

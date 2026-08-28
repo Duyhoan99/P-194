@@ -40,7 +40,12 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
       .then(([timelineRes, interactRes]) => {
         if (!isMounted) return;
         const allItems = timelineRes.items || [];
-        const meds = allItems.filter((e: any) => e.event_type === 'medication');
+        const meds = allItems.filter((e: any) => {
+          if (e.event_type !== 'medication') return false;
+          const cleanTitle = (e.title || '').replace(/^Thuốc:\s*/i, '').trim();
+          // Filter out pure dose fragments like "50 mg", "500 mg", "50", "500"
+          return !/^\d+(\.\d+)?\s*(mg|g|ml|mcg|ui|iu)?$/i.test(cleanTitle);
+        });
         setMedEvents(meds);
         setInteractions(interactRes.interactions || interactRes.items || currentReview?.drug_interactions || []);
       })
@@ -74,6 +79,9 @@ export default function MedicationTimeline({ patientId }: { patientId: string })
   const drugGroups: Record<string, MedicationEvent[]> = {};
   medEvents.forEach(m => {
     const cleanTitle = m.title.replace(/^Thuốc:\s*/i, '').trim();
+    if (/^\d+(\.\d+)?\s*(mg|g|ml|mcg|ui|iu)?$/i.test(cleanTitle)) {
+      return;
+    }
     const nameMatch = cleanTitle.split(' ')[0] || cleanTitle;
     if (!drugGroups[nameMatch]) {
       drugGroups[nameMatch] = [];

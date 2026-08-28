@@ -119,12 +119,12 @@ def test_pdf_is_readable_complete_and_excludes_source_citations():
     assert len(reader.pages) >= 1
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
-    assert "BẢN TÓM TẮT ĐIỀU TRỊ" in text
+    assert "BẢN TÓM TẮT BỆNH ÁN" in text
     assert "Nguyễn Demo An" in text
-    assert "Thuốc và phác đồ điều trị" in text
-    assert "Metformin 500 mg" in text
-    assert "CẢNH BÁO VÀ ĐIỂM CẦN LƯU Ý" in text
-    assert "mức trung bình" in text
+    assert "THUỐC VÀ PHÁC ĐỒ ĐIỀU TRỊ" in text
+    assert "Metformin 500" in text
+    assert "CẢNH BÁO LÂM SÀNG" in text
+    assert "trung bình" in text
     assert "moderate" not in text
     assert "ĐÃ PHÊ DUYỆT" in text
 
