@@ -84,7 +84,7 @@ def contextualize_question_node(state: ClinicalReviewState) -> dict:
     if not runtime.available:
         return {"messages": [("human", current_q)]}
 
-    prompt = f"System: Viết lại câu hỏi sau thành một câu hoàn chỉnh, độc lập, bao gồm đầy đủ danh từ/chủ thể được nhắc đến trong ngữ cảnh của lịch sử trò chuyện. KHÔNG trả lời câu hỏi, chỉ viết lại. Nếu câu hỏi không liên quan đến lâm sàng, giữ nguyên.\n\nLịch sử trò chuyện:\n{chr(10).join([f'{role}: {text}' for role, text in chat_history[-4:]])}\n\nUser: {current_q}\nAssistant:"
+    prompt = f"System: Viết lại câu hỏi sau thành một câu hoàn chỉnh, độc lập, thay thế đại từ bằng danh từ/chủ thể rõ ràng dựa trên lịch sử trò chuyện. KHÔNG trả lời câu hỏi, chỉ viết lại.\nQUAN TRỌNG: Nếu câu nói của User chỉ là lời chào, cảm ơn, khen ngợi, câu cảm thán ngắn, hoặc không chứa bất kỳ ý định tra cứu y khoa/lâm sàng nào, BẠN PHẢI TRẢ VỀ NGUYÊN VĂN CÂU NÓI ĐÓ. Tuyệt đối không tự suy diễn thêm bệnh lý hay chỉ số vào câu từ chối/cảm ơn.\n\nLịch sử trò chuyện:\n{chr(10).join([f'{role}: {text}' for role, text in chat_history[-4:]])}\n\nUser: {current_q}\nAssistant:"
     rewritten_q = runtime.client.generate_text(prompt)
     if not rewritten_q or len(rewritten_q) < 5 or "không thể" in rewritten_q.lower() or "{" in rewritten_q:
         rewritten_q = current_q
