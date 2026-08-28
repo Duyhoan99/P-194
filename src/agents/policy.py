@@ -58,7 +58,9 @@ _DATA_TAMPERING_REQUESTS = (
     "sửa kết quả",
     "chỉnh sửa kết quả",
     "thay đổi chẩn đoán",
-    "cập nhật",
+    "cập nhật kết quả",
+    "cập nhật bệnh án",
+    "cập nhật hồ sơ",
     "delete patient",
     "delete record",
 )

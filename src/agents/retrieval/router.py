@@ -175,13 +175,16 @@ class PlanValidator:
         for need in plan.needs:
             if need.entity:
                 c = resolve_concept(need.entity)
+                
+                # If domain is lab but entity is medication, drop the entity because it's context bleed
+                if c and need.domain == "lab" and c.domain == "medication":
+                    need.entity = None
+                    continue
+
                 # A narrative note can mention a structured concept (for
                 # example medication adherence) while remaining note evidence.
-                if c and need.domain not in {"all", "note", "lab", "vital", "diagnosis", "medication"} and need.domain != c.domain:
+                if c and need.domain not in {"all", "note"} and need.domain != c.domain:
                     need.domain = c.domain
-                # If domain is lab but entity is medication, drop the entity because it's context bleed
-                elif c and need.domain == "lab" and c.domain == "medication":
-                    need.entity = None
 
         q_lower = question.casefold()
         if "hba1c" in q_lower and any(k in q_lower for k in ("tuân thủ", "uống thuốc", "dùng thuốc", "thuốc")):
