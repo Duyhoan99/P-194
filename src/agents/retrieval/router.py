@@ -5,7 +5,7 @@ from src.agents.llm_client import get_llm_runtime
 from src.agents.retrieval.concepts import resolve_concept
 
 QueryRoute = Literal["STRUCTURED", "NARRATIVE", "MIXED", "TEMPORAL", "SUMMARY", "OUT_OF_SCOPE", "CONVERSATION"]
-StrictIntent = Literal["PATIENT_OVERVIEW", "WARNING_STATUS", "LATEST_VISIT", "PREVIOUS_VISIT", "DISEASE", "LAB_RESULT", "VITAL_SIGN", "MEDICATION", "VISIT", "HISTORY", "COMPARISON", "SPECIFIC_TEST", "UNKNOWN", "NONE", "user_identity", "unclear_query"]
+StrictIntent = Literal["PATIENT_OVERVIEW", "WARNING_STATUS", "LATEST_VISIT", "PREVIOUS_VISIT", "DISEASE", "LAB_RESULT", "VITAL_SIGN", "MEDICATION", "VISIT", "HISTORY", "COMPARISON", "SPECIFIC_TEST", "UNKNOWN", "NONE", "user_identity", "chit_chat", "unclear_query"]
 
 _SUMMARY_INTENT_MARKERS = (
     "tóm tắt",
@@ -45,19 +45,11 @@ def _is_vague_missing_info_query(question: str) -> tuple[bool, str]:
     entity = _extract_entity(question)
     
     # Exclude requests for "all" or specific patient indicators
-    if any(k in q_lower for k in ["tất cả", "toàn bộ", "các", "của bệnh nhân"]):
+    if any(k in q_lower for k in ["tất cả", "toàn bộ", "các", "của bệnh nhân", "những", "danh sách"]):
         return False, "none"
         
-    # "Chỉ số xét nghiệm thế nào?"
-    if "xét nghiệm" in q_lower or "chỉ số" in q_lower:
-        if not entity: return True, "lab"
-        
-    # "Thuốc uống thế nào?"
-    if "thuốc" in q_lower:
-        if not entity: return True, "medication"
-        
     # "Can you fix it?" or other vague questions without clear entities
-    if "fix it" in q_lower or "thế nào" in q_lower:
+    if "fix it" in q_lower or ("thế nào" in q_lower and not any(k in q_lower for k in ["tình trạng", "bệnh nhân", "sức khỏe"])):
         if not entity: return True, "all"
         
     return False, "none"
@@ -413,7 +405,7 @@ class QueryPlanner:
             "đang tốt", "chỉ số nào", "tình trạng tốt", "chỉ số tốt", "chỉ số ổn định"
         ]):
             deterministic.strict_intent = "WARNING_STATUS"
-        elif any(marker in q for marker in ["thông tin của bệnh nhân", "thông tin bệnh nhân", "tình trạng của bệnh nhân", "bệnh nhân hiện tại thế nào"]):
+        elif any(marker in q for marker in ["thông tin của bệnh nhân", "thông tin bệnh nhân", "tình trạng của bệnh nhân", "bệnh nhân hiện tại thế nào", "tình trạng bệnh nhân", "tên là gì", "sao rồi", "tình hình thế nào"]):
             deterministic.strict_intent = "PATIENT_OVERVIEW"
         elif any(marker in q for marker in ["nhiệt độ", "chiều cao", "nhịp thở", "spo2", "oxy", "loét", "võng mạc", "biến chứng", "thần kinh", "ngoại biên", "dị ứng"]):
             deterministic.strict_intent = "SPECIFIC_TEST"
@@ -438,7 +430,7 @@ class QueryPlanner:
             deterministic.strict_intent = "VISIT"
         elif any(marker in q for marker in ["bệnh gì", "mắc bệnh gì", "bị bệnh gì", "bệnh lý gì"]) or q.strip() in {"bệnh", "chẩn đoán", "bệnh lý"}:
             deterministic.strict_intent = "DISEASE"
-        elif "thuốc" in q and "đang dùng" in q:
+        elif ("thuốc" in q or "đơn thuốc" in q) and any(marker in q for marker in ["đang dùng", "được kê", "uống", "loại thuốc nào", "kê đơn", "thuốc gì", "thuốc nào", "dùng thuốc", "đơn thuốc"]):
             deterministic.strict_intent = "MEDICATION"
 
         if deterministic.strict_intent not in {"NONE", "UNKNOWN"}:
