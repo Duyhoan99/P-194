@@ -88,9 +88,6 @@ def contextualize_question_node(state: ClinicalReviewState) -> dict:
     rewritten_q = runtime.client.generate_text(prompt)
     if not rewritten_q or len(rewritten_q) < 5 or "không thể" in rewritten_q.lower() or "{" in rewritten_q:
         rewritten_q = current_q
-        
-    import sys
-    print(f"\nDEBUG CONTEXTUALIZE: Original='{current_q}' -> Rewritten='{rewritten_q}'", file=sys.stderr)
 
     return {
         "messages": [("human", current_q)],
