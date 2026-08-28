@@ -79,6 +79,8 @@ def _is_low_information(question: str) -> bool:
 def _relative_months(question: str) -> int | None:
     if "nửa năm" in question or "half year" in question:
         return 6
+    if "tháng trước" in question:
+        return 1
     match = re.search(r"(\d+)\s*(?:tháng|month)s?", question)
     if match:
         return int(match.group(1))
@@ -175,8 +177,11 @@ class PlanValidator:
                 c = resolve_concept(need.entity)
                 # A narrative note can mention a structured concept (for
                 # example medication adherence) while remaining note evidence.
-                if c and need.domain not in {"all", "note"} and need.domain != c.domain:
+                if c and need.domain not in {"all", "note", "lab", "vital", "diagnosis", "medication"} and need.domain != c.domain:
                     need.domain = c.domain
+                # If domain is lab but entity is medication, drop the entity because it's context bleed
+                elif c and need.domain == "lab" and c.domain == "medication":
+                    need.entity = None
 
         q_lower = question.casefold()
         if "hba1c" in q_lower and any(k in q_lower for k in ("tuân thủ", "uống thuốc", "dùng thuốc", "thuốc")):

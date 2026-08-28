@@ -19,6 +19,9 @@ _TREATMENT_REQUESTS = (
     "nên ngừng",
     "nên đổi",
     "kê đơn",
+    "kê thuốc",
+    "kê thêm",
+    "kê cho",
     "khuyến nghị điều trị",
     "recommend treatment",
     "which medication should",
@@ -37,14 +40,25 @@ _TREATMENT_REQUESTS = (
     "tự ý",
     "bỏ bớt thuốc",
     "uống bao nhiêu viên",
+    "chữa bệnh",
+    "trị bệnh",
+    "nguy hiểm không",
+    "tư vấn",
+    "lời khuyên",
+    "chỉ định",
+    "ngừng uống",
+    "uống chung",
 )
 _DATA_TAMPERING_REQUESTS = (
     "xóa hồ sơ",
     "xóa bệnh nhân",
+    "xóa bệnh án",
+    "xóa thông tin",
     "sửa chẩn đoán",
     "sửa kết quả",
     "chỉnh sửa kết quả",
     "thay đổi chẩn đoán",
+    "cập nhật",
     "delete patient",
     "delete record",
 )
@@ -137,7 +151,7 @@ def classify_prompt_category(query: str, patient_id: str = "") -> dict:
             "reasoning": "Hỏi về danh tính/vai trò của người dùng.",
         }
         
-    if any(kw in clean_q or kw in no_accent_q for kw in capability_keywords) or (len(words) <= 7 and any(kw == no_accent_q or kw in words for kw in greeting_keywords)):
+    if any(kw in clean_q or kw in no_accent_q for kw in capability_keywords) or (len(words) <= 7 and any(kw in clean_q or kw in no_accent_q for kw in greeting_keywords)):
         return {
             "category": RequestCategory.SIMPLE,
             "intent": "chit_chat",
