@@ -200,7 +200,11 @@ class RealOpenAIClinicalClient(OpenAIClinicalClientBase):
                     continue
                 valid_claims.append(claim)
 
+            parsed["summary"] = parsed.get("summary", "")
             parsed["claims"] = valid_claims
+            parsed["unsupported_claims"] = parsed.get("unsupported_claims", [])
+            parsed["conflicts"] = parsed.get("conflicts", [])
+            parsed["uncertainty"] = parsed.get("uncertainty", "low")
             return parsed
 
         except Exception as exc:
