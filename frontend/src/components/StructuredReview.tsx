@@ -884,24 +884,24 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
 
             {/* Approve Confirmation Modal */}
             {showApproveConfirm && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="clinical-card border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                <div className="fixed inset-0 bg-slate-900/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="clinical-card border border-slate-200 dark:border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Xác nhận Ký duyệt Bệnh án</h3>
-                                <p className="text-xs text-slate-400">Bản tóm tắt sẽ được lưu vào Patient Memory và đóng dấu số</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">Bản tóm tắt sẽ được lưu vào Patient Memory và đóng dấu số</p>
                             </div>
                         </div>
-                        <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+                        <p className="text-xs text-slate-700 dark:text-slate-300 mb-6 leading-relaxed">
                             Bác sĩ xác nhận đã rà soát toàn bộ diễn tiến, chỉ số xét nghiệm và đơn thuốc được đối chiếu với chứng cứ gốc.
                         </p>
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setShowApproveConfirm(false)}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors"
+                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl transition-colors"
                             >
                                 Hủy bỏ
                             </button>
@@ -918,15 +918,15 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
 
             {/* Reject Modal */}
             {showRejectModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="clinical-card border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                <div className="fixed inset-0 bg-slate-900/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="clinical-card border border-slate-200 dark:border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
-                                <Ban className="w-5 h-5 text-rose-400" />
+                                <Ban className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Yêu cầu Chỉnh sửa / Từ chối</h3>
-                                <p className="text-xs text-slate-400">Vui lòng nhập lý do từ chối bản tóm tắt này</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">Vui lòng nhập lý do từ chối bản tóm tắt này</p>
                             </div>
                         </div>
                         <textarea
@@ -938,7 +938,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => { setShowRejectModal(false); setRejectReason(''); }}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors"
+                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl transition-colors"
                             >
                                 Hủy bỏ
                             </button>
@@ -956,26 +956,26 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
 
             {/* Version History Modal */}
             {showVersions && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="clinical-card border border-slate-700 rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] flex flex-col">
+                <div className="fixed inset-0 bg-slate-900/25 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="clinical-card border border-slate-200 dark:border-slate-700 rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
-                                <History className="w-5 h-5 text-cyan-400" />
+                                <History className="w-5 h-5 text-cyan-700 dark:text-cyan-400" />
                                 <div>
                                     <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Lịch sử Phiên bản</h3>
-                                    <p className="text-[11px] text-slate-400">Chọn một phiên bản để xem lại hoặc đối chiếu nội dung</p>
+                                    <p className="text-[11px] text-slate-600 dark:text-slate-400">Chọn một phiên bản để xem lại hoặc đối chiếu nội dung</p>
                                 </div>
                             </div>
-                            <button onClick={() => setShowVersions(false)} className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
+                            <button onClick={() => setShowVersions(false)} className="p-1 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto space-y-2 chat-scrollbar pr-1">
                             {versionsLoading ? (
-                                <p className="text-xs text-slate-400 text-center py-6">Đang tải lịch sử...</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 text-center py-6">Đang tải lịch sử...</p>
                             ) : versions.length === 0 ? (
-                                <p className="text-xs text-slate-500 text-center py-6">Chỉ có 1 phiên bản hiện tại.</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-500 text-center py-6">Chỉ có 1 phiên bản hiện tại.</p>
                             ) : (
                                 versions.map((v: any) => {
                                     const isCurrent = v.version === review?.version;
@@ -988,12 +988,12 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                             className={`p-3 rounded-xl flex items-center justify-between text-xs transition-all cursor-pointer border ${
                                                 isCurrent
                                                     ? 'bg-teal-500/10 border-teal-500/40 shadow-sm'
-                                                    : 'bg-slate-900/40 border-slate-800 hover:border-teal-500/30 hover:bg-slate-800/60'
+                                                    : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-teal-500/30 hover:bg-teal-50 dark:hover:bg-slate-800/60'
                                             }`}
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
-                                                    isCurrent ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                                    isCurrent ? 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                                 }`}>
                                                     v{v.version}
                                                 </div>
@@ -1001,12 +1001,12 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                                     <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                         <span>Phiên bản v{v.version}</span>
                                                         {isCurrent && (
-                                                            <span className="text-[10px] text-teal-400 font-semibold bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-500/20">
+                                                            <span className="text-[10px] text-teal-700 dark:text-teal-400 font-semibold bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-500/20">
                                                                 Đang hiển thị
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="text-[11px] text-slate-400 mt-0.5">
+                                                    <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
                                                         {v.created_by || 'Hệ thống'} • {new Date(v.created_at).toLocaleString('vi-VN')}
                                                     </div>
                                                 </div>
@@ -1015,10 +1015,10 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                             <div className="flex items-center gap-2">
                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                                     v.status === 'approved'
-                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
                                                         : isCurrent
-                                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                                                            ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                                                 }`}>
                                                     {v.status === 'approved' ? 'ĐÃ DUYỆT' : isCurrent ? 'BẢN THẢO' : 'BẢN CŨ'}
                                                 </span>
@@ -1053,16 +1053,16 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                             )}
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
-                            <span className="text-slate-400 text-[11px]">Click vào bất kỳ bản nào để mở xem.</span>
+                        <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs">
+                            <span className="text-slate-600 dark:text-slate-400 text-[11px]">Click vào bất kỳ bản nào để mở xem.</span>
                             <button
                                 onClick={() => {
                                     setShowVersions(false);
                                     loadCurrentReview();
                                 }}
-                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-all"
+                                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-all"
                             >
-                                <RotateCcw className="w-3.5 h-3.5 text-teal-400" />
+                                <RotateCcw className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
                                 <span>Về bản mới nhất</span>
                             </button>
                         </div>
@@ -1072,21 +1072,21 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
 
             {/* Custom File Name Export PDF Modal */}
             {showExportModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="clinical-card border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                <div className="fixed inset-0 bg-slate-900/25 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="clinical-card border border-slate-200 dark:border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/20 text-teal-400">
+                            <div className="w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-500/10 flex items-center justify-center border border-teal-200 dark:border-teal-500/20 text-teal-700 dark:text-teal-400">
                                 <Download className="w-5 h-5" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-slate-100 text-sm">Xuất Bệnh án PDF</h3>
-                                <p className="text-xs text-slate-400">Đặt tên file tài liệu xuất trước khi tải về</p>
+                                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Xuất Bệnh án PDF</h3>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">Đặt tên file tài liệu xuất trước khi tải về</p>
                             </div>
                         </div>
 
                         <div className="space-y-3 mb-6">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                     Tên file tải về (.pdf):
                                 </label>
                                 <input
@@ -1094,11 +1094,11 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                                     value={customExportName}
                                     onChange={(e) => setCustomExportName(e.target.value)}
                                     placeholder="Nhap_ten_file.pdf"
-                                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                                    className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                                     autoFocus
                                 />
                             </div>
-                            <p className="text-[11px] text-slate-500 italic">
+                            <p className="text-[11px] text-slate-600 dark:text-slate-500 italic">
                                 File sẽ được định dạng chuẩn A4 có đóng dấu điện tử và bảng đối soát lâm sàng.
                             </p>
                         </div>
@@ -1106,7 +1106,7 @@ export default function StructuredReview({ patientId }: { patientId: string }) {
                         <div className="flex justify-end gap-2.5">
                             <button
                                 onClick={() => setShowExportModal(false)}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
                             >
                                 Hủy
                             </button>

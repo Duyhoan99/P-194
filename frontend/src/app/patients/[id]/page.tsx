@@ -170,10 +170,10 @@ export default function PatientWorkspace() {
 
         {/* Workspace 2-Column Responsive Layout */}
         <div className="flex-1 overflow-hidden p-4 sm:p-5 bg-transparent">
-          <div className="h-full max-w-[1700px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          <div className={`h-full max-w-[1700px] mx-auto grid grid-cols-1 gap-5 items-stretch ${showChat ? 'lg:grid-cols-[minmax(0,11fr)_minmax(0,13fr)]' : 'lg:grid-cols-12'}`}>
 
             {/* LEFT COLUMN: Clinical Workspace with 4 Core Medical Tabs (Expands to 12 cols when Chat is closed!) */}
-            <div className={`${showChat ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col h-full overflow-hidden gap-3 min-w-0 transition-all duration-300`}>
+            <div className={`${showChat ? '' : 'lg:col-span-12'} flex flex-col h-full overflow-hidden gap-3 min-w-0 transition-all duration-300`}>
 
               {/* Navigation Tabs Bar - 4 High-Value Clinical Tabs */}
               <div className="shrink-0 flex items-center justify-between clinical-card p-1.5 rounded-2xl">
@@ -265,7 +265,7 @@ export default function PatientWorkspace() {
 
             {/* RIGHT COLUMN: AI Co-pilot Assistant (Shown when showChat is true) */}
             {showChat && (
-              <div className="lg:col-span-7 flex flex-col h-full overflow-hidden min-w-0 animate-in fade-in slide-in-from-right-4 duration-200">
+              <div className="flex flex-col h-full overflow-hidden min-w-0 animate-in fade-in slide-in-from-right-4 duration-200">
                 <ChatPanel patientId={patientId} onClose={() => setShowChat(false)} />
               </div>
             )}
@@ -315,8 +315,8 @@ export default function PatientWorkspace() {
 
       {/* Patient Memory Modal */}
       {showMemory && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 bg-slate-900/25 dark:bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/30">
@@ -324,12 +324,12 @@ export default function PatientWorkspace() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Patient Memory</h3>
-                  <p className="text-xs text-slate-400">Tri thức lâm sàng đã được bác sĩ ký duyệt</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Tri thức lâm sàng đã được bác sĩ ký duyệt</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowMemory(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -337,31 +337,31 @@ export default function PatientWorkspace() {
 
             <div className="flex-1 overflow-y-auto space-y-3 chat-scrollbar pr-1">
               {memoryLoading ? (
-                <div className="text-center py-10 text-slate-400 text-sm">Đang tải bộ nhớ bệnh nhân...</div>
+                <div className="text-center py-10 text-slate-600 dark:text-slate-400 text-sm">Đang tải bộ nhớ bệnh nhân...</div>
               ) : memoryError ? (
                 <div className="text-center py-8">
                   <AlertTriangle className="w-8 h-8 text-amber-500/50 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">{memoryError}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{memoryError}</p>
                 </div>
               ) : memory ? (
                 <>
-                  <div className="flex items-center gap-3 text-xs text-slate-400 mb-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                    <span>Phiên bản: <strong className="text-purple-300">v{memory.version}</strong></span>
+                  <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 mb-2 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <span>Phiên bản: <strong className="text-purple-700 dark:text-purple-300">v{memory.version}</strong></span>
                     <span>•</span>
-                    <span>Phê duyệt bởi: <strong className="text-slate-200">{memory.approved_by}</strong></span>
+                    <span>Phê duyệt bởi: <strong className="text-slate-800 dark:text-slate-200">{memory.approved_by}</strong></span>
                     <span>•</span>
                     <span>{new Date(memory.approved_at).toLocaleString('vi-VN')}</span>
                   </div>
                   {memory.items?.map((item: any) => (
-                    <div key={item.item_id} className="p-3.5 bg-slate-950/50 border border-slate-200 dark:border-slate-800/80 rounded-xl">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-purple-400/80 mb-1">
+                    <div key={item.item_id} className="p-3.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/80 rounded-xl">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-purple-700 dark:text-purple-400/80 mb-1">
                         {item.category}
                       </div>
-                      <div className="text-sm text-slate-200 leading-relaxed">{item.text}</div>
+                      <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">{item.text}</div>
                       {item.citations && item.citations.length > 0 && (
                         <div className="flex gap-1.5 mt-2 flex-wrap">
                           {item.citations.map((c: any) => (
-                            <span key={c.citation_id} className="text-[10px] font-mono text-cyan-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                            <span key={c.citation_id} className="text-[10px] font-mono text-cyan-700 dark:text-cyan-400 bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                               #{c.citation_id?.split('-').pop()?.substring(0, 6)}
                             </span>
                           ))}
@@ -371,7 +371,7 @@ export default function PatientWorkspace() {
                   ))}
                 </>
               ) : (
-                <div className="text-center py-8 text-slate-500 text-sm">Chưa có dữ liệu bộ nhớ.</div>
+                <div className="text-center py-8 text-slate-600 dark:text-slate-500 text-sm">Chưa có dữ liệu bộ nhớ.</div>
               )}
             </div>
           </div>

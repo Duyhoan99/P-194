@@ -78,7 +78,9 @@ export default function LandingPage() {
       value: '8.4 %',
       ref: '< 5.7 %',
       status: 'VƯỢT NGƯỠNG',
-      statusClass: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+      statusClass: isDark
+        ? 'text-rose-400 bg-rose-500/10 border-rose-500/30'
+        : 'text-rose-700 bg-rose-50 border-rose-200',
       coords: '[X: 42, Y: 154, W: 520, H: 48]',
       docNote: 'Bảng Xét Nghiệm Máu Tĩnh Mạch (15/01/2026)'
     },
@@ -88,7 +90,9 @@ export default function LandingPage() {
       value: '9.2 mmol/L',
       ref: '3.9 - 6.4',
       status: 'TĂNG CAO',
-      statusClass: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+      statusClass: isDark
+        ? 'text-rose-400 bg-rose-500/10 border-rose-500/30'
+        : 'text-rose-700 bg-rose-50 border-rose-200',
       coords: '[X: 42, Y: 212, W: 520, H: 48]',
       docNote: 'Đường huyết tương lúc đói tăng liên tục qua 3 đợt khám'
     },
@@ -98,7 +102,9 @@ export default function LandingPage() {
       value: '142 µmol/L',
       ref: '62 - 106',
       status: 'TĂNG CAO',
-      statusClass: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      statusClass: isDark
+        ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+        : 'text-amber-700 bg-amber-50 border-amber-200',
       coords: '[X: 42, Y: 270, W: 520, H: 48]',
       docNote: 'Tăng liên tục từ mốc 118 lên 142 µmol/L qua 2 đợt khám'
     },
@@ -108,7 +114,9 @@ export default function LandingPage() {
       value: '48 mL/min/1.73m²',
       ref: '> 90',
       status: 'CKD G3a',
-      statusClass: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/30',
+      statusClass: isDark
+        ? 'text-cyan-300 bg-cyan-500/10 border-cyan-500/30'
+        : 'text-cyan-800 bg-cyan-50 border-cyan-200',
       coords: '[X: 42, Y: 328, W: 520, H: 48]',
       docNote: 'Chỉ định giảm liều thuốc đào thải qua thận (Metformin)'
     }
@@ -502,10 +510,10 @@ export default function LandingPage() {
         </section>
 
         {/* 5. INTERACTIVE CLINICAL SANDBOX (LIVE LABORATORY) */}
-        <section id="sandbox" className="py-16 sm:py-24 scroll-mt-20 mb-24 border-t border-white/10">
+        <section id="sandbox" className={`py-16 sm:py-24 scroll-mt-20 mb-24 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
 
           <div className="text-center max-w-5xl mx-auto mb-12 space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full oura-pill px-4 py-1.5 text-xs font-medium text-cyan-300 tracking-widest uppercase">
+            <div className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold tracking-widest uppercase ${isDark ? 'oura-pill text-cyan-300' : 'text-cyan-800 border border-cyan-200 bg-cyan-50'}`}>
               <Cpu className="h-4 w-4" />
               <span>Phòng thực nghiệm AI trực tiếp</span>
             </div>
@@ -525,8 +533,12 @@ export default function LandingPage() {
               <button
                 onClick={() => setActiveSandboxTab('ocr')}
                 className={`flex items-center gap-2 px-7 py-3 rounded-full text-xs font-semibold tracking-wide transition-all ${activeSandboxTab === 'ocr'
-                  ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? isDark
+                    ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
+                    : 'bg-teal-50 border border-teal-300 text-teal-800 shadow-sm'
+                  : isDark
+                    ? 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
                   }`}
               >
                 <FileText className="h-4 w-4" />
@@ -536,8 +548,12 @@ export default function LandingPage() {
               <button
                 onClick={() => setActiveSandboxTab('timeline')}
                 className={`flex items-center gap-2 px-7 py-3 rounded-full text-xs font-semibold tracking-wide transition-all ${activeSandboxTab === 'timeline'
-                  ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? isDark
+                    ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
+                    : 'bg-teal-50 border border-teal-300 text-teal-800 shadow-sm'
+                  : isDark
+                    ? 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
                   }`}
               >
                 <Clock className="h-4 w-4" />
@@ -547,8 +563,12 @@ export default function LandingPage() {
               <button
                 onClick={() => setActiveSandboxTab('ask')}
                 className={`flex items-center gap-2 px-7 py-3 rounded-full text-xs font-semibold tracking-wide transition-all ${activeSandboxTab === 'ask'
-                  ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? isDark
+                    ? 'bg-teal-500/20 border border-teal-500/40 text-teal-200 shadow-sm'
+                    : 'bg-teal-50 border border-teal-300 text-teal-800 shadow-sm'
+                  : isDark
+                    ? 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
                   }`}
               >
                 <Sparkles className="h-4 w-4" />
@@ -556,13 +576,13 @@ export default function LandingPage() {
               </button>
             </div>
 
-            <div className="text-sm text-slate-400 font-normal">
-              Bệnh nhân thử nghiệm: <span className="font-mono text-teal-300 font-semibold">Nguyễn Văn T. (#PT-194002)</span>
+            <div className={`text-sm ${isDark ? 'text-slate-400 font-normal' : 'text-slate-600 font-medium'}`}>
+              Bệnh nhân thử nghiệm: <span className={`font-mono font-semibold ${isDark ? 'text-teal-300' : 'text-teal-700'}`}>Nguyễn Văn T. (#PT-194002)</span>
             </div>
           </div>
 
           {/* Sandbox Main Stage */}
-          <div className="rounded-3xl oura-glass p-8 sm:p-12 shadow-2xl border border-white/10">
+          <div className={`rounded-3xl oura-glass p-8 sm:p-12 shadow-2xl border ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
 
             {/* TAB 1: OCR BOUNDING BOX */}
             {activeSandboxTab === 'ocr' && (
@@ -570,8 +590,8 @@ export default function LandingPage() {
 
                 {/* Left: Interactive PDF Canvas */}
                 <div className="lg:col-span-7 space-y-4">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-400 pb-2 border-b border-white/5">
-                    <span className="text-teal-300 flex items-center gap-2">
+                  <div className={`flex items-center justify-between text-xs font-mono pb-2 border-b ${isDark ? 'text-slate-400 border-white/5' : 'text-slate-600 border-slate-200'}`}>
+                    <span className={`flex items-center gap-2 font-semibold ${isDark ? 'text-teal-300' : 'text-teal-700'}`}>
                       <FileText className="w-4 h-4" />
                       PHIEU_XET_NGHIEM_SINH_HOA_2026.PDF
                     </span>
@@ -581,22 +601,22 @@ export default function LandingPage() {
                   <div className={`relative rounded-2xl p-6 sm:p-8 font-mono text-xs overflow-hidden select-none shadow-2xl ${isDark ? "bg-[#05080e] border border-white/10 text-slate-200" : "bg-white border border-slate-300 text-slate-900 shadow-md"}`}>
 
                     {/* Header of Medical Document */}
-                    <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
+                    <div className={`flex items-center justify-between pb-4 border-b mb-5 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
                       <div>
                         <div className={`font-bold text-sm sm:text-base uppercase tracking-wide ${isDark ? "text-slate-100" : "text-slate-900"}`}>
                           Bệnh Viện Đại Học Y Dược — Khoa Sinh Hóa
                         </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          Số phiếu: <span className="text-teal-300">XN-2026-0892</span> · Ngày lấy mẫu: 15/01/2026
+                        <div className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                          Số phiếu: <span className={isDark ? 'text-teal-300' : 'text-teal-700 font-semibold'}>XN-2026-0892</span> · Ngày lấy mẫu: 15/01/2026
                         </div>
                       </div>
-                      <div className="px-3 py-1 rounded bg-white/5 border border-white/10 text-[10px] text-slate-400 font-mono">
+                      <div className={`px-3 py-1 rounded border text-[10px] font-mono ${isDark ? 'bg-white/5 border-white/10 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
                         TRANG 1/1 (PDF SCAN)
                       </div>
                     </div>
 
                     {/* Table Header */}
-                    <div className="flex justify-between text-xs text-slate-400 border-b border-white/5 pb-2 mb-3 px-2 uppercase font-semibold">
+                    <div className={`flex justify-between text-xs border-b pb-2 mb-3 px-2 uppercase font-semibold ${isDark ? 'text-slate-400 border-white/5' : 'text-slate-600 border-slate-200'}`}>
                       <span>CHỈ SỐ XÉT NGHIỆM</span>
                       <div className="flex items-center gap-10">
                         <span>KẾT QUẢ</span>
@@ -613,26 +633,30 @@ export default function LandingPage() {
                             key={fact.id}
                             onClick={() => setSelectedOcrFact(idx)}
                             className={`relative flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${isSelected
-                                ? 'border-2 border-teal-400 bg-teal-400/15 text-white shadow-[0_0_25px_rgba(45,212,191,0.35)] ring-1 ring-teal-400/50'
-                                : 'border border-white/5 hover:bg-white/5 hover:border-white/15 text-slate-300'
+                                ? isDark
+                                  ? 'border-2 border-teal-400 bg-teal-400/15 text-white shadow-[0_0_25px_rgba(45,212,191,0.35)] ring-1 ring-teal-400/50'
+                                  : 'border-2 border-teal-500 bg-teal-50 text-slate-900 shadow-[0_8px_24px_rgba(13,148,136,0.14)] ring-1 ring-teal-200'
+                                : isDark
+                                  ? 'border border-white/5 hover:bg-white/5 hover:border-white/15 text-slate-300'
+                                  : 'border border-transparent hover:bg-slate-50 hover:border-slate-200 text-slate-700'
                               }`}
                           >
                             {/* Bounding Box Floating Badge */}
                             {isSelected && (
-                              <div className="absolute -top-3.5 left-3 flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-teal-400 text-black text-[10px] font-bold font-mono uppercase tracking-wider shadow-lg">
-                                <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
+                              <div className={`absolute -top-3.5 left-3 flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase tracking-wider shadow-lg ${isDark ? 'bg-teal-400 text-black' : 'bg-teal-700 text-white'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isDark ? 'bg-black' : 'bg-white'}`} />
                                 <span>BBOX GROUNDED: {fact.coords}</span>
                               </div>
                             )}
 
                             <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-mono text-slate-500">0{idx + 1}.</span>
+                              <span className={`text-[11px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>0{idx + 1}.</span>
                               <span className="font-semibold text-sm sm:text-base">{fact.name}</span>
                             </div>
 
                             <div className="flex items-center gap-10">
-                              <span className="font-bold font-mono text-base sm:text-lg text-teal-300">{fact.value}</span>
-                              <span className="text-xs sm:text-sm text-slate-400 w-24 text-right">{fact.ref}</span>
+                              <span className={`font-bold font-mono text-base sm:text-lg ${isDark ? 'text-teal-300' : 'text-teal-700'}`}>{fact.value}</span>
+                              <span className={`text-xs sm:text-sm w-24 text-right ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{fact.ref}</span>
                             </div>
                           </div>
                         );
@@ -640,9 +664,9 @@ export default function LandingPage() {
                     </div>
 
                     {/* Document Footer Bar */}
-                    <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Bác sĩ chỉ định: <span className="text-slate-200">PGS.TS. Trần Quốc H.</span></span>
-                      <span className="font-mono text-teal-400">Độ tin cậy OCR: 99.8%</span>
+                    <div className={`mt-5 pt-3 border-t flex items-center justify-between text-[11px] ${isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-600'}`}>
+                      <span>Bác sĩ chỉ định: <span className={isDark ? 'text-slate-200' : 'text-slate-800 font-medium'}>PGS.TS. Trần Quốc H.</span></span>
+                      <span className={`font-mono font-semibold ${isDark ? 'text-teal-400' : 'text-teal-700'}`}>Độ tin cậy OCR: 99.8%</span>
                     </div>
 
                   </div>
@@ -650,8 +674,8 @@ export default function LandingPage() {
 
                 {/* Right: Extracted Facts Card */}
                 <div className="lg:col-span-5 space-y-4">
-                  <h4 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-teal-400" />
+                  <h4 className={`text-lg font-semibold flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                    <CheckCircle2 className={`w-5 h-5 ${isDark ? 'text-teal-400' : 'text-teal-600'}`} />
                     Thực Thể Được AI Trích Xuất &amp; Xác Thực
                   </h4>
 
@@ -660,26 +684,28 @@ export default function LandingPage() {
                       <div
                         key={fact.id}
                         onClick={() => setSelectedOcrFact(idx)}
-                        className={`p-5 rounded-xl cursor-pointer transition-all oura-glass-card ${selectedOcrFact === idx
-                          ? 'border-teal-500/50 bg-teal-950/30'
-                          : 'hover:border-white/10'
+                        className={`p-5 rounded-xl cursor-pointer transition-all ${isDark
+                          ? `oura-glass-card ${selectedOcrFact === idx ? 'border-teal-500/50 bg-teal-950/30' : 'hover:border-white/10'}`
+                          : selectedOcrFact === idx
+                            ? 'border border-teal-300 bg-teal-50 shadow-sm'
+                            : 'border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 hover:-translate-y-0.5'
                           }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-semibold text-sm sm:text-base text-slate-100">{fact.name}</span>
+                          <span className={`font-semibold text-sm sm:text-base ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{fact.name}</span>
                           <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${fact.statusClass}`}>
                             {fact.status}
                           </span>
                         </div>
-                        <div className="text-lg font-bold font-mono text-teal-300 mb-1">
-                          {fact.value} <span className="text-xs font-normal text-slate-400">(Tham chiếu: {fact.ref})</span>
+                        <div className={`text-lg font-bold font-mono mb-1 ${isDark ? 'text-teal-300' : 'text-teal-700'}`}>
+                          {fact.value} <span className={`text-xs font-normal ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>(Tham chiếu: {fact.ref})</span>
                         </div>
-                        <p className="text-xs sm:text-sm text-slate-400 font-normal">{fact.docNote}</p>
+                        <p className={`text-xs sm:text-sm ${isDark ? 'text-slate-400 font-normal' : 'text-slate-600 font-medium'}`}>{fact.docNote}</p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="p-4 rounded-xl bg-teal-950/20 border border-teal-500/20 text-xs sm:text-sm text-teal-300/90 leading-relaxed">
+                  <div className={`p-4 rounded-xl border text-xs sm:text-sm leading-relaxed ${isDark ? 'bg-teal-950/20 border-teal-500/20 text-teal-300/90' : 'bg-teal-50 border-teal-200 text-teal-800'}`}>
                     💡 Bác sĩ có thể nhấp vào bất kỳ thông số nào để đối soát tức thời tọa độ trên bản scan PDF gốc, hoàn toàn loại bỏ nguy cơ đọc sai sót.
                   </div>
                 </div>
@@ -690,10 +716,10 @@ export default function LandingPage() {
             {/* TAB 2: TIMELINE STREAM */}
             {activeSandboxTab === 'timeline' && (
               <div className="space-y-6">
-                <div className="flex items-center justify-between pb-4 border-b border-white/5">
+                <div className={`flex items-center justify-between pb-4 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
                   <div>
-                    <h4 className="text-lg font-semibold text-slate-100">Chuỗi Sự Kiện Lâm Sàng (2024 — 2026)</h4>
-                    <p className="text-sm text-slate-400">Tự động xâu chuỗi 34 lượt khám ngoại trú, xét nghiệm máu và đợt chỉnh liều thuốc</p>
+                    <h4 className={`text-lg font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Chuỗi Sự Kiện Lâm Sàng (2024 — 2026)</h4>
+                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Tự động xâu chuỗi 34 lượt khám ngoại trú, xét nghiệm máu và đợt chỉnh liều thuốc</p>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -702,8 +728,12 @@ export default function LandingPage() {
                         key={year}
                         onClick={() => setTimelineYear(year)}
                         className={`px-5 py-2 rounded-full text-xs sm:text-sm font-mono font-medium transition-all ${timelineYear === year
-                          ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm'
-                          : 'text-slate-400 hover:text-white'
+                          ? isDark
+                            ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-sm'
+                            : 'bg-teal-50 text-teal-800 border border-teal-300 shadow-sm'
+                          : isDark
+                            ? 'text-slate-400 hover:text-white'
+                            : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
                           }`}
                       >
                         Năm {year}
@@ -717,60 +747,60 @@ export default function LandingPage() {
 
                   {/* Event 1 */}
                   <div className="flex items-start gap-5 p-6 rounded-2xl oura-glass-card">
-                    <div className="w-12 h-12 rounded-full bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-300 shrink-0">
+                    <div className={`w-12 h-12 rounded-full border flex items-center justify-center shrink-0 ${isDark ? 'bg-teal-500/10 border-teal-500/30 text-teal-300' : 'bg-teal-50 border-teal-200 text-teal-700'}`}>
                       <Stethoscope className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between text-base mb-1.5">
-                        <span className="font-semibold text-slate-100">Tái Khám Định Kỳ — ĐTĐ &amp; Tăng Huyết Áp</span>
-                        <span className="font-mono text-slate-400 text-xs sm:text-sm">15/01/2026</span>
+                        <span className={`font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Tái Khám Định Kỳ — ĐTĐ &amp; Tăng Huyết Áp</span>
+                        <span className={`font-mono text-xs sm:text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>15/01/2026</span>
                       </div>
-                      <p className="text-sm sm:text-base text-slate-300 leading-relaxed mb-3">
+                      <p className={`text-sm sm:text-base leading-relaxed mb-3 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         Bác sĩ đánh giá đáp ứng sau 3 tháng chỉnh liều. HbA1c giảm về 7.4%, HA ổn định 138/84 mmHg.
                       </p>
                       <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                        <span className="px-3 py-1 rounded-full oura-pill text-teal-300">HbA1c: 7.4%</span>
-                        <span className="px-3 py-1 rounded-full oura-pill text-emerald-300">HA: 138/84 mmHg</span>
-                        <span className="px-3 py-1 rounded-full oura-pill text-slate-400">Metformin 1000mg</span>
+                        <span className={`px-3 py-1 rounded-full ${isDark ? 'oura-pill text-teal-300' : 'text-teal-800 border border-teal-200 bg-teal-50'}`}>HbA1c: 7.4%</span>
+                        <span className={`px-3 py-1 rounded-full ${isDark ? 'oura-pill text-emerald-300' : 'text-emerald-800 border border-emerald-200 bg-emerald-50'}`}>HA: 138/84 mmHg</span>
+                        <span className={`px-3 py-1 rounded-full ${isDark ? 'oura-pill text-slate-400' : 'text-slate-700 border border-slate-200 bg-slate-50'}`}>Metformin 1000mg</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Event 2 */}
                   <div className="flex items-start gap-5 p-6 rounded-2xl oura-glass-card">
-                    <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-300 shrink-0">
+                    <div className={`w-12 h-12 rounded-full border flex items-center justify-center shrink-0 ${isDark ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
                       <AlertTriangle className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between text-base mb-1.5">
-                        <span className="font-semibold text-slate-100">Điều Chỉnh Liều Thuốc — Kháng Trị HbA1c</span>
-                        <span className="font-mono text-slate-400 text-xs sm:text-sm">10/01/2026</span>
+                        <span className={`font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Điều Chỉnh Liều Thuốc — Kháng Trị HbA1c</span>
+                        <span className={`font-mono text-xs sm:text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>10/01/2026</span>
                       </div>
-                      <p className="text-sm sm:text-base text-slate-300 leading-relaxed mb-3">
+                      <p className={`text-sm sm:text-base leading-relaxed mb-3 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         HbA1c tăng vọt lên 8.2%. Tăng liều Metformin từ 500mg lên 1000mg/ngày (chia 2 lần).
                       </p>
                       <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                        <span className="px-3 py-1 rounded-full oura-pill text-rose-300">HbA1c: 8.2% (Tăng)</span>
-                        <span className="px-3 py-1 rounded-full oura-pill text-amber-300">Tăng liều +500mg</span>
+                        <span className={`px-3 py-1 rounded-full ${isDark ? 'oura-pill text-rose-300' : 'text-rose-700 border border-rose-200 bg-rose-50'}`}>HbA1c: 8.2% (Tăng)</span>
+                        <span className={`px-3 py-1 rounded-full ${isDark ? 'oura-pill text-amber-300' : 'text-amber-800 border border-amber-200 bg-amber-50'}`}>Tăng liều +500mg</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Event 3 */}
                   <div className="flex items-start gap-5 p-6 rounded-2xl oura-glass-card">
-                    <div className="w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
+                    <div className={`w-12 h-12 rounded-full border flex items-center justify-center shrink-0 ${isDark ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' : 'bg-cyan-50 border-cyan-200 text-cyan-700'}`}>
                       <FileSignature className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between text-base mb-1.5">
-                        <span className="font-semibold text-slate-100">Khám Chuyên Khoa Tim Mạch &amp; Khởi Trị Thuốc HA</span>
-                        <span className="font-mono text-slate-400 text-xs sm:text-sm">10/06/2024</span>
+                        <span className={`font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Khám Chuyên Khoa Tim Mạch &amp; Khởi Trị Thuốc HA</span>
+                        <span className={`font-mono text-xs sm:text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>10/06/2024</span>
                       </div>
-                      <p className="text-sm sm:text-base text-slate-300 leading-relaxed mb-3">
+                      <p className={`text-sm sm:text-base leading-relaxed mb-3 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         Ghi nhận HA 158/94 mmHg. Bắt đầu dùng Amlodipine 5mg/ngày và tư vấn tiết chế giảm muối.
                       </p>
                       <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                        <span className="px-3 py-1 rounded-full oura-pill text-cyan-300">Khởi đầu: Amlodipine 5mg</span>
+                        <span className={`px-3 py-1 rounded-full ${isDark ? 'oura-pill text-cyan-300' : 'text-cyan-800 border border-cyan-200 bg-cyan-50'}`}>Khởi đầu: Amlodipine 5mg</span>
                       </div>
                     </div>
                   </div>
@@ -785,43 +815,45 @@ export default function LandingPage() {
 
                 {/* Left: Sample Questions */}
                 <div className="lg:col-span-5 space-y-3.5">
-                  <h4 className="text-base font-semibold text-slate-100 mb-2">Câu Hỏi Mẫu Bác Sĩ Hay Truy Vấn:</h4>
+                  <h4 className={`text-base font-semibold mb-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Câu Hỏi Mẫu Bác Sĩ Hay Truy Vấn:</h4>
 
                   {askPrompts.map((p, idx) => (
                     <button
                       key={idx}
                       onClick={() => setActivePromptIndex(idx)}
-                      className={`w-full text-left p-4 rounded-xl transition-all oura-glass-card ${activePromptIndex === idx
-                        ? 'border-teal-500/50 bg-teal-950/30 text-white'
-                        : 'text-slate-300 hover:text-white'
+                      className={`w-full text-left p-4 rounded-xl transition-all ${isDark
+                        ? `oura-glass-card ${activePromptIndex === idx ? 'border-teal-500/50 bg-teal-950/30 text-white' : 'text-slate-300 hover:text-white'}`
+                        : activePromptIndex === idx
+                          ? 'border border-teal-300 bg-teal-50 text-slate-900 shadow-sm'
+                          : 'border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50'
                         }`}
                     >
                       <div className="text-sm sm:text-base font-medium">{p.q}</div>
                     </button>
                   ))}
 
-                  <div className="pt-2 text-xs sm:text-sm text-slate-400">
+                  <div className={`pt-2 text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     🔍 AI Co-pilot hỗ trợ hỏi đáp tự nhiên trên toàn bộ hồ sơ với thuật toán tìm kiếm kết hợp Hybrid Fusion (BM25 + Semantic Vector).
                   </div>
                 </div>
 
                 {/* Right: AI Answer & Grounded Citations */}
                 <div className="lg:col-span-7 space-y-4">
-                  <div className="p-7 rounded-2xl bg-teal-950/20 border border-teal-500/20 space-y-4">
-                    <div className="flex items-center gap-2.5 text-base font-semibold text-teal-200">
-                      <Bot className="w-6 h-6 text-teal-400" />
+                  <div className={`p-7 rounded-2xl border space-y-4 ${isDark ? 'bg-teal-950/20 border-teal-500/20' : 'bg-teal-50 border-teal-200 shadow-sm'}`}>
+                    <div className={`flex items-center gap-2.5 text-base font-semibold ${isDark ? 'text-teal-200' : 'text-teal-800'}`}>
+                      <Bot className={`w-6 h-6 ${isDark ? 'text-teal-400' : 'text-teal-600'}`} />
                       <span>Câu Trả Lời Của AI Clinical Copilot</span>
                     </div>
 
-                    <p className="text-base sm:text-lg text-slate-200 leading-relaxed">
+                    <p className={`text-base sm:text-lg leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                       {askPrompts[activePromptIndex].a}
                     </p>
 
-                    <div className="pt-4 border-t border-white/5 space-y-2">
-                      <div className="text-xs sm:text-sm font-semibold text-slate-400">Bằng chứng &amp; Dẫn chứng gốc:</div>
+                    <div className={`pt-4 border-t space-y-2 ${isDark ? 'border-white/5' : 'border-teal-200'}`}>
+                      <div className={`text-xs sm:text-sm font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Bằng chứng &amp; Dẫn chứng gốc:</div>
                       <div className="flex flex-wrap gap-2.5">
                         {askPrompts[activePromptIndex].citations.map((cit, cIdx) => (
-                          <span key={cIdx} className="px-3.5 py-1 rounded-full oura-pill text-xs sm:text-sm text-teal-300 bg-teal-500/10 border border-teal-500/30">
+                          <span key={cIdx} className={`px-3.5 py-1 rounded-full text-xs sm:text-sm border ${isDark ? 'oura-pill text-teal-300 bg-teal-500/10 border-teal-500/30' : 'text-teal-800 bg-white border-teal-200'}`}>
                             {cit}
                           </span>
                         ))}

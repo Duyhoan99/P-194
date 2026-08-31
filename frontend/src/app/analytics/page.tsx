@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select className="bg-slate-800/50 border border-white/10 text-slate-300 text-sm rounded-lg px-4 py-2 outline-none focus:border-purple-500/50">
+          <select className="bg-white dark:bg-slate-800/50 border border-slate-300 dark:border-white/10 text-slate-800 dark:text-slate-300 text-sm rounded-lg px-4 py-2 outline-none focus:border-purple-500/50">
             <option>Last 7 Days</option>
             <option>Last 30 Days</option>
             <option>This Year</option>

@@ -178,14 +178,14 @@ export default function HelpPage() {
 
       {/* DOCS MODAL */}
       {showDocsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/25 dark:bg-black/60 backdrop-blur-sm">
           <div className="clinical-card w-full max-w-2xl p-6 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto chat-scrollbar">
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-card)' }}>
               <div className="flex items-center gap-2">
                 <Book className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                 <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Hướng dẫn Sử dụng Hệ thống</h3>
               </div>
-              <button onClick={() => setShowDocsModal(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 cursor-pointer">
+              <button onClick={() => setShowDocsModal(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -218,7 +218,7 @@ export default function HelpPage() {
 
       {/* LIVE CHAT SUPPORT MODAL */}
       {showChatModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/25 dark:bg-black/60 backdrop-blur-sm">
           <div className="clinical-card w-full max-w-lg flex flex-col h-[520px] shadow-2xl relative overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b flex items-center justify-between shrink-0" style={{ borderColor: 'var(--border-card)' }}>
@@ -233,7 +233,7 @@ export default function HelpPage() {
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowChatModal(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 cursor-pointer">
+              <button onClick={() => setShowChatModal(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>

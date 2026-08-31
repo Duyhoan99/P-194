@@ -47,6 +47,144 @@ html.dark {
   --shadow-card: 0 10px 30px rgba(7, 15, 30, 0.4);
 }
 
+html:not(.dark) {
+  color-scheme: light;
+}
+
+@media screen {
+/* Patient care guide: this screen was authored with dark colors as its
+   unqualified defaults. Keep those defaults for Dark Theme and remap only
+   the Light Theme rendering, including when the modal is mounted in a portal. */
+html:not(.dark) #patient-guide-print-shell {
+  background-color: rgb(15 23 42 / 0.24) !important;
+  color: var(--text-primary);
+}
+
+html:not(.dark) #printable-patient-guide {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-card) !important;
+}
+
+html:not(.dark) #printable-patient-guide .bg-slate-950,
+html:not(.dark) #printable-patient-guide .bg-slate-950\/40,
+html:not(.dark) #printable-patient-guide .bg-slate-950\/60,
+html:not(.dark) #printable-patient-guide .bg-slate-950\/70,
+html:not(.dark) #printable-patient-guide .bg-slate-950\/80,
+html:not(.dark) #printable-patient-guide .bg-slate-950\/90,
+html:not(.dark) #printable-patient-guide .bg-slate-950\/95,
+html:not(.dark) #printable-patient-guide .bg-slate-900\/40,
+html:not(.dark) #printable-patient-guide .bg-slate-900\/70,
+html:not(.dark) #printable-patient-guide .bg-slate-900\/80,
+html:not(.dark) #printable-patient-guide .bg-slate-900\/95 {
+  background-color: var(--bg-subcard) !important;
+}
+
+html:not(.dark) #printable-patient-guide .bg-slate-900,
+html:not(.dark) #printable-patient-guide .bg-slate-850,
+html:not(.dark) #printable-patient-guide .bg-slate-800 {
+  background-color: var(--bg-card) !important;
+}
+
+html:not(.dark) #printable-patient-guide .border-white\/10,
+html:not(.dark) #printable-patient-guide .border-slate-800,
+html:not(.dark) #printable-patient-guide .border-slate-800\/80,
+html:not(.dark) #printable-patient-guide .border-slate-700,
+html:not(.dark) #printable-patient-guide .border-slate-700\/80 {
+  border-color: var(--border-card) !important;
+}
+
+html:not(.dark) #printable-patient-guide .text-slate-100,
+html:not(.dark) #printable-patient-guide .text-slate-200,
+html:not(.dark) #printable-patient-guide .text-slate-300 {
+  color: var(--text-primary) !important;
+}
+
+html:not(.dark) #printable-patient-guide .text-slate-400,
+html:not(.dark) #printable-patient-guide .text-slate-500 {
+  color: var(--text-muted) !important;
+}
+
+html:not(.dark) #printable-patient-guide .text-teal-200,
+html:not(.dark) #printable-patient-guide .text-teal-200\/90,
+html:not(.dark) #printable-patient-guide .text-teal-300,
+html:not(.dark) #printable-patient-guide .text-teal-400 {
+  color: #0f766e !important;
+}
+
+html:not(.dark) #printable-patient-guide .text-cyan-200,
+html:not(.dark) #printable-patient-guide .text-cyan-300,
+html:not(.dark) #printable-patient-guide .text-cyan-400 {
+  color: #0e7490 !important;
+}
+
+html:not(.dark) #printable-patient-guide .text-amber-100,
+html:not(.dark) #printable-patient-guide .text-amber-200,
+html:not(.dark) #printable-patient-guide .text-amber-300,
+html:not(.dark) #printable-patient-guide .text-amber-400 {
+  color: #92400e !important;
+}
+
+html:not(.dark) #printable-patient-guide .text-emerald-300,
+html:not(.dark) #printable-patient-guide .text-emerald-400 {
+  color: #047857 !important;
+}
+
+html:not(.dark) #printable-patient-guide .text-rose-200,
+html:not(.dark) #printable-patient-guide .text-rose-300 {
+  color: #be123c !important;
+}
+
+html:not(.dark) #printable-patient-guide .bg-cyan-950\/40 {
+  background-color: #ecfeff !important;
+}
+
+html:not(.dark) #printable-patient-guide .bg-rose-950\/40 {
+  background-color: #fff1f2 !important;
+}
+
+html:not(.dark) #printable-patient-guide .bg-amber-950\/30 {
+  background-color: #fffbeb !important;
+}
+
+html:not(.dark) #printable-patient-guide .bg-amber-950\/20,
+html:not(.dark) #printable-patient-guide .bg-teal-950\/20 {
+  background-color: var(--accent-teal-bg) !important;
+}
+
+html:not(.dark) #printable-patient-guide .from-slate-900 {
+  --tw-gradient-from: var(--bg-subcard) !important;
+}
+
+html:not(.dark) #printable-patient-guide .via-teal-950\/30 {
+  --tw-gradient-via: var(--accent-teal-bg) !important;
+}
+
+html:not(.dark) #printable-patient-guide .to-slate-900 {
+  --tw-gradient-to: var(--bg-subcard) !important;
+}
+
+html:not(.dark) #printable-patient-guide input,
+html:not(.dark) #printable-patient-guide textarea {
+  background-color: var(--bg-input) !important;
+  border-color: var(--border-input) !important;
+  color: var(--text-primary) !important;
+}
+
+html:not(.dark) #printable-patient-guide input::placeholder,
+html:not(.dark) #printable-patient-guide textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+html:not(.dark) #printable-patient-guide .hover\:bg-slate-800:hover,
+html:not(.dark) #printable-patient-guide .hover\:bg-slate-700:hover {
+  background-color: var(--accent-teal-bg) !important;
+}
+
+html:not(.dark) #printable-patient-guide .hover\:text-white:hover {
+  color: var(--text-primary) !important;
+}
+}
+
 body {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background-color: var(--bg-app) !important;

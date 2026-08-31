@@ -38,17 +38,17 @@ export default function DocumentModal({ isOpen, onClose, documentId }: DocumentM
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+          className="absolute inset-0 bg-slate-900/25 dark:bg-slate-950/80 backdrop-blur-sm"
         />
         
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-5xl h-[85vh] bg-white dark:bg-[#112240] border border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden"
+          className="relative w-full max-w-5xl h-[85vh] bg-white dark:bg-[#112240] border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-white dark:bg-[#112240]/50">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#112240]/50">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 truncate pr-4">
               {documentId}
             </h3>
@@ -57,14 +57,14 @@ export default function DocumentModal({ isOpen, onClose, documentId }: DocumentM
                 href={docUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-400/10 hover:bg-cyan-100 dark:hover:bg-cyan-400/20 rounded-lg transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
                 {language === 'vi' ? 'Mở tab mới' : 'Open in new tab'}
               </a>
               <button
                 onClick={onClose}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -72,10 +72,10 @@ export default function DocumentModal({ isOpen, onClose, documentId }: DocumentM
           </div>
 
           {/* Body */}
-          <div className="flex-1 bg-slate-950 p-2 sm:p-4">
+          <div className="flex-1 bg-slate-100 dark:bg-slate-950 p-2 sm:p-4">
             <iframe
               src={docUrl}
-              className="w-full h-full rounded-xl border border-slate-800 bg-white"
+              className="w-full h-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white"
               title="Document Preview"
             />
           </div>

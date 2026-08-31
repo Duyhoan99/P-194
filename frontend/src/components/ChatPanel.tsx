@@ -171,6 +171,7 @@ export default function ChatPanel({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
+  const [showSessionHistory, setShowSessionHistory] = useState(false);
   const { setFocusedCitation } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -206,6 +207,17 @@ export default function ChatPanel({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  useEffect(() => {
+    if (!showSessionHistory) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowSessionHistory(false);
+    };
+
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [showSessionHistory]);
 
   const quickPrompts = [
     { label: '💊 Diễn tiến Thuốc & Phác đồ', text: 'Quá trình sử dụng thuốc của bệnh nhân qua các đợt khám thay đổi như thế nào?' },
@@ -290,6 +302,8 @@ export default function ChatPanel({
     const newSid = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     setActiveSessionId(newSid);
     setMessages([]);
+    setEditingSessionId(null);
+    setShowSessionHistory(false);
   };
 
   const handleDeleteSession = async (e: React.MouseEvent, sid: string) => {
@@ -315,41 +329,72 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex h-full w-full rounded-2xl overflow-hidden shadow-lg border" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
+    <div className="relative flex h-full w-full rounded-2xl overflow-hidden shadow-lg border" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
       {/* Main Chat Area */}
       <div className="flex-1 overflow-hidden flex flex-col h-full min-h-0 bg-transparent">
       {/* Header */}
-      <div className="p-3.5 px-4 flex items-center justify-between shrink-0 border-b" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
-        <div className="flex items-center gap-3">
+      <div className="p-3 px-4 flex items-center justify-between gap-3 shrink-0 border-b" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}>
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center border shadow-sm" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
             <Bot className="w-4 h-4" />
           </div>
-          <div>
-            <h3 className="text-sm font-extrabold tracking-tight" style={{ color: 'var(--accent-teal)' }}>
+          <div className="min-w-0">
+            <h3 className="text-sm font-extrabold tracking-tight truncate" style={{ color: 'var(--accent-teal)' }}>
               AI Co-pilot Lâm sàng
             </h3>
-            <p className="text-[10px] font-mono font-medium" style={{ color: 'var(--text-muted)' }}>Grounded Clinical Reasoning</p>
+            <p className="text-[10px] font-mono font-medium truncate" style={{ color: 'var(--text-muted)' }}>Grounded Clinical Reasoning</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowSessionHistory((current) => !current)}
+            className="h-10 px-3 rounded-xl border text-xs font-bold transition-colors cursor-pointer flex items-center gap-2 hover:bg-slate-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60"
+            style={{ borderColor: 'var(--border-card)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-subcard)' }}
+            aria-expanded={showSessionHistory}
+            aria-controls="chat-session-history"
+            title="Lịch sử trò chuyện"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span className="hidden sm:inline">Lịch sử</span>
+            {sessions.length > 0 && (
+              <span className="min-w-5 h-5 px-1 rounded-full text-[10px] font-extrabold flex items-center justify-center bg-teal-500/15 text-teal-700 dark:text-teal-300">
+                {sessions.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="h-10 px-3.5 rounded-xl text-xs font-extrabold transition-colors cursor-pointer flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-slate-950 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]"
+          >
+            <MessageSquarePlus className="w-4 h-4" />
+            <span className="hidden sm:inline">Đoạn chat mới</span>
+          </button>
+
           {messages.length > 0 && (
             <button
+              type="button"
               onClick={() => setMessages([])}
-              className="p-1.5 rounded-lg border text-xs transition-colors hover:text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+              className="w-10 h-10 rounded-xl border text-xs transition-colors hover:text-rose-600 hover:bg-rose-500/10 dark:hover:text-rose-400 cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50"
               style={{ borderColor: 'var(--border-card)', color: 'var(--text-muted)' }}
               title="Xóa cuộc trò chuyện"
+              aria-label="Xóa nội dung cuộc trò chuyện hiện tại"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
 
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg border text-xs transition-colors hover:text-slate-100 hover:bg-slate-800/80 cursor-pointer flex items-center gap-1 text-slate-400"
-              style={{ borderColor: 'var(--border-card)' }}
+              className="w-10 h-10 rounded-xl border text-xs transition-colors hover:bg-slate-500/10 cursor-pointer flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50"
+              style={{ borderColor: 'var(--border-card)', color: 'var(--text-muted)' }}
               title="Tắt / Thu nhỏ cửa sổ Chat"
+              aria-label="Đóng cửa sổ chat"
             >
               <X className="w-4 h-4" />
             </button>
@@ -500,27 +545,65 @@ export default function ChatPanel({
       </div>
       </div>
 
-      {/* Sidebar */}
-      <div className="w-64 border-l flex flex-col shrink-0" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-subcard)' }}>
-        <div className="p-3 border-b" style={{ borderColor: 'var(--border-card)' }}>
+      {showSessionHistory && (
+        <>
           <button
-            onClick={handleNewChat}
-            className="w-full py-2 px-3 flex items-center justify-center gap-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02]"
-            style={{ backgroundColor: 'var(--accent-teal)' }}
+            type="button"
+            className="absolute inset-x-0 top-[65px] bottom-0 z-20 bg-slate-950/10 dark:bg-slate-950/35 backdrop-blur-[1px] cursor-default"
+            onClick={() => setShowSessionHistory(false)}
+            aria-label="Đóng lịch sử trò chuyện"
+          />
+
+          <section
+            id="chat-session-history"
+            aria-label="Lịch sử trò chuyện"
+            className="absolute z-30 top-[72px] right-3 bottom-3 w-[min(22rem,calc(100%-1.5rem))] rounded-2xl border shadow-2xl flex flex-col overflow-hidden"
+            style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-card)' }}
           >
-            <MessageSquarePlus className="w-4 h-4" />
-            Tạo đoạn chat mới
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1 chat-scrollbar">
+            <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border-card)', backgroundColor: 'var(--bg-subcard)' }}>
+              <div className="min-w-0">
+                <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Lịch sử trò chuyện</h4>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {sessions.length > 0 ? `${sessions.length} cuộc trò chuyện đã lưu` : 'Chưa có cuộc trò chuyện đã lưu'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSessionHistory(false)}
+                className="w-9 h-9 rounded-xl border flex items-center justify-center transition-colors hover:bg-slate-500/10 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50"
+                style={{ borderColor: 'var(--border-card)', color: 'var(--text-muted)' }}
+                aria-label="Đóng lịch sử trò chuyện"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-1 chat-scrollbar" style={{ backgroundColor: 'var(--bg-subcard)' }}>
+              {sessions.length === 0 && (
+                <div className="h-full min-h-40 flex flex-col items-center justify-center text-center px-6">
+                  <div className="w-11 h-11 rounded-2xl border flex items-center justify-center mb-3" style={{ backgroundColor: 'var(--accent-teal-bg)', borderColor: 'var(--accent-teal-border)', color: 'var(--accent-teal)' }}>
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Chưa có lịch sử chat</p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    Cuộc trò chuyện sẽ xuất hiện tại đây sau khi bạn gửi câu hỏi đầu tiên.
+                  </p>
+                </div>
+              )}
+
           {sessions.map(s => (
             <div
               key={s.id}
               onClick={() => {
-                if (editingSessionId !== s.id) setActiveSessionId(s.id);
+                if (editingSessionId !== s.id) {
+                  setActiveSessionId(s.id);
+                  setShowSessionHistory(false);
+                }
               }}
-              className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
-                activeSessionId === s.id ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400' : 'hover:bg-slate-500/5'
+              className={`group flex items-center justify-between p-2.5 rounded-xl cursor-pointer border transition-colors ${
+                activeSessionId === s.id
+                  ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30'
+                  : 'border-transparent hover:bg-slate-500/5 text-slate-700 dark:text-slate-300'
               }`}
             >
               {editingSessionId === s.id ? (
@@ -549,8 +632,9 @@ export default function ChatPanel({
                     <MessageSquare className="w-4 h-4 shrink-0 opacity-70" />
                     <span className="text-xs font-semibold truncate select-none">{s.title || 'Cuộc trò chuyện mới'}</span>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
                     <button 
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditingSessionId(s.id);
@@ -562,6 +646,7 @@ export default function ChatPanel({
                       <Edit2 className="w-3 h-3" />
                     </button>
                     <button 
+                      type="button"
                       onClick={(e) => handleDeleteSession(e, s.id)}
                       className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
                       title="Xóa"
@@ -573,8 +658,10 @@ export default function ChatPanel({
               )}
             </div>
           ))}
-        </div>
-      </div>
+            </div>
+          </section>
+        </>
+      )}
 
     </div>
   );
