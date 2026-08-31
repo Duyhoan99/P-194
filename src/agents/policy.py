@@ -19,6 +19,9 @@ _TREATMENT_REQUESTS = (
     "nên ngừng",
     "nên đổi",
     "kê đơn",
+    "kê thuốc",
+    "kê thêm",
+    "kê cho",
     "khuyến nghị điều trị",
     "recommend treatment",
     "which medication should",
@@ -37,14 +40,27 @@ _TREATMENT_REQUESTS = (
     "tự ý",
     "bỏ bớt thuốc",
     "uống bao nhiêu viên",
+    "chữa bệnh",
+    "trị bệnh",
+    "nguy hiểm không",
+    "tư vấn",
+    "lời khuyên",
+    "chỉ định",
+    "ngừng uống",
+    "uống chung",
 )
 _DATA_TAMPERING_REQUESTS = (
     "xóa hồ sơ",
     "xóa bệnh nhân",
+    "xóa bệnh án",
+    "xóa thông tin",
     "sửa chẩn đoán",
     "sửa kết quả",
     "chỉnh sửa kết quả",
     "thay đổi chẩn đoán",
+    "cập nhật kết quả",
+    "cập nhật bệnh án",
+    "cập nhật hồ sơ",
     "delete patient",
     "delete record",
 )
@@ -124,13 +140,24 @@ def classify_prompt_category(query: str, patient_id: str = "") -> dict:
             "reasoning": "Chuỗi ký tự không rõ nghĩa hoặc gõ phím thử.",
         }
 
-    # 2. Nhận diện danh tính người dùng / vai trò
+    # 2. Nhận diện danh tính người dùng / trò chuyện / khả năng
     identity_keywords = ["tôi là ai", "toi la ai", "tôi là bác sĩ", "toi la bac si", "vai trò của tôi"]
+    capability_keywords = ["bạn là ai", "ban la ai", "bạn làm được gì", "khả năng của bạn", "giúp được gì", "chức năng của bạn", "ban lam duoc gi", "ban co the lam gi"]
+    greeting_keywords = ["chào", "chao", "hello", "hi", "alo", "hey", "ê", "có ai không", "co ai khong", "buổi sáng", "buổi chiều", "buổi tối", "cảm ơn", "cam on", "thanks", "thank you", "tạm biệt", "tam biet", "bye", "goodbye"]
+    words = no_accent_q.split()
+    
     if any(kw in clean_q or kw in no_accent_q for kw in identity_keywords):
         return {
             "category": RequestCategory.SIMPLE,
             "intent": "user_identity",
             "reasoning": "Hỏi về danh tính/vai trò của người dùng.",
+        }
+        
+    if any(kw in clean_q or kw in no_accent_q for kw in capability_keywords) or (len(words) <= 7 and any(kw in clean_q or kw in no_accent_q for kw in greeting_keywords)):
+        return {
+            "category": RequestCategory.SIMPLE,
+            "intent": "chit_chat",
+            "reasoning": "Trò chuyện ngắn hoặc hỏi về khả năng của hệ thống.",
         }
 
     # 3. Nhận diện TOÀN DIỆN câu hỏi lịch sử đàm thoại
